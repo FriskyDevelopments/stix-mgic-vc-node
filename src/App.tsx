@@ -17,20 +17,20 @@ import { BrandControl } from "@/components/BrandControl"
 import { 
   Broadcast, 
   Lightning, 
-  PlayCircle, 
-  Stop,
+  Play, 
+  StopCircle,
   ArrowsClockwise,
-  Warning,
-  WaveformSlash,
-  Database,
+  WarningCircle,
+  Power,
+  HardDrives,
   TreeStructure,
   Terminal,
   Pulse,
   WifiHigh,
-  Timer,
+  Clock,
   CheckCircle,
-  VideoCamera,
-  Webcam,
+  MonitorPlay,
+  Camera,
   Microphone,
   SpeakerHigh,
   Copy,
@@ -41,14 +41,18 @@ import {
   Key,
   CloudArrowUp,
   Package,
-  DiscoBall,
+  Disc,
   MusicNote,
-  FunnelSimple,
+  Funnel,
   SpotifyLogo,
   SignIn,
   SignOut,
-  MusicNotes,
-  User
+  Waveform,
+  UserCircle,
+  PlugsConnected,
+  Upload,
+  FilmStrip,
+  Database
 } from "@phosphor-icons/react"
 import { toast } from "sonner"
 
@@ -105,7 +109,7 @@ function App() {
       id: 'dj-mode', 
       label: 'DJ Mode', 
       description: 'Autonomous session - loop + audio (no-cost entry)', 
-      icon: Broadcast, 
+      icon: Disc, 
       mode: 'dj' 
     },
     { 
@@ -119,28 +123,28 @@ function App() {
       id: 'virtual-camera', 
       label: 'Virtual Camera', 
       description: 'OBS Virtual Camera (Call Mode)', 
-      icon: Webcam, 
+      icon: Camera, 
       mode: 'call' 
     },
     { 
       id: 'rtmp', 
       label: 'RTMP Stream', 
       description: 'RTMP Broadcast Protocol', 
-      icon: Lightning, 
+      icon: Broadcast, 
       mode: 'broadcast' 
     },
     { 
       id: 'local', 
       label: 'Local Media', 
       description: 'File-based audio source', 
-      icon: Database, 
+      icon: HardDrives, 
       mode: null 
     },
     { 
       id: 'relay', 
       label: 'Relay Input', 
       description: 'External stream relay', 
-      icon: ArrowsDownUp, 
+      icon: PlugsConnected, 
       mode: null 
     }
   ]
@@ -643,7 +647,7 @@ function App() {
                   <h2 className="text-lg font-semibold">Live Preview</h2>
                   {sessionMode && (
                     <Badge variant="outline" className="gap-1.5 border-accent text-accent font-mono text-[10px]">
-                      <VideoCamera size={12} weight="fill" />
+                      <MonitorPlay size={12} weight="fill" />
                       {getModeLabel()}
                     </Badge>
                   )}
@@ -730,7 +734,7 @@ function App() {
                   className="w-full gap-3 h-12"
                   size="lg"
                 >
-                  <PlayCircle size={20} weight="fill" />
+                  <Play size={20} weight="fill" />
                   <div className="flex flex-col items-start">
                     <span className="text-base font-semibold">{inputProtocol === 'dj-mode' ? 'Start DJ Mode' : 'Run Preflight'}</span>
                     <span className="text-[10px] opacity-75 font-normal">
@@ -765,7 +769,7 @@ function App() {
                       size="sm"
                       className="gap-2 border-accent text-accent hover:bg-accent/10"
                     >
-                      <Timer size={16} weight="fill" />
+                      <Clock size={16} weight="fill" />
                       +30 min
                     </Button>
                     <Button 
@@ -794,7 +798,7 @@ function App() {
                     variant="secondary"
                     className="flex-1 gap-2"
                   >
-                    <Stop size={18} weight="fill" />
+                    <StopCircle size={18} weight="fill" />
                     Stop DJ Mode
                   </Button>
                 </div>
@@ -812,7 +816,7 @@ function App() {
                             : 'border-primary text-primary'
                         }`}
                       >
-                        <Timer size={14} weight="fill" />
+                        <Clock size={14} weight="fill" />
                         {Math.floor(operatorTimeRemaining / 60)}:{String(operatorTimeRemaining % 60).padStart(2, '0')}
                       </Badge>
                     )}
@@ -830,7 +834,7 @@ function App() {
                       variant="secondary"
                       className="gap-2"
                     >
-                      <Stop size={18} weight="fill" />
+                      <StopCircle size={18} weight="fill" />
                       Stop
                     </Button>
 
@@ -850,7 +854,7 @@ function App() {
                         className="gap-2 border-accent text-accent hover:bg-accent/10 col-span-2"
                         size="sm"
                       >
-                        <Timer size={16} weight="fill" />
+                        <Clock size={16} weight="fill" />
                         Extend +30 min
                       </Button>
                     )}
@@ -968,7 +972,7 @@ function App() {
                     >
                       <div className="flex items-start gap-3">
                         <div className={`p-2 rounded-lg ${djAudioSource === 'session-pack' ? 'bg-accent/20' : 'bg-muted'}`}>
-                          <DiscoBall size={18} className={djAudioSource === 'session-pack' ? 'text-accent' : 'text-foreground'} />
+                          <Disc size={18} className={djAudioSource === 'session-pack' ? 'text-accent' : 'text-foreground'} />
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center justify-between">
@@ -1043,7 +1047,7 @@ function App() {
                               <h4 className="text-sm font-semibold">Spotify</h4>
                               <div className="flex items-center gap-2 mt-1">
                                 <Badge variant="outline" className="gap-1 border-success text-success text-[10px]">
-                                  <User size={10} weight="fill" />
+                                  <UserCircle size={10} weight="fill" />
                                   {spotifyUser}
                                 </Badge>
                                 {djAudioSource === 'spotify' && (
@@ -1057,7 +1061,7 @@ function App() {
                           </div>
                           {spotifyTrack && (
                             <div className="text-xs text-muted-foreground flex items-center gap-1.5">
-                              <MusicNotes size={12} />
+                              <MusicNote size={12} />
                               {spotifyTrack}
                             </div>
                           )}
@@ -1071,7 +1075,7 @@ function App() {
                               size="sm"
                               className="gap-1.5 text-xs flex-1"
                             >
-                              <MusicNotes size={14} />
+                              <MusicNote size={14} />
                               {spotifyTrack ? 'Change Track' : 'Choose Track'}
                             </Button>
                             <Button
@@ -1146,7 +1150,7 @@ function App() {
               {inputProtocol === 'virtual-camera' && (
                 <div className="grid grid-cols-2 gap-3">
                   <MetricDisplay
-                    icon={<Webcam size={18} />}
+                    icon={<Camera size={18} />}
                     label="Camera Feed"
                     value={sessionStatus === 'active' ? 'ACTIVE' : 'OFFLINE'}
                     status={sessionStatus === 'active' ? 'good' : 'neutral'}
@@ -1164,7 +1168,7 @@ function App() {
                     status={audioSync === 'stable' ? 'good' : audioSync === 'drift' ? 'warning' : 'neutral'}
                   />
                   <MetricDisplay
-                    icon={<Timer size={18} />}
+                    icon={<Clock size={18} />}
                     label="Latency"
                     value={sessionStatus === 'active' ? `${Math.round(latency)}ms` : '--'}
                     status={latency < 50 ? 'good' : latency < 100 ? 'warning' : 'error'}
@@ -1188,13 +1192,13 @@ function App() {
                       status={bitrate >= 2000 ? 'good' : bitrate >= 1500 ? 'warning' : 'error'}
                     />
                     <MetricDisplay
-                      icon={<Warning size={18} />}
+                      icon={<WarningCircle size={18} />}
                       label="Packet Loss"
                       value={sessionStatus === 'active' ? `${packetLoss.toFixed(2)}%` : '--'}
                       status={packetLoss < 1 ? 'good' : packetLoss < 3 ? 'warning' : 'error'}
                     />
                     <MetricDisplay
-                      icon={<Timer size={18} />}
+                      icon={<Clock size={18} />}
                       label="Latency"
                       value={sessionStatus === 'active' ? `${Math.round(latency)}ms` : '--'}
                       status={latency < 50 ? 'good' : latency < 100 ? 'warning' : 'error'}
@@ -1280,7 +1284,7 @@ function App() {
                     status={signalQuality > 85 ? 'good' : signalQuality > 65 ? 'warning' : 'error'}
                   />
                   <MetricDisplay
-                    icon={<Timer size={18} />}
+                    icon={<Clock size={18} />}
                     label="Latency"
                     value={sessionStatus === 'active' || sessionStatus === 'dj-mode' ? `${Math.round(latency)}ms` : '--'}
                     status={latency < 50 ? 'good' : latency < 100 ? 'warning' : 'error'}
@@ -1323,7 +1327,7 @@ function App() {
                   variant="destructive"
                   className="gap-2 col-span-2"
                 >
-                  <WaveformSlash size={18} />
+                  <Power size={18} />
                   Emergency Stop
                 </Button>
               )}
@@ -1347,7 +1351,7 @@ function App() {
           >
             <div className="space-y-3">
               <div className="flex items-center gap-2 flex-wrap">
-                <FunnelSimple size={16} className="text-muted-foreground" />
+                <Funnel size={16} className="text-muted-foreground" />
                 <div className="flex gap-2 flex-wrap">
                   {['all', 'source', 'session', 'audio', 'uplink', 'brand', 'dj', 'time', 'spotify'].map((filter) => (
                     <button
