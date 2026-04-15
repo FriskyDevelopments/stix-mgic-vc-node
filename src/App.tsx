@@ -76,6 +76,7 @@ function App() {
   const [logs, setLogs] = useKV<LogEntryData[]>("diagnostic-logs", [])
   const [operatorTier] = useState<OperatorTier>('premium')
   const [operatorTimeRemaining, setOperatorTimeRemaining] = useState(120)
+  const [operatorTimeElapsed, setOperatorTimeElapsed] = useState(0)
   const [streamKey] = useState("sk_live_" + Math.random().toString(36).substring(2, 15))
   const [isTransitioning, setIsTransitioning] = useState(false)
   
@@ -159,6 +160,8 @@ function App() {
       setOperatorTimeRemaining(120)
     }
     
+    setOperatorTimeElapsed(0)
+    
     let detectedMode = 'PREPARED'
     if (inputProtocol === 'virtual-camera') {
       detectedMode = 'CALL'
@@ -202,6 +205,7 @@ function App() {
       
       if (operatorTier === 'premium') {
         addLog('success', 'SESSION', `Operator session active — ${Math.floor(operatorTimeRemaining / 60)}:${String(operatorTimeRemaining % 60).padStart(2, '0')} available`)
+        addLog('info', 'TIME', 'Session started')
       }
       
       addLog('success', 'PREVIEW', 'Preflight feed active')
@@ -300,27 +304,29 @@ function App() {
   }
 
   const handleExtendTime = () => {
-    const additionalTime = 60
+    const additionalTime = 30 * 60
     setOperatorTimeRemaining((prev) => prev + additionalTime)
-    addLog('success', 'SESSION', `Operator session extended — ${additionalTime}s added`)
-    toast.success(`Session extended by ${additionalTime} seconds`)
+    addLog('success', 'TIME', `Session extended (+30 min)`)
+    toast.success('Session extended by 30 minutes')
   }
 
   const handleOperatorTimeExpired = () => {
     if (sessionStatus === 'active' && operatorTimeRemaining === 0 && !isTransitioning) {
       setIsTransitioning(true)
       setSessionStatus('connecting')
-      addLog('info', 'SESSION', 'Operator window completed')
+      addLog('info', 'TIME', 'Operator window completed')
+      addLog('info', 'TIME', 'Preparing transition')
       addLog('info', 'FALLBACK', 'Initiating seamless transition to DJ Mode')
       addLog('info', 'SESSION', 'Session continuity preserved')
       
-      toast('Transitioning to DJ Mode — session remains active', {
+      toast('Operator window ended — Switching to DJ Mode', {
         duration: 3000,
       })
       
       setTimeout(() => {
         setInputProtocol('dj-mode')
         addLog('info', 'ROUTING', 'Input switched to autonomous loop')
+        addLog('success', 'TIME', 'DJ Mode fallback engaged')
         addLog('success', 'DJ', 'DJ Mode active (fallback)')
         addLog('success', 'LOOP', 'Visual cycle running')
         addLog('success', 'AUDIO', 'Ambient track active')
@@ -448,19 +454,21 @@ function App() {
         setOperatorTimeRemaining((prev) => {
           const newTime = Math.max(0, prev - 1)
           
-          if (newTime === 60) {
-            addLog('info', 'SESSION', 'Operator window: 1 minute remaining')
-            toast('1 minute remaining in operator session', {
+          if (newTime === 600) {
+            addLog('info', 'TIME', '10 minutes remaining')
+          } else if (newTime === 120) {
+            addLog('info', 'TIME', 'Approaching session boundary')
+            toast('Session running smoothly — 2 minutes remaining', {
               duration: 4000,
             })
           } else if (newTime === 30) {
-            addLog('warning', 'SESSION', 'Operator window: 30 seconds remaining')
-            toast('30 seconds remaining — DJ Mode fallback standby', {
+            addLog('warning', 'TIME', 'Approaching limit')
+            toast('Approaching session boundary — 30 seconds remaining', {
               duration: 4000,
             })
           } else if (newTime === 10) {
-            addLog('warning', 'SESSION', 'Operator window: 10 seconds remaining')
-            toast('10 seconds remaining', {
+            addLog('warning', 'TIME', 'Preparing transition')
+            toast('Preparing transition — 10 seconds remaining', {
               duration: 3000,
             })
           } else if (newTime === 0) {
@@ -469,6 +477,8 @@ function App() {
           
           return newTime
         })
+        
+        setOperatorTimeElapsed((prev) => prev + 1)
       }, 1000)
       return () => clearInterval(countdownInterval)
     }
@@ -583,8 +593,57 @@ function App() {
                 sessionMark={sessionMark || "stix-default"}
               />
               
+              {sessionStatus === 'active' && operatorTier === 'premium' && operatorTimeRemaining > 0 && (
+                <div className="space-y-3 mt-4">
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <Pulse size={14} className="text-accent" />
+                      <span className="font-medium">Operator Session Active</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground font-mono">
+                      {Math.floor(operatorTimeElapsed / 60).toString().padStart(2, '0')}:{(operatorTimeElapsed % 60).toString().padStart(2, '0')} elapsed
+                    </div>
+                  </div>
+                  
+                  <div className="relative">
+                    <Progress 
+                      value={(operatorTimeElapsed / 120) * 100} 
+                      className={`h-2 ${
+                        operatorTimeRemaining <= 24 ? 'bg-warning/20' : 
+                        operatorTimeRemaining <= 12 ? 'bg-warning/30' :
+                        'bg-accent/20'
+                      }`}
+                    />
+                    <div 
+                      className={`absolute inset-0 rounded-full pointer-events-none transition-opacity duration-300 ${
+                        operatorTimeRemaining <= 24 ? 'opacity-50 shadow-[0_0_12px_rgba(var(--warning),0.4)]' :
+                        operatorTimeRemaining <= 12 ? 'opacity-70 shadow-[0_0_16px_rgba(var(--warning),0.5)] animate-pulse-glow' :
+                        'opacity-30 shadow-[0_0_8px_rgba(var(--accent),0.3)]'
+                      }`}
+                    />
+                  </div>
+                  
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">
+                      {operatorTimeRemaining > 60 
+                        ? `${Math.floor(operatorTimeRemaining / 60)} min remaining`
+                        : operatorTimeRemaining > 30
+                        ? 'Approaching session boundary'
+                        : operatorTimeRemaining > 12
+                        ? 'Preparing transition'
+                        : 'Transition imminent'}
+                    </span>
+                    <span className={`font-mono font-semibold ${
+                      operatorTimeRemaining <= 30 ? 'text-warning' : 'text-accent'
+                    }`}>
+                      {Math.floor(operatorTimeRemaining / 60)}:{(operatorTimeRemaining % 60).toString().padStart(2, '0')}
+                    </span>
+                  </div>
+                </div>
+              )}
+              
               {(sessionStatus === 'active' || sessionStatus === 'dj-mode') && (
-                <div className="text-xs text-muted-foreground text-center">
+                <div className="text-xs text-muted-foreground text-center mt-3">
                   {sessionStatus === 'dj-mode' ? 'Autonomous loop + audio active' : `${inputProtocol} • ${resolution} • ${Math.round(signalQuality)}% quality`}
                 </div>
               )}
@@ -609,6 +668,53 @@ function App() {
                 </Button>
               )}
               
+              {sessionStatus === 'dj-mode' && operatorTimeElapsed > 0 && (
+                <div className="glass-panel p-4 rounded-lg bg-accent/5 border border-accent/20 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-accent/10">
+                      <CloudArrowUp size={20} className="text-accent" />
+                    </div>
+                    <div className="flex-1 space-y-1">
+                      <h3 className="text-sm font-semibold">Resume Live Control</h3>
+                      <p className="text-xs text-muted-foreground">
+                        Re-enter live operator control at any time
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button 
+                      onClick={() => {
+                        setOperatorTimeRemaining(30 * 60)
+                        setInputProtocol('clipsflow')
+                        addLog('success', 'TIME', 'Session extended (+30 min)')
+                        toast.success('30 minutes added to session')
+                      }}
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 border-accent text-accent hover:bg-accent/10"
+                    >
+                      <Timer size={16} weight="fill" />
+                      +30 min
+                    </Button>
+                    <Button 
+                      onClick={() => {
+                        setSessionStatus('standby')
+                        setOperatorTimeRemaining(120)
+                        setInputProtocol('clipsflow')
+                        addLog('info', 'SESSION', 'Resuming operator mode')
+                        toast.success('Ready to resume operator session')
+                      }}
+                      variant="default"
+                      size="sm"
+                      className="gap-2"
+                    >
+                      <Lightning size={16} weight="fill" />
+                      Resume
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
               {sessionStatus === 'dj-mode' && (
                 <div className="flex gap-3">
                   <Button 
@@ -617,16 +723,7 @@ function App() {
                     className="flex-1 gap-2"
                   >
                     <Stop size={18} weight="fill" />
-                    Stop
-                  </Button>
-
-                  <Button 
-                    onClick={handleUpgradeToOperator} 
-                    variant="default"
-                    className="flex-1 gap-2"
-                  >
-                    <Lightning size={18} weight="fill" />
-                    Upgrade
+                    Stop DJ Mode
                   </Button>
                 </div>
               )}
@@ -674,7 +771,7 @@ function App() {
                       Go Live
                     </Button>
 
-                    {operatorTier === 'premium' && operatorTimeRemaining > 0 && operatorTimeRemaining < 90 && (
+                    {operatorTier === 'premium' && operatorTimeRemaining > 0 && operatorTimeRemaining < 300 && (
                       <Button 
                         onClick={handleExtendTime} 
                         variant="outline"
@@ -682,7 +779,7 @@ function App() {
                         size="sm"
                       >
                         <Timer size={16} weight="fill" />
-                        Extend Time
+                        Extend +30 min
                       </Button>
                     )}
                   </div>
@@ -718,6 +815,40 @@ function App() {
               </div>
             </div>
           </CollapsibleSection>
+          
+          {sessionStatus === 'dj-mode' && operatorTimeElapsed === 0 && (
+            <div className="glass-panel rounded-xl p-6 bg-muted/5 border border-muted/20">
+              <div className="flex items-start gap-4">
+                <div className="p-3 rounded-lg bg-primary/10">
+                  <Lightning size={24} className="text-primary" />
+                </div>
+                <div className="flex-1 space-y-3">
+                  <div className="space-y-1">
+                    <h3 className="text-lg font-semibold">Upgrade to Premium Session</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Get live operator control with full source routing
+                    </p>
+                  </div>
+                  <div className="flex gap-3">
+                    <Button 
+                      onClick={() => {
+                        setSessionStatus('standby')
+                        setOperatorTimeRemaining(120)
+                        setInputProtocol('clipsflow')
+                        addLog('info', 'SESSION', 'Upgrading to premium operator session')
+                        toast.success('Ready for premium operator session')
+                      }}
+                      variant="default"
+                      className="gap-2"
+                    >
+                      <CloudArrowUp size={18} weight="fill" />
+                      Upgrade Session
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {sessionStatus !== 'standby' && (
             <CollapsibleSection
@@ -930,7 +1061,7 @@ function App() {
               <div className="flex items-center gap-2 flex-wrap">
                 <FunnelSimple size={16} className="text-muted-foreground" />
                 <div className="flex gap-2 flex-wrap">
-                  {['all', 'source', 'session', 'audio', 'uplink', 'brand', 'dj'].map((filter) => (
+                  {['all', 'source', 'session', 'audio', 'uplink', 'brand', 'dj', 'time'].map((filter) => (
                     <button
                       key={filter}
                       onClick={() => setDiagnosticFilter(filter)}
