@@ -7,8 +7,8 @@ STIX MΛGIC VC NODE is a premium operator-facing control surface for OBS ↔ Tel
 2. **Precise** - Controls and status indicators must communicate technical state with surgical clarity and zero ambiguity
 3. **Alive** - The interface breathes with subtle motion, real-time telemetry, and responsive state changes that feel connected to live infrastructure
 
-**Complexity Level**: Light Application (multiple features with basic state)
-  - This is a polished prototype demonstrating operator controls, live session state, and diagnostic telemetry without requiring full backend orchestration logic
+**Complexity Level**: Light Application (multiple features with basic state) - Progressive disclosure approach
+  - A refined operator interface using progressive disclosure principles to reduce visual noise while maintaining access to all features through collapsible sections
 
 ## Essential Features
 
@@ -100,7 +100,7 @@ STIX MΛGIC VC NODE is a premium operator-facing control surface for OBS ↔ Tel
 
 ## Design Direction
 
-The interface should evoke the feeling of operating **premium broadcast infrastructure with intelligent upstream intake layers**—a cinematic operator console that understands the difference between prepared ClipsFlow media (which protects infrastructure) and live OBS feeds (which require real-time handling). ClipsFlow mode should feel clean, optimized, and server-efficient with messaging that emphasizes staged preparation and infrastructure protection. Think: Telegram's clean interaction patterns meets Apple's obsessive finish meets high-grade A/V equipment control surfaces with smart media routing. The aesthetic should be **radiant dark**: deep charcoal foundations with glass panels, restrained glow on active elements, and carbon-fiber-like textures. ClipsFlow mode should have a cool, prepared glow suggesting optimized handoff. Virtual Camera mode should have a softer glow suggesting local control, while RTMP mode should have sharper, brighter signal glow suggesting uplink energy. Every element should feel deliberate, precise, and operator-grade—not a consumer music bot, not a cheap hacker terminal, not a generic admin dashboard. This is a control node for intelligent media routing that visually communicates: "You are not inside Telegram—you are controlling what Telegram receives, with smart upstream layers protecting your infrastructure."
+The interface should evoke the feeling of operating **a calm, focused operator-grade control instrument** with progressive disclosure that prevents visual overwhelm. The redesigned layout follows a strict hierarchy: **Live Surface** (always visible preview, status, and mode), **Primary Action Zone** (single most important action), and **Expandable System Panels** (collapsible sections for protocols, metrics, branding, diagnostics, and architecture). This creates a premium broadcast interface where operators see only what matters right now, with depth available when needed. Think: Telegram's clean interaction patterns meets Apple's obsessive finish meets professional broadcast equipment with intelligent information layering. The aesthetic remains **radiant dark**: deep charcoal foundations with glass panels, restrained glow on active elements, and carbon-fiber-like textures. The restructure emphasizes preview-first design - the live preview is the largest, most central element, with controls directly underneath and advanced panels collapsed by default. This prevents the dashboard clutter of the previous version while maintaining all capabilities through thoughtful progressive disclosure.
 
 ## Color Selection
 
@@ -141,69 +141,48 @@ Animations should feel like **broadcast-grade equipment responding to operator i
 ## Component Selection
 
 - **Components**:
-  - **Card** - Main panel containers for session status, controls, protocols (with custom glass/border styling)
-  - **Button** - All operator controls with distinct variants for primary/secondary/destructive actions; text adapts to protocol
-  - **Badge** - Status pills for connection state, signal quality, session mode indicators (CALL INJECTION / BROADCAST UPLINK)
-  - **Tabs** - Input protocol selector allowing seamless switching between Virtual Camera, RTMP, Local, and Relay modes
+  - **Collapsible Section** - Custom progressive disclosure component for Input Protocol, Source Details, Branding, Advanced Controls, Diagnostics, and Architecture
+  - **Tabs** - Compact tab row for protocol selection (DJ/Prepared/Call/Broadcast/Local/Relay) replacing the large grid
+  - **Card/Glass Panel** - Main containers for live surface and primary actions (reduced from 8+ cards to 2 always-visible panels)
+  - **Button** - All operator controls with adaptive labeling and state-aware actions
+  - **Badge** - Compact mode indicators (DJ/CALL/BROADCAST), status pills, timer display
   - **Input** - Stream key display field (password type) for RTMP mode with copy functionality
-  - **Separator** - Subtle dividers between panel sections
-  - **ScrollArea** - Diagnostic log container with custom scrollbar styling
-  - **Progress** - Signal strength bars, uplink quality indicators, stream health metrics
-  - **Alert** - Emergency state warnings
+  - **Separator** - Subtle dividers within expandable sections
+  - **ScrollArea** - Diagnostic log container with filtering controls
+  - **Progress** - Signal strength bars (shown only when metrics section is expanded)
   
 - **Customizations**:
-  - **Glass Panel Component** - Custom card variant with backdrop-blur, subtle border glow (softer for Virtual Camera, sharper for RTMP), and semi-transparent backgrounds
-  - **Status Indicator** - Custom component combining Badge with animated glow dot for live state
-  - **Metric Display** - Custom component pairing label + value with monospace data and icon; metrics adapt to protocol (frame rate for Virtual Camera, bitrate for RTMP, etc.)
-  - **Action Button** - Enhanced button with icon, glow on hover, state-aware coloring, and protocol-aware labels
-  - **Log Entry** - Custom diagnostic row with timestamp, severity color, protocol-aware event types (SOURCE, SESSION, AUDIO, UPLINK, SYNC, HEALTH), and message
-  - **Architecture Node** - Custom visual component for system layer blocks (OBS, VC NODE, Telegram) with connecting lines that pulse when active
-  - **Protocol Selector Card** - Grid of protocol options with icons, descriptions, and active state highlighting
+  - **CollapsibleSection** - New component with animated expand/collapse, title/description, default state control for progressive disclosure
+  - **Live Surface Panel** - Always-visible glass panel containing preview, mode badge, and status indicator as the primary visual anchor
+  - **Primary Action Panel** - Always-visible compact control panel showing only the single most important action for current state
+  - **Diagnostic Filter Bar** - Interactive filter buttons (All/Source/Session/Audio/Uplink/Brand/DJ) for focused telemetry viewing
+  - **Compact Tabs** - Space-efficient protocol selector replacing visual-heavy grid layout
+  - **Metric Display** - Shown only within expandable Source Details section, not cluttering main view
+  - **Architecture Visualization** - Moved into collapsible section, smaller node sizes for reduced visual weight
 
 - **States**:
-  - Buttons: Default (matte), Hover (subtle glow + lift), Active (pressed + inner shadow), Disabled (50% opacity + no interaction)
-  - Status Indicators: Standby (muted gray), Active (cyan glow pulse), Warning (amber), Error (red pulse), Connecting (blue animated dots)
-  - Panels: Inactive (reduced opacity borders), Active (bright border accent with protocol-specific glow intensity), Critical (red border glow)
-  - Protocol Cards: Inactive (muted border), Selected (accent border + background tint), Disabled during session (40% opacity)
-  - Session Mode Badge: Only visible when Virtual Camera or RTMP active, shows CALL INJECTION or BROADCAST UPLINK
+  - CollapsibleSection: Collapsed (default for most), Expanded (animated height transition), Hover (subtle background change on header)
+  - Buttons: Simplified states with less visual weight, primary action remains prominent
+  - Live Surface: Always visible regardless of session state, becomes visual anchor
+  - Primary Actions: Context-aware - shows only Start/Stop/Upgrade/Go Live based on current state, never shows wall of buttons
+  - Expandable Panels: Hidden by default, revealed on demand, maintaining focus on live surface
   
-- **Icon Selection**:
-  - **@phosphor-icons/react** for all UI icons
-  - Broadcast / RadioButton - VC session
-  - Webcam - Virtual Camera mode
-  - Lightning - RTMP / Signal/Uplink
-  - PlayCircle / Stop - Playback controls
-  - ArrowsClockwise - Reconnect / Stabilize
-  - Warning - Alert states / Packet loss
-  - CheckCircle - Success
-  - WaveformSlash - Emergency stop
-  - Database - Local media
-  - ArrowsDownUp - Relay / Bitrate
-  - TreeStructure - Architecture / VC Node
-  - Terminal - Diagnostics
-  - Pulse - Live indicators / Frame rate
-  - VideoCamera - Session mode indicator
-  - Microphone / SpeakerHigh - Audio components
-  - Key - Stream key
-  - Copy - Clipboard actions
-  - Eye - OBS layer
+- **Icon Selection**: Same phosphor-icons set, but used more sparingly in collapsed states, full detail shown when sections expand
+  - FunnelSimple - Diagnostic filtering
+  - CaretDown - Collapsible section indicators
+  - (existing icons remain for their original purposes)
 
 - **Spacing**:
-  - Section gaps: 16 (between major page sections)
-  - Panel padding: 6 (internal card content)
-  - Button groups: 3 (between related actions)
-  - Metric rows: 4 (between data pairs)
-  - Protocol grid: 3 (between protocol cards)
-  - Log entries: 2 (between diagnostic lines)
-  - Icon-to-label: 2 (inside buttons and metrics)
+  - Reduced overall vertical rhythm (8 units between major sections vs previous 16)
+  - Tighter header (py-8 vs py-12)
+  - Compact section gaps (space-y-6 vs space-y-16)  
+  - Collapsible content uses internal padding to feel contained
+  - Live surface gets most visual weight and breathing room
 
 - **Mobile**:
-  - Hero typography scales down (H1 to 36px)
-  - Protocol selector becomes 2-column grid instead of 4-column
-  - Session status metrics stack vertically instead of grid
-  - Control buttons remain full-width for tap targets
-  - Stream key input + copy button stack on very small screens
-  - Architecture diagram simplifies to vertical flow with smaller nodes
-  - Mode badge text abbreviates to "CALL" / "BROADCAST" if needed
-  - Diagnostic log maintains fixed height but reduces font to 12px
-  - Overall layout remains single-column with preserved spacing ratios
+  - Collapsible sections especially valuable on mobile - users expand only what they need
+  - Protocol tabs remain scrollable horizontal row
+  - Live preview remains largest element
+  - Primary action buttons stay full-width
+  - Collapsed sections show title + description only, minimizing scroll
+  - Overall experience much calmer than previous crowded mobile view

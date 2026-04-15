@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { CollapsibleSection } from "@/components/CollapsibleSection"
 import { GlassCard } from "@/components/GlassCard"
 import { StatusIndicator } from "@/components/StatusIndicator"
 import { MetricDisplay } from "@/components/MetricDisplay"
@@ -41,7 +42,8 @@ import {
   CloudArrowUp,
   Package,
   DiscoBall,
-  MusicNote
+  MusicNote,
+  FunnelSimple
 } from "@phosphor-icons/react"
 import { toast } from "sonner"
 
@@ -521,8 +523,8 @@ function App() {
 
   const getModeLabel = () => {
     if (!sessionMode) return null
-    if (sessionMode === 'dj') return 'AUTONOMOUS SESSION'
-    return sessionMode === 'call' ? 'CALL INJECTION' : 'BROADCAST UPLINK'
+    if (sessionMode === 'dj') return 'DJ'
+    return sessionMode === 'call' ? 'CALL' : 'BROADCAST'
   }
 
   const getPreflightLabel = () => {
@@ -533,240 +535,285 @@ function App() {
     return 'TEST'
   }
 
+  const [diagnosticFilter, setDiagnosticFilter] = useState('all')
+  
+  const filteredLogs = logs ? logs.filter(log => {
+    if (diagnosticFilter === 'all') return true
+    return log.type.toLowerCase() === diagnosticFilter.toLowerCase()
+  }) : []
+
   return (
     <div className="min-h-screen bg-background">
-      <div className="mx-auto max-w-7xl px-4 py-12 space-y-16">
+      <div className="mx-auto max-w-6xl px-4 py-8 space-y-8">
         
-        <header className="text-center space-y-4">
-          <h1 className="font-mono font-bold text-5xl md:text-6xl tracking-tight">
+        <header className="text-center space-y-3">
+          <h1 className="font-mono font-bold text-4xl md:text-5xl tracking-tight">
             STIX M<span className="text-accent">Λ</span>GIC
           </h1>
-          <div className="h-px w-32 mx-auto bg-gradient-to-r from-transparent via-accent to-transparent" />
-          <p className="text-xl text-muted-foreground">
-            OBS ↔ Telegram VC integration control node
+          <div className="h-px w-24 mx-auto bg-gradient-to-r from-transparent via-accent to-transparent" />
+          <p className="text-sm text-muted-foreground">
+            VC Node • Operator Control
           </p>
         </header>
 
-        <GlassCard title="Input Protocol" description="Media routing configuration">
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {protocols.map((protocol) => {
-                const Icon = protocol.icon
-                const isActive = inputProtocol === protocol.id
-                const isDisabled = sessionStatus === 'active'
-                
-                return (
-                  <button
-                    key={protocol.id}
-                    onClick={() => handleSwitchProtocol(protocol.id)}
-                    disabled={isDisabled}
-                    className={`
-                      p-4 rounded-lg border-2 transition-all duration-200 text-left
-                      ${isActive ? 'border-accent bg-accent/10' : 'border-border hover:border-accent/50'}
-                      ${isDisabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}
-                    `}
-                  >
-                    <div className="flex flex-col items-center gap-2 text-center">
-                      <Icon size={28} className={isActive ? 'text-accent' : 'text-muted-foreground'} weight={isActive ? 'fill' : 'regular'} />
-                      <div className="space-y-1">
-                        <div className="font-medium text-sm">{protocol.label}</div>
-                        <p className="text-[10px] text-muted-foreground leading-tight">{protocol.description}</p>
-                      </div>
-                    </div>
-                  </button>
-                )
-              })}
+        <div className="space-y-6">
+          <div className="glass-panel rounded-xl p-6 space-y-6">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <h2 className="text-lg font-semibold">Live Preview</h2>
+                  {sessionMode && (
+                    <Badge variant="outline" className="gap-1.5 border-accent text-accent font-mono text-[10px]">
+                      <VideoCamera size={12} weight="fill" />
+                      {getModeLabel()}
+                    </Badge>
+                  )}
+                </div>
+                <StatusIndicator {...statusIndicator} />
+              </div>
+              
+              <PreviewPanel
+                sessionStatus={sessionStatus || "standby"}
+                inputProtocol={inputProtocol || "virtual-camera"}
+                signalQuality={signalQuality}
+                frameRate={frameRate}
+                bitrate={bitrate}
+                audioSync={audioSync}
+                resolution={resolution}
+                sessionMark={sessionMark || "stix-default"}
+              />
+              
+              {(sessionStatus === 'active' || sessionStatus === 'dj-mode') && (
+                <div className="text-xs text-muted-foreground text-center">
+                  {sessionStatus === 'dj-mode' ? 'Autonomous loop + audio active' : `${inputProtocol} • ${resolution} • ${Math.round(signalQuality)}% quality`}
+                </div>
+              )}
             </div>
           </div>
-        </GlassCard>
 
-        <GlassCard>
-          <PreviewPanel
-            sessionStatus={sessionStatus || "standby"}
-            inputProtocol={inputProtocol || "virtual-camera"}
-            signalQuality={signalQuality}
-            frameRate={frameRate}
-            bitrate={bitrate}
-            audioSync={audioSync}
-            resolution={resolution}
-            sessionMark={sessionMark || "stix-default"}
-          />
-        </GlassCard>
-
-        <GlassCard title="Session Branding" description="Branded overlay via STIX MΛGIC sticker assets">
-          <BrandControl
-            sessionMark={sessionMark || "stix-default"}
-            onSessionMarkChange={handleSessionMarkChange}
-            sessionActive={sessionStatus === 'active'}
-          />
-        </GlassCard>
-
-        <GlassCard 
-          title="Session Status" 
-          className={sessionStatus === 'active' ? 'border-accent/50' : ''}
-          glowColor={sessionStatus === 'active' ? 'shadow-accent/20 shadow-lg' : ''}
-        >
-          <div className="space-y-6">
-            <div className="flex items-center justify-between flex-wrap gap-4">
-              <div className="flex items-center gap-3">
-                <StatusIndicator {...statusIndicator} />
-                {sessionStatus === 'active' && (
-                  <Badge variant="outline" className="gap-2 border-warning text-warning font-mono animate-pulse-glow">
-                    <Lightning size={14} weight="fill" />
-                    PREFLIGHT ACTIVE
-                  </Badge>
-                )}
-              </div>
-              <div className="flex items-center gap-4 flex-wrap">
-                {sessionStatus === 'active' && operatorTier === 'premium' && operatorTimeRemaining > 0 && (
-                  <Badge 
-                    variant="outline" 
-                    className={`gap-2 font-mono ${
-                      operatorTimeRemaining <= 30 
-                        ? 'border-warning text-warning animate-pulse-glow' 
-                        : 'border-primary text-primary'
-                    }`}
+          <div className="glass-panel rounded-xl p-6">
+            <div className="space-y-4">
+              {sessionStatus === 'standby' && (
+                <Button 
+                  onClick={handleRunPreflight} 
+                  className="w-full gap-3 h-12"
+                  size="lg"
+                >
+                  <PlayCircle size={20} weight="fill" />
+                  <div className="flex flex-col items-start">
+                    <span className="text-base font-semibold">{inputProtocol === 'dj-mode' ? 'Start DJ Mode' : 'Run Preflight'}</span>
+                    <span className="text-[10px] opacity-75 font-normal">
+                      {inputProtocol === 'dj-mode' ? 'No-cost autonomous session' : `${getPreflightLabel()} mode`}
+                    </span>
+                  </div>
+                </Button>
+              )}
+              
+              {sessionStatus === 'dj-mode' && (
+                <div className="flex gap-3">
+                  <Button 
+                    onClick={handleStopDJMode} 
+                    variant="secondary"
+                    className="flex-1 gap-2"
                   >
-                    <Timer size={14} weight="fill" />
-                    {Math.floor(operatorTimeRemaining / 60)}:{String(operatorTimeRemaining % 60).padStart(2, '0')}
-                  </Badge>
-                )}
-                {sessionMode && sessionStatus === 'active' && (
-                  <Badge variant="outline" className="gap-2 border-accent text-accent font-mono">
-                    <VideoCamera size={14} weight="fill" />
-                    MODE: {getModeLabel()}
-                  </Badge>
-                )}
-                <div className="flex items-center gap-2 font-mono text-sm text-muted-foreground">
-                  <Broadcast size={16} />
-                  <span>VC NODE</span>
+                    <Stop size={18} weight="fill" />
+                    Stop
+                  </Button>
+
+                  <Button 
+                    onClick={handleUpgradeToOperator} 
+                    variant="default"
+                    className="flex-1 gap-2"
+                  >
+                    <Lightning size={18} weight="fill" />
+                    Upgrade
+                  </Button>
                 </div>
+              )}
+              
+              {sessionStatus !== 'standby' && sessionStatus !== 'dj-mode' && (
+                <>
+                  <div className="flex items-center justify-between">
+                    {operatorTier === 'premium' && operatorTimeRemaining > 0 && (
+                      <Badge 
+                        variant="outline" 
+                        className={`gap-2 font-mono text-xs ${
+                          operatorTimeRemaining <= 30 
+                            ? 'border-warning text-warning animate-pulse-glow' 
+                            : 'border-primary text-primary'
+                        }`}
+                      >
+                        <Timer size={14} weight="fill" />
+                        {Math.floor(operatorTimeRemaining / 60)}:{String(operatorTimeRemaining % 60).padStart(2, '0')}
+                      </Badge>
+                    )}
+                    {sessionStatus === 'active' && (
+                      <Badge variant="outline" className="gap-2 border-success text-success font-mono text-xs ml-auto">
+                        <CheckCircle size={14} weight="fill" />
+                        PREFLIGHT ACTIVE
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button 
+                      onClick={handleStopPreflight} 
+                      variant="secondary"
+                      className="gap-2"
+                    >
+                      <Stop size={18} weight="fill" />
+                      Stop
+                    </Button>
+
+                    <Button 
+                      onClick={handleGoLive} 
+                      variant="default"
+                      className="gap-2 bg-success hover:bg-success/90"
+                    >
+                      <Broadcast size={18} weight="fill" />
+                      Go Live
+                    </Button>
+
+                    {operatorTier === 'premium' && operatorTimeRemaining > 0 && operatorTimeRemaining < 90 && (
+                      <Button 
+                        onClick={handleExtendTime} 
+                        variant="outline"
+                        className="gap-2 border-accent text-accent hover:bg-accent/10 col-span-2"
+                        size="sm"
+                      >
+                        <Timer size={16} weight="fill" />
+                        Extend Time
+                      </Button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          <CollapsibleSection
+            title="Input Protocol"
+            description="Select media routing source"
+            defaultOpen={sessionStatus === 'standby'}
+          >
+            <div className="space-y-4">
+              <Tabs value={inputProtocol} onValueChange={(value) => handleSwitchProtocol(value as InputProtocol)}>
+                <TabsList className="grid grid-cols-3 md:grid-cols-6 w-full">
+                  <TabsTrigger value="dj-mode" disabled={sessionStatus === 'active'}>DJ</TabsTrigger>
+                  <TabsTrigger value="clipsflow" disabled={sessionStatus === 'active'}>Prepared</TabsTrigger>
+                  <TabsTrigger value="virtual-camera" disabled={sessionStatus === 'active'}>Call</TabsTrigger>
+                  <TabsTrigger value="rtmp" disabled={sessionStatus === 'active'}>Broadcast</TabsTrigger>
+                  <TabsTrigger value="local" disabled={sessionStatus === 'active'}>Local</TabsTrigger>
+                  <TabsTrigger value="relay" disabled={sessionStatus === 'active'}>Relay</TabsTrigger>
+                </TabsList>
+              </Tabs>
+              
+              <div className="text-xs text-muted-foreground">
+                {inputProtocol === 'dj-mode' && 'Autonomous session with looping visual + ambient audio'}
+                {inputProtocol === 'clipsflow' && 'Prepared media intake via ClipsFlow pipeline - protects infrastructure from heavy file processing'}
+                {inputProtocol === 'virtual-camera' && 'OBS Virtual Camera injection for call mode'}
+                {inputProtocol === 'rtmp' && 'RTMP broadcast uplink to Telegram ingest'}
+                {inputProtocol === 'local' && 'File-based audio/video source'}
+                {inputProtocol === 'relay' && 'External stream relay input'}
               </div>
             </div>
+          </CollapsibleSection>
 
-            <Separator />
-
-            {inputProtocol === 'virtual-camera' && (
-              <>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {sessionStatus !== 'standby' && (
+            <CollapsibleSection
+              title="Source Details"
+              description="Protocol-specific metrics and status"
+            >
+              {inputProtocol === 'virtual-camera' && (
+                <div className="grid grid-cols-2 gap-3">
                   <MetricDisplay
-                    icon={<Webcam size={20} />}
+                    icon={<Webcam size={18} />}
                     label="Camera Feed"
                     value={sessionStatus === 'active' ? 'ACTIVE' : 'OFFLINE'}
                     status={sessionStatus === 'active' ? 'good' : 'neutral'}
                   />
                   <MetricDisplay
-                    icon={<Pulse size={20} />}
+                    icon={<Pulse size={18} />}
                     label="Frame Rate"
                     value={sessionStatus === 'active' ? `${Math.round(frameRate)} fps` : '--'}
                     status={frameRate >= 28 ? 'good' : frameRate >= 24 ? 'warning' : 'error'}
                   />
                   <MetricDisplay
-                    icon={<SpeakerHigh size={20} />}
+                    icon={<SpeakerHigh size={18} />}
                     label="Audio Sync"
                     value={sessionStatus === 'active' ? audioSync.toUpperCase() : '--'}
                     status={audioSync === 'stable' ? 'good' : audioSync === 'drift' ? 'warning' : 'neutral'}
                   />
                   <MetricDisplay
-                    icon={<Timer size={20} />}
+                    icon={<Timer size={18} />}
                     label="Latency"
                     value={sessionStatus === 'active' ? `${Math.round(latency)}ms` : '--'}
                     status={latency < 50 ? 'good' : latency < 100 ? 'warning' : 'error'}
                   />
                 </div>
+              )}
 
-                {sessionStatus === 'active' && (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>Signal Integrity</span>
-                      <span>{signalQuality >= 90 ? 'HIGH' : signalQuality >= 70 ? 'MEDIUM' : 'LOW'}</span>
-                    </div>
-                    <Progress value={signalQuality} className="h-1" />
-                  </div>
-                )}
-              </>
-            )}
-
-            {inputProtocol === 'rtmp' && (
-              <>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <MetricDisplay
-                    icon={<Lightning size={20} />}
-                    label="Uplink State"
-                    value={sessionStatus === 'active' ? 'CONNECTED' : sessionStatus === 'connecting' ? 'HANDSHAKE' : 'OFFLINE'}
-                    status={sessionStatus === 'active' ? 'good' : sessionStatus === 'connecting' ? 'warning' : 'neutral'}
-                  />
-                  <MetricDisplay
-                    icon={<ArrowsDownUp size={20} />}
-                    label="Bitrate"
-                    value={sessionStatus === 'active' ? `${(bitrate / 1000).toFixed(1)} Mbps` : '--'}
-                    status={bitrate >= 2000 ? 'good' : bitrate >= 1500 ? 'warning' : 'error'}
-                  />
-                  <MetricDisplay
-                    icon={<Warning size={20} />}
-                    label="Packet Loss"
-                    value={sessionStatus === 'active' ? `${packetLoss.toFixed(2)}%` : '--'}
-                    status={packetLoss < 1 ? 'good' : packetLoss < 3 ? 'warning' : 'error'}
-                  />
-                  <MetricDisplay
-                    icon={<Timer size={20} />}
-                    label="Latency"
-                    value={sessionStatus === 'active' ? `${Math.round(latency)}ms` : '--'}
-                    status={latency < 50 ? 'good' : latency < 100 ? 'warning' : 'error'}
-                  />
-                </div>
-
-                <Separator />
-
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Key size={16} />
-                    <span className="font-medium">Stream Key</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <Input 
-                      value={streamKey} 
-                      readOnly 
-                      className="font-mono text-xs"
-                      type="password"
+              {inputProtocol === 'rtmp' && (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <MetricDisplay
+                      icon={<Lightning size={18} />}
+                      label="Uplink State"
+                      value={sessionStatus === 'active' ? 'CONNECTED' : sessionStatus === 'connecting' ? 'HANDSHAKE' : 'OFFLINE'}
+                      status={sessionStatus === 'active' ? 'good' : sessionStatus === 'connecting' ? 'warning' : 'neutral'}
                     />
-                    <Button 
-                      onClick={handleCopyStreamKey} 
-                      variant="outline" 
-                      size="icon"
-                    >
-                      <Copy size={16} />
-                    </Button>
+                    <MetricDisplay
+                      icon={<ArrowsDownUp size={18} />}
+                      label="Bitrate"
+                      value={sessionStatus === 'active' ? `${(bitrate / 1000).toFixed(1)} Mbps` : '--'}
+                      status={bitrate >= 2000 ? 'good' : bitrate >= 1500 ? 'warning' : 'error'}
+                    />
+                    <MetricDisplay
+                      icon={<Warning size={18} />}
+                      label="Packet Loss"
+                      value={sessionStatus === 'active' ? `${packetLoss.toFixed(2)}%` : '--'}
+                      status={packetLoss < 1 ? 'good' : packetLoss < 3 ? 'warning' : 'error'}
+                    />
+                    <MetricDisplay
+                      icon={<Timer size={18} />}
+                      label="Latency"
+                      value={sessionStatus === 'active' ? `${Math.round(latency)}ms` : '--'}
+                      status={latency < 50 ? 'good' : latency < 100 ? 'warning' : 'error'}
+                    />
                   </div>
-                  <Button 
-                    onClick={handleResetKey} 
-                    variant="ghost" 
-                    size="sm"
-                    className="text-xs"
-                  >
-                    Reset Key
-                  </Button>
-                </div>
 
-                {sessionStatus === 'active' && (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>Stream Health</span>
-                      <span>{signalQuality >= 90 ? 'EXCELLENT' : signalQuality >= 70 ? 'GOOD' : 'DEGRADED'}</span>
+                  <Separator className="my-4" />
+
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <Key size={16} />
+                      <span>Stream Key</span>
                     </div>
-                    <Progress value={signalQuality} className="h-1" />
+                    <div className="flex gap-2">
+                      <Input 
+                        value={streamKey} 
+                        readOnly 
+                        className="font-mono text-xs"
+                        type="password"
+                      />
+                      <Button 
+                        onClick={handleCopyStreamKey} 
+                        variant="outline" 
+                        size="icon"
+                      >
+                        <Copy size={16} />
+                      </Button>
+                    </div>
                   </div>
-                )}
-              </>
-            )}
+                </>
+              )}
 
-            {inputProtocol === 'clipsflow' && (
-              <>
-                <div className="space-y-4">
-                  <div className="glass-panel p-4 rounded-lg space-y-3">
+              {inputProtocol === 'clipsflow' && (
+                <>
+                  <div className="glass-panel p-4 rounded-lg space-y-3 bg-accent/5 border border-accent/20">
                     <div className="flex items-center gap-2 text-sm font-medium">
                       <Package size={16} className="text-accent" />
-                      <span>Source Metadata</span>
+                      <span>Prepared Media Status</span>
                     </div>
                     <div className="grid grid-cols-2 gap-3 text-xs">
                       <div>
@@ -774,302 +821,198 @@ function App() {
                         <div className="font-mono text-foreground">ClipsFlow Intake</div>
                       </div>
                       <div>
-                        <div className="text-muted-foreground">Asset Type</div>
-                        <div className="font-mono text-foreground">Video / Mixed</div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground">Preparation State</div>
+                        <div className="text-muted-foreground">State</div>
                         <div className="font-mono text-success">Optimized</div>
                       </div>
                       <div>
-                        <div className="text-muted-foreground">Delivery Mode</div>
-                        <div className="font-mono text-accent">Ready for Injection</div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground">Compression Profile</div>
+                        <div className="text-muted-foreground">Profile</div>
                         <div className="font-mono text-foreground">Adaptive</div>
                       </div>
                       <div>
-                        <div className="text-muted-foreground">Payload Status</div>
-                        <div className="font-mono text-success">Server-Safe</div>
+                        <div className="text-muted-foreground">Status</div>
+                        <div className="font-mono text-accent">Ready</div>
                       </div>
                     </div>
                   </div>
                   
-                  <div className="glass-panel p-4 rounded-lg space-y-2 bg-accent/5 border-accent/20">
-                    <div className="text-xs text-muted-foreground">Infrastructure Protection</div>
-                    <div className="text-sm space-y-1">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle size={14} className="text-success" weight="fill" />
-                        <span>Prepared upstream through ClipsFlow</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <CheckCircle size={14} className="text-success" weight="fill" />
-                        <span>Optimized media handoff active</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <CheckCircle size={14} className="text-success" weight="fill" />
-                        <span>Direct raw ingestion bypassed</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <CheckCircle size={14} className="text-success" weight="fill" />
-                        <span>Server load preserved through staged intake</span>
-                      </div>
-                    </div>
+                  <div className="grid grid-cols-2 gap-3 mt-4">
+                    <MetricDisplay
+                      icon={<Package size={18} />}
+                      label="Intake"
+                      value={sessionStatus === 'active' ? 'PREPARED' : 'OFFLINE'}
+                      status={sessionStatus === 'active' ? 'good' : 'neutral'}
+                    />
+                    <MetricDisplay
+                      icon={<CheckCircle size={18} />}
+                      label="Routing"
+                      value={sessionStatus === 'active' ? 'LINKED' : '--'}
+                      status={sessionStatus === 'active' ? 'good' : 'neutral'}
+                    />
                   </div>
-                </div>
+                </>
+              )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <MetricDisplay
-                    icon={<Package size={20} />}
-                    label="Intake Status"
-                    value={sessionStatus === 'active' ? 'PREPARED' : 'OFFLINE'}
-                    status={sessionStatus === 'active' ? 'good' : 'neutral'}
-                  />
-                  <MetricDisplay
-                    icon={<CheckCircle size={20} />}
-                    label="Routing State"
-                    value={sessionStatus === 'active' ? 'LINKED' : '--'}
-                    status={sessionStatus === 'active' ? 'good' : 'neutral'}
-                  />
-                  <MetricDisplay
-                    icon={<WifiHigh size={20} />}
-                    label="Signal Quality"
-                    value={sessionStatus === 'active' ? `${Math.round(signalQuality)}%` : '--'}
-                    status={signalQuality > 85 ? 'good' : signalQuality > 65 ? 'warning' : 'error'}
-                  />
-                  <MetricDisplay
-                    icon={<Timer size={20} />}
-                    label="Latency"
-                    value={sessionStatus === 'active' ? `${Math.round(latency)}ms` : '--'}
-                    status={latency < 50 ? 'good' : latency < 100 ? 'warning' : 'error'}
-                  />
-                </div>
-
-                {sessionStatus === 'active' && (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>Payload Quality</span>
-                      <span>{signalQuality >= 90 ? 'OPTIMAL' : signalQuality >= 70 ? 'GOOD' : 'DEGRADED'}</span>
-                    </div>
-                    <Progress value={signalQuality} className="h-1" />
-                  </div>
-                )}
-              </>
-            )}
-
-            {inputProtocol !== 'virtual-camera' && inputProtocol !== 'rtmp' && inputProtocol !== 'clipsflow' && (
-              <>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <MetricDisplay
-                    icon={<Lightning size={20} />}
-                    label="Uplink State"
-                    value={sessionStatus === 'active' ? 'OPERATIONAL' : 'OFFLINE'}
-                    status={sessionStatus === 'active' ? 'good' : 'neutral'}
-                  />
-                  <MetricDisplay
-                    icon={<Database size={20} />}
-                    label="Active Source"
-                    value={(inputProtocol || 'local').toUpperCase()}
-                    status="neutral"
-                  />
-                  <MetricDisplay
-                    icon={<WifiHigh size={20} />}
-                    label="Signal Quality"
-                    value={sessionStatus === 'active' ? `${Math.round(signalQuality)}%` : '--'}
-                    status={signalQuality > 85 ? 'good' : signalQuality > 65 ? 'warning' : 'error'}
-                  />
-                  <MetricDisplay
-                    icon={<Timer size={20} />}
-                    label="Latency"
-                    value={sessionStatus === 'active' ? `${Math.round(latency)}ms` : '--'}
-                    status={latency < 50 ? 'good' : latency < 100 ? 'warning' : 'error'}
-                  />
-                </div>
-
-                {sessionStatus === 'active' && (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>Signal Strength</span>
-                      <span>{Math.round(signalQuality)}%</span>
-                    </div>
-                    <Progress value={signalQuality} className="h-1" />
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </GlassCard>
-
-        <GlassCard title="Operator Control">
-          <div className="space-y-4">
-            {sessionStatus === 'standby' && (
-              <div className="space-y-3">
-                <Button 
-                  onClick={handleRunPreflight} 
-                  className="w-full gap-3 h-14"
-                  size="lg"
-                >
-                  <PlayCircle size={24} weight="fill" />
-                  <div className="flex flex-col items-start">
-                    <span className="text-lg font-semibold">{inputProtocol === 'dj-mode' ? 'Start DJ Mode' : 'Run Preflight'}</span>
-                    <span className="text-xs opacity-80 font-normal">
-                      {inputProtocol === 'dj-mode' ? 'No-cost autonomous session' : `MODE: ${getPreflightLabel()}`}
-                    </span>
-                  </div>
-                </Button>
-                <p className="text-xs text-muted-foreground text-center">
-                  {inputProtocol === 'dj-mode' 
-                    ? 'Run a lightweight session with loop + audio • Preview STIX MΛGIC without operator control'
-                    : 'Intelligent test preview — adapts to selected protocol and source'
-                  }
-                </p>
-              </div>
-            )}
-            
-            {sessionStatus === 'dj-mode' && (
-              <div className="space-y-3">
+              {inputProtocol !== 'virtual-camera' && inputProtocol !== 'rtmp' && inputProtocol !== 'clipsflow' && (
                 <div className="grid grid-cols-2 gap-3">
-                  <Button 
-                    onClick={handleStopDJMode} 
-                    variant="secondary"
-                    className="gap-2"
-                    size="lg"
-                  >
-                    <Stop size={20} weight="fill" />
-                    Stop DJ Mode
-                  </Button>
-
-                  <Button 
-                    onClick={handleUpgradeToOperator} 
-                    variant="default"
-                    className="gap-2 bg-primary hover:bg-primary/90"
-                    size="lg"
-                  >
-                    <Lightning size={20} weight="fill" />
-                    Upgrade Session
-                  </Button>
+                  <MetricDisplay
+                    icon={<WifiHigh size={18} />}
+                    label="Signal Quality"
+                    value={sessionStatus === 'active' || sessionStatus === 'dj-mode' ? `${Math.round(signalQuality)}%` : '--'}
+                    status={signalQuality > 85 ? 'good' : signalQuality > 65 ? 'warning' : 'error'}
+                  />
+                  <MetricDisplay
+                    icon={<Timer size={18} />}
+                    label="Latency"
+                    value={sessionStatus === 'active' || sessionStatus === 'dj-mode' ? `${Math.round(latency)}ms` : '--'}
+                    status={latency < 50 ? 'good' : latency < 100 ? 'warning' : 'error'}
+                  />
                 </div>
-                <p className="text-xs text-muted-foreground text-center">
-                  Upgrade to premium for full operator control with live injection
-                </p>
-              </div>
-            )}
-            
-            {sessionStatus !== 'standby' && sessionStatus !== 'dj-mode' && (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              )}
+            </CollapsibleSection>
+          )}
+
+          <CollapsibleSection
+            title="Session Branding"
+            description="Branded overlay via STIX MΛGIC sticker assets"
+          >
+            <BrandControl
+              sessionMark={sessionMark || "stix-default"}
+              onSessionMarkChange={handleSessionMarkChange}
+              sessionActive={sessionStatus === 'active'}
+            />
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            title="Advanced Control"
+            description="System stabilization and emergency controls"
+          >
+            <div className="grid grid-cols-2 gap-3">
+              {sessionStatus === 'active' && (
                 <Button 
-                  onClick={handleStopPreflight} 
-                  variant="secondary"
+                  onClick={handleStabilize} 
+                  variant="outline"
                   className="gap-2"
-                  size="lg"
                 >
-                  <Stop size={20} weight="fill" />
-                  Stop Preflight
+                  <ArrowsClockwise size={18} />
+                  Stabilize Signal
                 </Button>
-
-                {operatorTier === 'premium' && operatorTimeRemaining > 0 && operatorTimeRemaining < 90 && (
-                  <Button 
-                    onClick={handleExtendTime} 
-                    variant="outline"
-                    className="gap-2 border-accent text-accent hover:bg-accent/10"
-                    size="lg"
-                  >
-                    <Timer size={20} weight="fill" />
-                    Extend Time
-                  </Button>
-                )}
-
-                <Button 
-                  onClick={handleGoLive} 
-                  variant="default"
-                  className="gap-2 bg-success hover:bg-success/90"
-                  size="lg"
-                >
-                  <Broadcast size={20} weight="fill" />
-                  Go Live
-                </Button>
-
+              )}
+              
+              {(sessionStatus === 'active' || sessionStatus === 'dj-mode') && (
                 <Button 
                   onClick={handleEmergencyStop} 
                   variant="destructive"
-                  className="gap-2 col-span-2 md:col-span-1"
-                  size="lg"
+                  className="gap-2 col-span-2"
                 >
-                  <WaveformSlash size={20} />
+                  <WaveformSlash size={18} />
                   Emergency Stop
                 </Button>
-              </div>
-            )}
-          </div>
-        </GlassCard>
+              )}
+              
+              {inputProtocol === 'rtmp' && sessionStatus === 'standby' && (
+                <Button 
+                  onClick={handleResetKey} 
+                  variant="ghost"
+                  size="sm"
+                  className="col-span-2"
+                >
+                  Reset Stream Key
+                </Button>
+              )}
+            </div>
+          </CollapsibleSection>
 
-        <GlassCard title="System Architecture">
-          <div className="flex flex-col md:flex-row items-center justify-center gap-4 py-8">
-            {(inputProtocol === 'clipsflow' 
-              ? ['ClipsFlow', 'VC NODE', 'Telegram VC']
-              : inputProtocol === 'virtual-camera' || inputProtocol === 'rtmp'
-              ? ['OBS', 'VC NODE', inputProtocol === 'rtmp' ? 'Telegram RTMP' : 'Telegram VC']
-              : ['Source', 'VC NODE', 'Telegram VC']
-            ).map((layer, index, arr) => (
-              <div key={layer} className="flex items-center gap-4">
-                <div className={`glass-panel px-6 py-4 rounded-lg text-center min-w-[140px] transition-all duration-300 ${
-                  index === 0 && sessionStatus === 'active' && (inputProtocol === 'virtual-camera' || inputProtocol === 'rtmp' || inputProtocol === 'clipsflow') 
-                    ? 'border-2 border-accent/50 shadow-accent/20 shadow-lg' 
-                    : ''
-                }`}>
-                  <div className="flex items-center justify-center gap-2">
-                    {index === 0 && inputProtocol === 'clipsflow' && <Package size={16} className="text-accent" />}
-                    {index === 0 && (inputProtocol === 'virtual-camera' || inputProtocol === 'rtmp') && <Eye size={16} className="text-accent" />}
-                    {index === 0 && inputProtocol !== 'clipsflow' && inputProtocol !== 'virtual-camera' && inputProtocol !== 'rtmp' && <Database size={16} className="text-accent" />}
-                    {index === 1 && <TreeStructure size={16} className="text-primary" />}
-                    {index === 2 && <Broadcast size={16} className="text-foreground" />}
-                    <div className="font-mono text-sm">{layer}</div>
-                  </div>
+          <CollapsibleSection
+            title="Diagnostics"
+            description="Live telemetry stream with filtering"
+          >
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <FunnelSimple size={16} className="text-muted-foreground" />
+                <div className="flex gap-2 flex-wrap">
+                  {['all', 'source', 'session', 'audio', 'uplink', 'brand', 'dj'].map((filter) => (
+                    <button
+                      key={filter}
+                      onClick={() => setDiagnosticFilter(filter)}
+                      className={`px-2 py-1 rounded text-xs font-mono transition-colors ${
+                        diagnosticFilter === filter
+                          ? 'bg-accent text-accent-foreground'
+                          : 'bg-muted text-muted-foreground hover:bg-accent/20'
+                      }`}
+                    >
+                      {filter.toUpperCase()}
+                    </button>
+                  ))}
                 </div>
-                {index < arr.length - 1 && (
-                  <>
-                    <div className="hidden md:block w-8 h-px bg-gradient-to-r from-accent/50 to-accent/20 relative">
-                      {sessionStatus === 'active' && (
-                        <div className="absolute inset-0 bg-gradient-to-r from-accent to-transparent animate-pulse-glow" />
-                      )}
+              </div>
+              
+              <ScrollArea className="h-[240px] w-full rounded-md border border-border/50 bg-muted/20 p-3">
+                {filteredLogs.length === 0 ? (
+                  <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                    <div className="flex items-center gap-2">
+                      <Terminal size={18} />
+                      <span>No {diagnosticFilter !== 'all' ? diagnosticFilter : ''} events</span>
                     </div>
-                    <div className="md:hidden h-8 w-px bg-gradient-to-b from-accent/50 to-accent/20" />
-                  </>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    {filteredLogs.map((log) => (
+                      <LogEntry key={log.id} {...log} />
+                    ))}
+                  </div>
                 )}
-              </div>
-            ))}
-          </div>
-        </GlassCard>
+              </ScrollArea>
+            </div>
+          </CollapsibleSection>
 
-        <GlassCard 
-          title="Diagnostics" 
-          description="Live telemetry stream"
-        >
-          <ScrollArea className="h-[300px] w-full rounded-md border border-border/50 bg-muted/20 p-4">
-            {!logs || logs.length === 0 ? (
-              <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-                <div className="flex items-center gap-2">
-                  <Terminal size={20} />
-                  <span>No events logged</span>
+          <CollapsibleSection
+            title="System Architecture"
+            description="Infrastructure routing visualization"
+          >
+            <div className="flex flex-col md:flex-row items-center justify-center gap-4 py-4">
+              {(inputProtocol === 'clipsflow' 
+                ? ['ClipsFlow', 'VC NODE', 'Telegram VC']
+                : inputProtocol === 'virtual-camera' || inputProtocol === 'rtmp'
+                ? ['OBS', 'VC NODE', inputProtocol === 'rtmp' ? 'Telegram RTMP' : 'Telegram VC']
+                : ['Source', 'VC NODE', 'Telegram VC']
+              ).map((layer, index, arr) => (
+                <div key={layer} className="flex items-center gap-4">
+                  <div className={`glass-panel px-5 py-3 rounded-lg text-center min-w-[120px] transition-all duration-300 ${
+                    index === 0 && (sessionStatus === 'active' || sessionStatus === 'dj-mode') && (inputProtocol === 'virtual-camera' || inputProtocol === 'rtmp' || inputProtocol === 'clipsflow' || inputProtocol === 'dj-mode') 
+                      ? 'border-2 border-accent/50 shadow-accent/20 shadow-lg' 
+                      : ''
+                  }`}>
+                    <div className="flex items-center justify-center gap-2">
+                      {index === 0 && inputProtocol === 'clipsflow' && <Package size={14} className="text-accent" />}
+                      {index === 0 && (inputProtocol === 'virtual-camera' || inputProtocol === 'rtmp') && <Eye size={14} className="text-accent" />}
+                      {index === 0 && inputProtocol !== 'clipsflow' && inputProtocol !== 'virtual-camera' && inputProtocol !== 'rtmp' && <Database size={14} className="text-accent" />}
+                      {index === 1 && <TreeStructure size={14} className="text-primary" />}
+                      {index === 2 && <Broadcast size={14} className="text-foreground" />}
+                      <div className="font-mono text-xs">{layer}</div>
+                    </div>
+                  </div>
+                  {index < arr.length - 1 && (
+                    <>
+                      <div className="hidden md:block w-6 h-px bg-gradient-to-r from-accent/50 to-accent/20 relative">
+                        {(sessionStatus === 'active' || sessionStatus === 'dj-mode') && (
+                          <div className="absolute inset-0 bg-gradient-to-r from-accent to-transparent animate-pulse-glow" />
+                        )}
+                      </div>
+                      <div className="md:hidden h-6 w-px bg-gradient-to-b from-accent/50 to-accent/20" />
+                    </>
+                  )}
                 </div>
-              </div>
-            ) : (
-              <div className="space-y-1">
-                {logs.map((log) => (
-                  <LogEntry key={log.id} {...log} />
-                ))}
-              </div>
-            )}
-          </ScrollArea>
-        </GlassCard>
+              ))}
+            </div>
+          </CollapsibleSection>
+        </div>
 
-        <footer className="text-center text-xs text-muted-foreground space-y-2 py-8">
+        <footer className="text-center text-xs text-muted-foreground space-y-2 py-6">
           <div className="flex items-center justify-center gap-2">
-            <Broadcast size={14} />
+            <Broadcast size={12} />
             <span className="font-mono">FRISKY DEVELOPMENTS</span>
           </div>
-          <p>OBS ↔ Telegram VC operator-grade control infrastructure</p>
+          <p>OBS ↔ Telegram VC operator control infrastructure</p>
         </footer>
       </div>
     </div>
