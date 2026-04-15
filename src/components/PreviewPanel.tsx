@@ -4,6 +4,7 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 import { AudioVisualizer } from "@/components/AudioVisualizer"
+import { extractColorsFromImage, type ExtractedColors } from "@/lib/color-extraction"
 import { 
   EyeSlash, 
   MonitorPlay,
@@ -78,6 +79,8 @@ export function PreviewPanel({
   const [overlayEnabled, setOverlayEnabled] = useState(true)
   const [safeModeEnabled, setSafeModeEnabled] = useState(false)
   const [visionCondition, setVisionCondition] = useState<VisionCondition>('no-signal')
+  const [extractedColors, setExtractedColors] = useState<ExtractedColors | null>(null)
+  const [isExtractingColors, setIsExtractingColors] = useState(false)
 
   useEffect(() => {
     if (sessionStatus === 'standby') {
@@ -102,6 +105,33 @@ export function PreviewPanel({
       }
     }
   }, [sessionStatus, inputProtocol, signalQuality])
+
+  useEffect(() => {
+    const extractColors = async () => {
+      if (
+        sessionStatus === 'dj-mode' && 
+        djAudioSource === 'spotify' && 
+        spotifyTrack?.album?.images?.[0]?.url &&
+        spotifyStatus === 'connected' &&
+        !isExtractingColors
+      ) {
+        try {
+          setIsExtractingColors(true)
+          const colors = await extractColorsFromImage(spotifyTrack.album.images[0].url)
+          setExtractedColors(colors)
+        } catch (error) {
+          console.error('Failed to extract colors from album art:', error)
+          setExtractedColors(null)
+        } finally {
+          setIsExtractingColors(false)
+        }
+      } else if (sessionStatus !== 'dj-mode' || djAudioSource !== 'spotify') {
+        setExtractedColors(null)
+      }
+    }
+
+    extractColors()
+  }, [sessionStatus, djAudioSource, spotifyTrack, spotifyStatus, isExtractingColors])
 
   const getConditionConfig = (): ConditionConfig => {
     switch (visionCondition) {
@@ -495,11 +525,17 @@ export function PreviewPanel({
               <div className="absolute inset-0">
                 <div 
                   className={cn(
-                    "absolute inset-0",
+                    "absolute inset-0 transition-all duration-[2000ms] ease-out",
                     safeModeEnabled && "blur-sm brightness-75"
                   )}
                   style={{
-                    background: `
+                    background: extractedColors ? `
+                      radial-gradient(ellipse at 20% 30%, ${extractedColors.primary}25 0%, transparent 45%),
+                      radial-gradient(ellipse at 80% 70%, ${extractedColors.secondary}20 0%, transparent 50%),
+                      radial-gradient(ellipse at 50% 50%, ${extractedColors.vibrant}15 0%, transparent 60%),
+                      radial-gradient(circle at 30% 80%, ${extractedColors.accent}18 0%, transparent 40%),
+                      linear-gradient(135deg, ${extractedColors.primary}08 0%, ${extractedColors.secondary}12 50%, ${extractedColors.vibrant}10 100%)
+                    ` : `
                       repeating-conic-gradient(
                         from 45deg at 50% 50%,
                         transparent 0deg,
@@ -526,19 +562,37 @@ export function PreviewPanel({
                           />
                         </div>
                         <div 
-                          className="absolute inset-0 rounded-lg pointer-events-none transition-all duration-500 opacity-100 group-hover:opacity-0"
+                          className="absolute inset-0 rounded-lg pointer-events-none transition-all duration-[2000ms] opacity-100 group-hover:opacity-0"
                           style={{
-                            boxShadow: `0 0 40px ${config.accentColor}40, 0 0 80px ${config.accentColor}20`
+                            boxShadow: extractedColors 
+                              ? `0 0 40px ${extractedColors.primary}60, 0 0 80px ${extractedColors.vibrant}30, 0 0 120px ${extractedColors.accent}20`
+                              : `0 0 40px ${config.accentColor}40, 0 0 80px ${config.accentColor}20`
                           }}
                         />
                         <div 
-                          className="absolute inset-0 rounded-lg pointer-events-none transition-all duration-500 opacity-0 group-hover:opacity-100"
+                          className="absolute inset-0 rounded-lg pointer-events-none transition-all duration-[2000ms] opacity-0 group-hover:opacity-100"
                           style={{
-                            boxShadow: `0 0 60px ${config.accentColor}80, 0 0 120px ${config.accentColor}40, 0 0 160px ${config.accentColor}20`
+                            boxShadow: extractedColors
+                              ? `0 0 60px ${extractedColors.vibrant}90, 0 0 120px ${extractedColors.primary}50, 0 0 180px ${extractedColors.accent}30, 0 0 240px ${extractedColors.secondary}20`
+                              : `0 0 60px ${config.accentColor}80, 0 0 120px ${config.accentColor}40, 0 0 160px ${config.accentColor}20`
                           }}
                         />
-                        <div className="absolute inset-0 rounded-lg bg-gradient-to-tr from-accent/0 via-accent/0 to-accent/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-                        <div className="absolute -inset-1 rounded-lg bg-gradient-to-br from-accent/20 via-transparent to-primary/20 opacity-0 group-hover:opacity-30 blur-xl transition-all duration-700 pointer-events-none" />
+                        <div 
+                          className="absolute inset-0 rounded-lg bg-gradient-to-tr opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+                          style={{
+                            background: extractedColors
+                              ? `linear-gradient(135deg, ${extractedColors.primary}00 0%, ${extractedColors.vibrant}00 50%, ${extractedColors.accent}20 100%)`
+                              : 'linear-gradient(135deg, transparent 0%, transparent 50%, var(--accent) / 0.2 100%)'
+                          }}
+                        />
+                        <div 
+                          className="absolute -inset-1 rounded-lg opacity-0 group-hover:opacity-30 blur-xl transition-all duration-700 pointer-events-none"
+                          style={{
+                            background: extractedColors
+                              ? `linear-gradient(135deg, ${extractedColors.vibrant}40 0%, ${extractedColors.primary}30 50%, ${extractedColors.accent}20 100%)`
+                              : 'linear-gradient(135deg, var(--accent) / 0.2 0%, transparent 50%, var(--primary) / 0.2 100%)'
+                          }}
+                        />
                       </div>
                       
                       <div className="flex-1 space-y-4 min-w-0">
