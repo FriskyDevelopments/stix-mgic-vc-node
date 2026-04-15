@@ -601,6 +601,7 @@ export function PreviewPanel({
                           trackName={null}
                           variant="full"
                           audioSource={djAudioSource}
+                          extractedColors={extractedColors}
                         />
                         
                         <div className="space-y-3">

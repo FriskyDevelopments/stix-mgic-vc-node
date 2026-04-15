@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
+import type { ExtractedColors } from "@/lib/color-extraction"
 
 type AudioSource = 'stix-library' | 'clipsflow-pack' | 'session-pack' | 'spotify'
 
@@ -8,6 +9,7 @@ interface AudioVisualizerProps {
   trackName: string | null
   variant?: 'compact' | 'full'
   audioSource?: AudioSource
+  extractedColors?: ExtractedColors | null
 }
 
 interface VisualizerStyle {
@@ -103,7 +105,8 @@ export function AudioVisualizer({
   isActive, 
   trackName, 
   variant = 'full',
-  audioSource = 'stix-library'
+  audioSource = 'stix-library',
+  extractedColors = null
 }: AudioVisualizerProps) {
   const style = visualizerStyles[audioSource]
   const barCount = variant === 'compact' ? Math.floor(style.barCount / 2) : style.barCount
@@ -145,10 +148,36 @@ export function AudioVisualizer({
     return () => clearInterval(interval)
   }, [isActive, barCount, style])
 
+  const getColorForIndex = (index: number, normalizedHeight: number) => {
+    if (extractedColors && audioSource === 'spotify') {
+      const colorArray = [
+        extractedColors.primary,
+        extractedColors.vibrant,
+        extractedColors.accent,
+        extractedColors.secondary
+      ]
+      const colorIndex = Math.floor((index / barCount) * colorArray.length)
+      const baseColor = colorArray[colorIndex] || extractedColors.primary
+      
+      const match = baseColor.match(/oklch\(([0-9.]+)\s+([0-9.]+)\s+([0-9.]+)\)/)
+      if (match) {
+        const l = parseFloat(match[1]) + normalizedHeight * 0.25
+        const c = parseFloat(match[2]) + normalizedHeight * 0.08
+        const h = parseFloat(match[3])
+        return { color: `oklch(${l} ${c} ${h})`, shadowColor: `oklch(${l + 0.1} ${c + 0.02} ${h})` }
+      }
+    }
+    
+    const hue = style.colorScheme.hueStart + (index / barCount) * style.colorScheme.hueRange
+    const color = `oklch(${style.colorScheme.brightness + normalizedHeight * 0.3} ${style.colorScheme.saturation + normalizedHeight * 0.06} ${hue})`
+    const shadowColor = `oklch(${style.colorScheme.brightness + normalizedHeight * 0.3} ${style.colorScheme.saturation + 0.02} ${hue})`
+    return { color, shadowColor }
+  }
+
   const renderBars = () => {
     return bars.map((height, index) => {
       const normalizedHeight = Math.max(0.05, Math.min(1, height))
-      const hue = style.colorScheme.hueStart + (index / barCount) * style.colorScheme.hueRange
+      const { color, shadowColor } = getColorForIndex(index, normalizedHeight)
       
       return (
         <div
@@ -156,9 +185,9 @@ export function AudioVisualizer({
           className="flex-1 rounded-t-sm transition-all duration-75 ease-out relative"
           style={{
             height: `${normalizedHeight * 100}%`,
-            backgroundColor: `oklch(${style.colorScheme.brightness + normalizedHeight * 0.3} ${style.colorScheme.saturation + normalizedHeight * 0.06} ${hue})`,
+            backgroundColor: color,
             boxShadow: isActive 
-              ? `0 0 ${normalizedHeight * 8}px oklch(${style.colorScheme.brightness + normalizedHeight * 0.3} ${style.colorScheme.saturation + 0.02} ${hue})`
+              ? `0 0 ${normalizedHeight * 8}px ${shadowColor}`
               : 'none',
             minHeight: '4px'
           }}
@@ -174,7 +203,7 @@ export function AudioVisualizer({
   const renderCircles = () => {
     return bars.map((height, index) => {
       const normalizedHeight = Math.max(0.1, Math.min(1, height))
-      const hue = style.colorScheme.hueStart + (index / barCount) * style.colorScheme.hueRange
+      const { color, shadowColor } = getColorForIndex(index, normalizedHeight)
       const angle = (index / barCount) * 360
       const radius = 30 + normalizedHeight * 15
       const centerX = 50
@@ -193,9 +222,9 @@ export function AudioVisualizer({
             width: `${size}px`,
             height: `${size}px`,
             transform: 'translate(-50%, -50%)',
-            backgroundColor: `oklch(${style.colorScheme.brightness + normalizedHeight * 0.3} ${style.colorScheme.saturation + normalizedHeight * 0.08} ${hue})`,
+            backgroundColor: color,
             boxShadow: isActive 
-              ? `0 0 ${normalizedHeight * 12}px oklch(${style.colorScheme.brightness + normalizedHeight * 0.3} ${style.colorScheme.saturation + 0.04} ${hue})`
+              ? `0 0 ${normalizedHeight * 12}px ${shadowColor}`
               : 'none'
           }}
         />
@@ -206,7 +235,7 @@ export function AudioVisualizer({
   const renderWaveform = () => {
     return bars.map((height, index) => {
       const normalizedHeight = Math.max(0.05, Math.min(1, height))
-      const hue = style.colorScheme.hueStart + (index / barCount) * style.colorScheme.hueRange
+      const { color, shadowColor } = getColorForIndex(index, normalizedHeight)
       const x = (index / (barCount - 1)) * 100
       const offset = normalizedHeight * 40
       
@@ -219,9 +248,9 @@ export function AudioVisualizer({
             top: `${50 - offset}%`,
             width: '3px',
             height: `${offset * 2}%`,
-            backgroundColor: `oklch(${style.colorScheme.brightness + normalizedHeight * 0.3} ${style.colorScheme.saturation + normalizedHeight * 0.06} ${hue})`,
+            backgroundColor: color,
             boxShadow: isActive 
-              ? `0 0 ${normalizedHeight * 10}px oklch(${style.colorScheme.brightness + normalizedHeight * 0.3} ${style.colorScheme.saturation + 0.02} ${hue})`
+              ? `0 0 ${normalizedHeight * 10}px ${shadowColor}`
               : 'none',
             transform: 'translateX(-50%)'
           }}
@@ -240,7 +269,8 @@ export function AudioVisualizer({
       
       return layerBarsData.map((height, index) => {
         const normalizedHeight = Math.max(0.1, Math.min(1, height))
-        const hue = style.colorScheme.hueStart + ((startIndex + index) / barCount) * style.colorScheme.hueRange
+        const globalIndex = startIndex + index
+        const { color, shadowColor } = getColorForIndex(globalIndex, normalizedHeight)
         const angle = (index / layerBarsData.length) * 360
         const baseRadius = 15 + layerIndex * 18
         const radius = baseRadius + normalizedHeight * 8
@@ -259,9 +289,9 @@ export function AudioVisualizer({
               width: '4px',
               height: `${normalizedHeight * 16}px`,
               transform: `translate(-50%, -50%) rotate(${angle}deg)`,
-              backgroundColor: `oklch(${style.colorScheme.brightness + normalizedHeight * 0.3} ${style.colorScheme.saturation + normalizedHeight * 0.08} ${hue})`,
+              backgroundColor: color,
               boxShadow: isActive 
-                ? `0 0 ${normalizedHeight * 10}px oklch(${style.colorScheme.brightness + normalizedHeight * 0.3} ${style.colorScheme.saturation + 0.04} ${hue})`
+                ? `0 0 ${normalizedHeight * 10}px ${shadowColor}`
                 : 'none'
             }}
           />
