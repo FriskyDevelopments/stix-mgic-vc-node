@@ -18,7 +18,7 @@ import {
 } from "@phosphor-icons/react"
 
 import type { SpotifyTrack } from "@/lib/spotify"
-import { formatTrackDisplay } from "@/lib/spotify"
+import { formatTrackDisplay, formatDuration } from "@/lib/spotify"
 
 type VisionCondition = 
   | 'no-signal' 
@@ -47,6 +47,7 @@ interface PreviewPanelProps {
   djAudioSource?: DJAudioSource
   spotifyStatus?: SpotifyConnectionStatus
   spotifyTrack?: SpotifyTrack | null
+  trackPlaybackTime?: number
 }
 
 interface ConditionConfig {
@@ -70,7 +71,8 @@ export function PreviewPanel({
   sessionMark,
   djAudioSource,
   spotifyStatus,
-  spotifyTrack
+  spotifyTrack,
+  trackPlaybackTime = 0
 }: PreviewPanelProps) {
   const [previewEnabled, setPreviewEnabled] = useState(true)
   const [overlayEnabled, setOverlayEnabled] = useState(true)
@@ -516,13 +518,32 @@ export function PreviewPanel({
                 </div>
                 
                 <div className="absolute inset-0 flex items-center justify-center p-8">
-                  <div className="w-full max-w-2xl">
+                  <div className="w-full max-w-2xl space-y-4">
                     <AudioVisualizer 
                       isActive={true} 
                       trackName={djAudioSource === 'spotify' && spotifyStatus === 'connected' && spotifyTrack ? formatTrackDisplay(spotifyTrack) : null}
                       variant="full"
                       audioSource={djAudioSource}
                     />
+                    
+                    {djAudioSource === 'spotify' && spotifyTrack && spotifyStatus === 'connected' && (
+                      <div className="mt-6 space-y-2 px-4">
+                        <div className="h-1.5 bg-black/40 rounded-full overflow-hidden backdrop-blur-sm">
+                          <div 
+                            className="h-full bg-accent transition-all duration-1000 ease-linear"
+                            style={{ width: `${(trackPlaybackTime / (spotifyTrack.duration_ms / 1000)) * 100}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] font-mono text-accent/80">
+                            {formatDuration(trackPlaybackTime * 1000)}
+                          </span>
+                          <span className="text-[10px] font-mono text-muted-foreground/60">
+                            {formatDuration(spotifyTrack.duration_ms)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
                 

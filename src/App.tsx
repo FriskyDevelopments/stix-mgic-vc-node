@@ -102,6 +102,7 @@ function App() {
   const [spotifyUser, setSpotifyUser] = useKV<string | null>("spotify-user", null)
   const [spotifyAccessToken, setSpotifyAccessToken] = useKV<string | null>("spotify-access-token", null)
   const [showTrackPicker, setShowTrackPicker] = useState(false)
+  const [trackPlaybackTime, setTrackPlaybackTime] = useState(0)
   
   const [signalQuality, setSignalQuality] = useState(0)
   const [latency, setLatency] = useState(0)
@@ -583,6 +584,21 @@ function App() {
   }
 
   useEffect(() => {
+    if (sessionStatus === 'dj-mode' && djAudioSource === 'spotify' && spotifyTrack) {
+      const interval = setInterval(() => {
+        setTrackPlaybackTime((prev) => {
+          const trackDuration = spotifyTrack.duration_ms / 1000
+          const newTime = prev + 1
+          return newTime >= trackDuration ? 0 : newTime
+        })
+      }, 1000)
+      return () => clearInterval(interval)
+    } else {
+      setTrackPlaybackTime(0)
+    }
+  }, [sessionStatus, djAudioSource, spotifyTrack])
+
+  useEffect(() => {
     if (sessionStatus === 'active' && operatorTier === 'premium' && operatorTimeRemaining > 0) {
       const countdownInterval = setInterval(() => {
         setOperatorTimeRemaining((prev) => {
@@ -766,6 +782,7 @@ function App() {
                 djAudioSource={djAudioSource}
                 spotifyStatus={spotifyStatus}
                 spotifyTrack={spotifyTrack}
+                trackPlaybackTime={trackPlaybackTime}
               />
               
               {sessionStatus === 'active' && operatorTier === 'premium' && operatorTimeRemaining > 0 && (

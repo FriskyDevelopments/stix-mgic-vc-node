@@ -11,7 +11,8 @@ import {
   getUserPlaylists, 
   getPlaylistTracks, 
   searchTracks,
-  formatTrackDisplay 
+  formatTrackDisplay,
+  formatDuration
 } from '@/lib/spotify'
 
 interface SpotifyTrackPickerProps {
@@ -37,6 +38,8 @@ export function SpotifyTrackPicker({
   const [activeTab, setActiveTab] = useState('top')
   const [previewTrack, setPreviewTrack] = useState<SpotifyTrack | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
   useEffect(() => {
@@ -67,6 +70,8 @@ export function SpotifyTrackPicker({
     }
     setIsPlaying(false)
     setPreviewTrack(null)
+    setCurrentTime(0)
+    setDuration(0)
   }
 
   const togglePreview = (track: SpotifyTrack) => {
@@ -90,6 +95,15 @@ export function SpotifyTrackPicker({
 
     audio.addEventListener('ended', () => {
       setIsPlaying(false)
+      setCurrentTime(0)
+    })
+
+    audio.addEventListener('timeupdate', () => {
+      setCurrentTime(audio.currentTime)
+    })
+
+    audio.addEventListener('loadedmetadata', () => {
+      setDuration(audio.duration)
     })
 
     audio.play().catch(() => {
@@ -157,6 +171,7 @@ export function SpotifyTrackPicker({
   const TrackItem = ({ track, compact = false }: { track: SpotifyTrack; compact?: boolean }) => {
     const isPreviewPlaying = previewTrack?.id === track.id && isPlaying
     const hasPreview = !!track.preview_url
+    const progress = isPreviewPlaying && duration > 0 ? (currentTime / duration) * 100 : 0
 
     return (
       <div
@@ -179,8 +194,25 @@ export function SpotifyTrackPicker({
             <div className={`text-muted-foreground truncate ${compact ? 'text-[10px]' : 'text-xs'}`}>
               {track.artists?.map(a => a.name).join(', ') || 'Unknown Artist'}
             </div>
+            {isPreviewPlaying && (
+              <div className="mt-1.5 space-y-1">
+                <div className="h-1 bg-muted rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-accent transition-all duration-100"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-[9px] text-muted-foreground font-mono">
+                  <span>{formatDuration(currentTime * 1000)}</span>
+                  <span>{formatDuration(duration * 1000)}</span>
+                </div>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
+            <div className={`text-[10px] text-muted-foreground font-mono ${compact ? 'hidden' : ''}`}>
+              {formatDuration(track.duration_ms)}
+            </div>
             {hasPreview && (
               <Button
                 variant="ghost"

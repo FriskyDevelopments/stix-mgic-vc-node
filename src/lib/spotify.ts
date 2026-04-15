@@ -283,3 +283,10 @@ export function formatTrackDisplay(track: SpotifyTrack): string {
   const artists = track.artists?.map(a => a.name).join(', ') || 'Unknown Artist'
   return `${track.name} - ${artists}`
 }
+
+export function formatDuration(durationMs: number): string {
+  const totalSeconds = Math.floor(durationMs / 1000)
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`
+}
