@@ -17,6 +17,9 @@ import {
   ArrowsDownUp
 } from "@phosphor-icons/react"
 
+import type { SpotifyTrack } from "@/lib/spotify"
+import { formatTrackDisplay } from "@/lib/spotify"
+
 type VisionCondition = 
   | 'no-signal' 
   | 'stable' 
@@ -43,7 +46,7 @@ interface PreviewPanelProps {
   sessionMark: SessionMark
   djAudioSource?: DJAudioSource
   spotifyStatus?: SpotifyConnectionStatus
-  spotifyTrack?: string | null
+  spotifyTrack?: SpotifyTrack | null
 }
 
 interface ConditionConfig {
@@ -516,7 +519,7 @@ export function PreviewPanel({
                   <div className="w-full max-w-2xl">
                     <AudioVisualizer 
                       isActive={true} 
-                      trackName={djAudioSource === 'spotify' && spotifyStatus === 'connected' && spotifyTrack ? spotifyTrack : null}
+                      trackName={djAudioSource === 'spotify' && spotifyStatus === 'connected' && spotifyTrack ? formatTrackDisplay(spotifyTrack) : null}
                       variant="full"
                       audioSource={djAudioSource}
                     />

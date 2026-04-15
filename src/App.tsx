@@ -14,6 +14,7 @@ import { MetricDisplay } from "@/components/MetricDisplay"
 import { LogEntry } from "@/components/LogEntry"
 import { PreviewPanel } from "@/components/PreviewPanel"
 import { BrandControl } from "@/components/BrandControl"
+import { SpotifyTrackPicker } from "@/components/SpotifyTrackPicker"
 import { 
   Broadcast, 
   Lightning, 
@@ -55,6 +56,8 @@ import {
   Database
 } from "@phosphor-icons/react"
 import { toast } from "sonner"
+import { initiateSpotifyAuth, getSpotifyUser, formatTrackDisplay } from "@/lib/spotify"
+import type { SpotifyTrack } from "@/lib/spotify"
 
 type Platform = 'telegram' | 'discord'
 type SessionStatus = 'standby' | 'active' | 'connecting' | 'error' | 'dj-mode'
@@ -95,8 +98,10 @@ function App() {
   
   const [djAudioSource, setDjAudioSource] = useKV<DJAudioSource>("dj-audio-source", "stix-library")
   const [spotifyStatus, setSpotifyStatus] = useKV<SpotifyConnectionStatus>("spotify-status", "disconnected")
-  const [spotifyTrack, setSpotifyTrack] = useKV<string | null>("spotify-track", null)
+  const [spotifyTrack, setSpotifyTrack] = useKV<SpotifyTrack | null>("spotify-track", null)
   const [spotifyUser, setSpotifyUser] = useKV<string | null>("spotify-user", null)
+  const [spotifyAccessToken, setSpotifyAccessToken] = useKV<string | null>("spotify-access-token", null)
+  const [showTrackPicker, setShowTrackPicker] = useState(false)
   
   const [signalQuality, setSignalQuality] = useState(0)
   const [latency, setLatency] = useState(0)
@@ -498,23 +503,51 @@ function App() {
     toast('Stream key would be regenerated (demo mode)')
   }
 
-  const handleSpotifyLogin = () => {
+  const handleSpotifyLogin = async () => {
     setSpotifyStatus('connecting')
     addLog('info', 'SPOTIFY', 'Initiating Spotify OAuth')
     
-    setTimeout(() => {
-      setSpotifyStatus('connected')
-      setSpotifyUser('demo_user')
-      addLog('success', 'SPOTIFY', 'Spotify account connected')
-      addLog('info', 'AUDIO', 'Personal music source available')
-      toast.success('Spotify connected')
-    }, 1500)
+    try {
+      await initiateSpotifyAuth()
+    } catch (error) {
+      console.error('Spotify auth failed:', error)
+      setSpotifyStatus('disconnected')
+      addLog('error', 'SPOTIFY', 'OAuth initiation failed')
+      toast.error('Failed to start Spotify login')
+    }
   }
+  
+  useEffect(() => {
+    const handleSpotifyMessage = async (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return
+      if (event.data.type === 'spotify-auth' && event.data.accessToken) {
+        const accessToken = event.data.accessToken
+        setSpotifyAccessToken(accessToken)
+        
+        const user = await getSpotifyUser(accessToken)
+        if (user) {
+          setSpotifyStatus('connected')
+          setSpotifyUser(user.display_name || user.id)
+          addLog('success', 'SPOTIFY', 'Spotify account connected')
+          addLog('info', 'AUDIO', 'Personal music source available')
+          toast.success('Spotify connected')
+        } else {
+          setSpotifyStatus('disconnected')
+          addLog('error', 'SPOTIFY', 'Failed to fetch user info')
+          toast.error('Spotify authentication incomplete')
+        }
+      }
+    }
+    
+    window.addEventListener('message', handleSpotifyMessage)
+    return () => window.removeEventListener('message', handleSpotifyMessage)
+  }, [])
 
   const handleSpotifyDisconnect = () => {
     setSpotifyStatus('disconnected')
     setSpotifyUser(null)
     setSpotifyTrack(null)
+    setSpotifyAccessToken(null)
     if (djAudioSource === 'spotify') {
       setDjAudioSource('stix-library')
     }
@@ -522,18 +555,12 @@ function App() {
     toast('Spotify disconnected')
   }
 
-  const handleSelectSpotifyTrack = () => {
-    const mockTracks = [
-      'Midnight City - M83',
-      'Electric Feel - MGMT',
-      'Do I Wanna Know? - Arctic Monkeys',
-      'Strobe - deadmau5',
-      'Feel It Still - Portugal. The Man'
-    ]
-    const randomTrack = mockTracks[Math.floor(Math.random() * mockTracks.length)]
-    setSpotifyTrack(randomTrack)
-    addLog('success', 'SPOTIFY', `Track selected: ${randomTrack}`)
-    toast.success(`Selected: ${randomTrack}`)
+  const handleSelectSpotifyTrack = (track: SpotifyTrack) => {
+    setSpotifyTrack(track)
+    const trackDisplay = formatTrackDisplay(track)
+    addLog('success', 'SPOTIFY', `Track selected: ${trackDisplay}`)
+    toast.success(`Selected: ${trackDisplay}`)
+    setShowTrackPicker(false)
   }
 
   const handleDJAudioSourceChange = (source: DJAudioSource) => {
@@ -1134,14 +1161,14 @@ function App() {
                           {spotifyTrack && (
                             <div className="text-xs text-muted-foreground flex items-center gap-1.5">
                               <MusicNote size={12} />
-                              {spotifyTrack}
+                              {formatTrackDisplay(spotifyTrack)}
                             </div>
                           )}
                           <div className="flex gap-2 pt-1">
                             <Button
                               onClick={(e) => {
                                 e.stopPropagation()
-                                handleSelectSpotifyTrack()
+                                setShowTrackPicker(true)
                               }}
                               variant="outline"
                               size="sm"
@@ -1510,6 +1537,15 @@ function App() {
           <p>Multi-platform session control • Telegram + Discord</p>
         </footer>
       </div>
+      
+      {spotifyAccessToken && (
+        <SpotifyTrackPicker
+          open={showTrackPicker}
+          onOpenChange={setShowTrackPicker}
+          accessToken={spotifyAccessToken}
+          onTrackSelect={handleSelectSpotifyTrack}
+        />
+      )}
     </div>
   )
 }
