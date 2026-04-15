@@ -24,12 +24,13 @@ type VisionCondition =
   | 'injected' 
   | 'uplink' 
   | 'recovery'
+  | 'dj-ambient'
   
-type InputProtocol = 'virtual-camera' | 'rtmp' | 'local' | 'relay' | 'clipsflow'
+type InputProtocol = 'virtual-camera' | 'rtmp' | 'local' | 'relay' | 'clipsflow' | 'dj-mode'
 type SessionMark = 'stix-default' | 'client-sticker' | 'off'
 
 interface PreviewPanelProps {
-  sessionStatus: 'standby' | 'active' | 'connecting' | 'error'
+  sessionStatus: 'standby' | 'active' | 'connecting' | 'error' | 'dj-mode'
   inputProtocol: InputProtocol
   signalQuality: number
   frameRate: number
@@ -67,6 +68,8 @@ export function PreviewPanel({
   useEffect(() => {
     if (sessionStatus === 'standby') {
       setVisionCondition('no-signal')
+    } else if (sessionStatus === 'dj-mode') {
+      setVisionCondition('dj-ambient')
     } else if (sessionStatus === 'connecting') {
       setVisionCondition('recovery')
     } else if (sessionStatus === 'active') {
@@ -147,6 +150,16 @@ export function PreviewPanel({
           accentColor: 'oklch(0.70 0.15 70)',
           badge: 'RECOVERY',
           icon: ArrowsClockwise
+        }
+      case 'dj-ambient':
+        return {
+          label: 'Autonomous Session',
+          sublabel: 'Loop + Audio',
+          borderClass: 'border-primary',
+          glowClass: 'shadow-primary/20',
+          accentColor: 'oklch(0.55 0.18 250)',
+          badge: 'DJ MODE',
+          icon: Broadcast
         }
       case 'no-signal':
       default:
@@ -459,6 +472,58 @@ export function PreviewPanel({
                   className="absolute inset-0 opacity-10 animate-pulse"
                   style={{
                     backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.5' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`
+                  }}
+                />
+              </div>
+            )}
+
+            {visionCondition === 'dj-ambient' && (
+              <div className="absolute inset-0">
+                <div 
+                  className={cn(
+                    "absolute inset-0",
+                    safeModeEnabled && "blur-sm brightness-75"
+                  )}
+                  style={{
+                    background: `
+                      repeating-conic-gradient(
+                        from 45deg at 50% 50%,
+                        transparent 0deg,
+                        ${config.accentColor}10 30deg,
+                        transparent 60deg,
+                        ${config.accentColor}08 90deg,
+                        transparent 120deg
+                      ),
+                      radial-gradient(circle at 30% 30%, ${config.accentColor}12 0%, transparent 50%),
+                      radial-gradient(circle at 70% 70%, ${config.accentColor}10 0%, transparent 50%)
+                    `
+                  }}
+                />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <Broadcast size={96} className="text-primary/20 animate-pulse-glow" weight="duotone" />
+                </div>
+                <div 
+                  className="absolute inset-0 opacity-[0.04] mix-blend-overlay"
+                  style={{
+                    backgroundImage: `repeating-linear-gradient(
+                      0deg,
+                      transparent,
+                      transparent 3px,
+                      ${config.accentColor} 3px,
+                      ${config.accentColor} 4px
+                    )`
+                  }}
+                />
+                <div 
+                  className="absolute inset-0 opacity-5"
+                  style={{
+                    background: `repeating-radial-gradient(
+                      circle at 50% 50%,
+                      transparent 0px,
+                      transparent 40px,
+                      ${config.accentColor}15 40px,
+                      ${config.accentColor}15 41px
+                    )`
                   }}
                 />
               </div>

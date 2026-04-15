@@ -39,14 +39,17 @@ import {
   Eye,
   Key,
   CloudArrowUp,
-  Package
+  Package,
+  DiscoBall,
+  MusicNote
 } from "@phosphor-icons/react"
 import { toast } from "sonner"
 
-type SessionStatus = 'standby' | 'active' | 'connecting' | 'error'
-type InputProtocol = 'virtual-camera' | 'rtmp' | 'local' | 'relay' | 'clipsflow'
-type SessionMode = 'call' | 'broadcast' | null
+type SessionStatus = 'standby' | 'active' | 'connecting' | 'error' | 'dj-mode'
+type InputProtocol = 'virtual-camera' | 'rtmp' | 'local' | 'relay' | 'clipsflow' | 'dj-mode'
+type SessionMode = 'call' | 'broadcast' | 'dj' | null
 type SessionMark = 'stix-default' | 'client-sticker' | 'off'
+type OperatorTier = 'free' | 'premium'
 
 interface LogEntryData {
   id: string
@@ -66,9 +69,11 @@ interface ProtocolConfig {
 
 function App() {
   const [sessionStatus, setSessionStatus] = useKV<SessionStatus>("session-status", "standby")
-  const [inputProtocol, setInputProtocol] = useKV<InputProtocol>("input-protocol", "clipsflow")
+  const [inputProtocol, setInputProtocol] = useKV<InputProtocol>("input-protocol", "dj-mode")
   const [sessionMark, setSessionMark] = useKV<SessionMark>("session-mark", "stix-default")
   const [logs, setLogs] = useKV<LogEntryData[]>("diagnostic-logs", [])
+  const [operatorTier] = useState<OperatorTier>('free')
+  const [operatorTimeRemaining, setOperatorTimeRemaining] = useState(0)
   const [streamKey] = useState("sk_live_" + Math.random().toString(36).substring(2, 15))
   
   const [signalQuality, setSignalQuality] = useState(0)
@@ -80,6 +85,13 @@ function App() {
   const [resolution, setResolution] = useState('720p')
 
   const protocols: ProtocolConfig[] = [
+    { 
+      id: 'dj-mode', 
+      label: 'DJ Mode', 
+      description: 'Autonomous session - loop + audio (no-cost entry)', 
+      icon: Broadcast, 
+      mode: 'dj' 
+    },
     { 
       id: 'clipsflow', 
       label: 'ClipsFlow File', 
@@ -132,6 +144,11 @@ function App() {
   }
 
   const handleRunPreflight = () => {
+    if (inputProtocol === 'dj-mode') {
+      handleStartDJMode()
+      return
+    }
+
     setSessionStatus('connecting')
     addLog('info', 'TEST', 'Preflight initiated')
     
@@ -213,6 +230,80 @@ function App() {
         toast.success('Preflight active — VC session ready')
       }
     }, 1500)
+  }
+
+  const handleStartDJMode = () => {
+    setSessionStatus('connecting')
+    addLog('info', 'DJ', 'DJ Mode initiating')
+    addLog('info', 'SESSION', 'Autonomous session mode selected')
+    
+    if (sessionMark === 'stix-default') {
+      addLog('info', 'BRAND', 'STIX MΛGIC default mark loaded')
+    } else if (sessionMark === 'client-sticker') {
+      addLog('info', 'BRAND', 'Client session sticker received')
+    }
+    
+    setTimeout(() => {
+      setSessionStatus('dj-mode')
+      setSignalQuality(88)
+      setLatency(35)
+      setAudioSync('stable')
+      setResolution('720p')
+      
+      addLog('success', 'DJ', 'DJ Mode active')
+      addLog('success', 'LOOP', 'Visual cycle running')
+      addLog('success', 'AUDIO', 'Ambient track active')
+      addLog('info', 'SESSION', 'Autonomous mode live')
+      
+      if (sessionMark !== 'off') {
+        addLog('success', 'BRAND', 'Session mark applied')
+      }
+      
+      toast.success('DJ Mode active — autonomous session running')
+    }, 1200)
+  }
+
+  const handleStopDJMode = () => {
+    setSessionStatus('standby')
+    setSignalQuality(0)
+    setLatency(0)
+    setAudioSync('muted')
+    
+    addLog('info', 'DJ', 'DJ Mode terminated')
+    addLog('info', 'SESSION', 'Autonomous session ended')
+    toast('DJ Mode stopped')
+  }
+
+  const handleUpgradeToOperator = () => {
+    if (operatorTier === 'free') {
+      toast('Upgrade to premium for live operator sessions')
+      return
+    }
+    
+    if (sessionStatus === 'dj-mode') {
+      setSessionStatus('standby')
+      addLog('info', 'SESSION', 'Switching from DJ Mode to operator session')
+      setInputProtocol('clipsflow')
+      toast.success('Ready for operator session')
+    }
+  }
+
+  const handleOperatorTimeExpired = () => {
+    if (sessionStatus === 'active' && operatorTimeRemaining === 0) {
+      setSessionStatus('connecting')
+      addLog('info', 'SESSION', 'Operator window ended')
+      addLog('info', 'FALLBACK', 'Switching to DJ Mode')
+      addLog('info', 'SESSION', 'Session continuing in autonomous mode')
+      
+      setTimeout(() => {
+        setInputProtocol('dj-mode')
+        setSessionStatus('dj-mode')
+        setSignalQuality(88)
+        addLog('success', 'DJ', 'DJ Mode active (fallback)')
+        addLog('success', 'SESSION', 'Autonomous mode maintaining presence')
+        toast('Operator session complete — continuing in DJ Mode')
+      }, 1000)
+    }
   }
 
   const handleStopPreflight = () => {
@@ -315,14 +406,15 @@ function App() {
   }
 
   useEffect(() => {
-    if (sessionStatus === 'active') {
+    if (sessionStatus === 'active' || sessionStatus === 'dj-mode') {
       const interval = setInterval(() => {
         setSignalQuality((prev) => {
-          const newQuality = Math.min(100, Math.max(75, prev + (Math.random() - 0.5) * 3))
+          const baseVariation = sessionStatus === 'dj-mode' ? 2 : 3
+          const newQuality = Math.min(100, Math.max(75, prev + (Math.random() - 0.5) * baseVariation))
           
-          if (newQuality < 60 && prev >= 60) {
+          if (newQuality < 60 && prev >= 60 && sessionStatus === 'active') {
             addLog('warning', 'PREVIEW', 'Degraded mode active')
-          } else if (newQuality < 30 && prev >= 30) {
+          } else if (newQuality < 30 && prev >= 30 && sessionStatus === 'active') {
             addLog('error', 'PREVIEW', 'Signal loss detected')
           }
           
@@ -347,6 +439,8 @@ function App() {
     switch (sessionStatus) {
       case 'active':
         return { status: 'active', label: 'ACTIVE', pulse: true }
+      case 'dj-mode':
+        return { status: 'active', label: 'DJ MODE ACTIVE', pulse: true }
       case 'connecting':
         return { status: 'connecting', label: 'CONNECTING', pulse: true }
       case 'error':
@@ -360,10 +454,12 @@ function App() {
 
   const getModeLabel = () => {
     if (!sessionMode) return null
+    if (sessionMode === 'dj') return 'AUTONOMOUS SESSION'
     return sessionMode === 'call' ? 'CALL INJECTION' : 'BROADCAST UPLINK'
   }
 
   const getPreflightLabel = () => {
+    if (inputProtocol === 'dj-mode') return 'DJ MODE'
     if (inputProtocol === 'virtual-camera') return 'CALL'
     if (inputProtocol === 'rtmp') return 'BROADCAST'
     if (inputProtocol === 'clipsflow') return 'PREPARED'
@@ -736,17 +832,51 @@ function App() {
                 >
                   <PlayCircle size={24} weight="fill" />
                   <div className="flex flex-col items-start">
-                    <span className="text-lg font-semibold">Run Preflight</span>
-                    <span className="text-xs opacity-80 font-normal">MODE: {getPreflightLabel()}</span>
+                    <span className="text-lg font-semibold">{inputProtocol === 'dj-mode' ? 'Start DJ Mode' : 'Run Preflight'}</span>
+                    <span className="text-xs opacity-80 font-normal">
+                      {inputProtocol === 'dj-mode' ? 'No-cost autonomous session' : `MODE: ${getPreflightLabel()}`}
+                    </span>
                   </div>
                 </Button>
                 <p className="text-xs text-muted-foreground text-center">
-                  Intelligent test preview — adapts to selected protocol and source
+                  {inputProtocol === 'dj-mode' 
+                    ? 'Run a lightweight session with loop + audio • Preview STIX MΛGIC without operator control'
+                    : 'Intelligent test preview — adapts to selected protocol and source'
+                  }
                 </p>
               </div>
             )}
             
-            {sessionStatus !== 'standby' && (
+            {sessionStatus === 'dj-mode' && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <Button 
+                    onClick={handleStopDJMode} 
+                    variant="secondary"
+                    className="gap-2"
+                    size="lg"
+                  >
+                    <Stop size={20} weight="fill" />
+                    Stop DJ Mode
+                  </Button>
+
+                  <Button 
+                    onClick={handleUpgradeToOperator} 
+                    variant="default"
+                    className="gap-2 bg-primary hover:bg-primary/90"
+                    size="lg"
+                  >
+                    <Lightning size={20} weight="fill" />
+                    Upgrade Session
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground text-center">
+                  Upgrade to premium for full operator control with live injection
+                </p>
+              </div>
+            )}
+            
+            {sessionStatus !== 'standby' && sessionStatus !== 'dj-mode' && (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <Button 
                   onClick={handleStopPreflight} 
