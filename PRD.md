@@ -1,16 +1,23 @@
 # Planning Guide
 
-STIX MΛGIC VC NODE is a premium operator-facing control surface for OBS ↔ Telegram VC integration—a command node for live media injection, RTMP streaming, session management, and real-time diagnostics.
+STIX MΛGIC VC NODE is a premium multi-platform session control node for live voice and media operator infrastructure—a unified command surface for routing, monitoring, and managing live session presence across Telegram and Discord with support for OBS integration, RTMP streaming, session management, and real-time diagnostics.
 
 **Experience Qualities**:
 1. **Cinematic** - Every interaction should feel like operating high-grade broadcast equipment with polished animations and premium visual feedback
-2. **Precise** - Controls and status indicators must communicate technical state with surgical clarity and zero ambiguity
-3. **Alive** - The interface breathes with subtle motion, real-time telemetry, and responsive state changes that feel connected to live infrastructure
+2. **Precise** - Controls and status indicators must communicate technical state with surgical clarity and zero ambiguity, adapting language to platform context (Telegram vs Discord)
+3. **Alive** - The interface breathes with subtle motion, real-time telemetry, and responsive state changes that feel connected to live cross-platform infrastructure
 
 **Complexity Level**: Light Application (multiple features with basic state) - Progressive disclosure approach
-  - A refined operator interface using progressive disclosure principles to reduce visual noise while maintaining access to all features through collapsible sections
+  - A refined multi-platform operator interface using progressive disclosure principles to reduce visual noise while maintaining access to all features through collapsible sections, with platform-aware language and routing logic
 
 ## Essential Features
+
+### Platform Selector (Telegram + Discord)
+- **Functionality**: High-level platform destination selector allowing operators to choose between Telegram and Discord as the target platform for session output, with platform-aware UI adaptation
+- **Purpose**: Positions the system as a multi-platform session control node rather than Telegram-only, communicating "same operator brain, different platform destination"
+- **Trigger**: Visible near top of interface above mode/source controls; user selects platform before configuring session
+- **Progression**: Page loads → Telegram selected by default → User can switch to Discord → UI language adapts (VC→Voice Channel, Call→Channel, etc.) → Session mode concepts adjust → Diagnostics show platform-aware logs → Architecture reflects platform output
+- **Success criteria**: Platform selection clearly visible; UI language adapts to platform (Telegram: "VC/Call/Broadcast" vs Discord: "Voice Channel/Channel/Stage"); diagnostics include PLATFORM category; controls use platform-appropriate terminology; architecture shows selected platform; system feels unified across both platforms; Telegram remains primary reference but Discord support feels native
 
 ### DJ Audio Source Selection (Optional Spotify Integration)
 - **Functionality**: Audio source management for DJ Mode with managed sources (STIX Library, ClipsFlow Audio Pack, STIX MΛGIC Session Pack) and optional personal Spotify integration, clearly positioning Spotify as secondary personalization layer

@@ -56,6 +56,7 @@ import {
 } from "@phosphor-icons/react"
 import { toast } from "sonner"
 
+type Platform = 'telegram' | 'discord'
 type SessionStatus = 'standby' | 'active' | 'connecting' | 'error' | 'dj-mode'
 type InputProtocol = 'virtual-camera' | 'rtmp' | 'local' | 'relay' | 'clipsflow' | 'dj-mode'
 type SessionMode = 'call' | 'broadcast' | 'dj' | null
@@ -81,6 +82,7 @@ interface ProtocolConfig {
 }
 
 function App() {
+  const [platform, setPlatform] = useKV<Platform>("platform", "telegram")
   const [sessionStatus, setSessionStatus] = useKV<SessionStatus>("session-status", "standby")
   const [inputProtocol, setInputProtocol] = useKV<InputProtocol>("input-protocol", "dj-mode")
   const [sessionMark, setSessionMark] = useKV<SessionMark>("session-mark", "stix-default")
@@ -152,6 +154,38 @@ function App() {
   const currentProtocol = protocols.find(p => p.id === inputProtocol)
   const sessionMode = currentProtocol?.mode
 
+  const getPlatformLanguage = (key: string): string => {
+    const language: Record<Platform, Record<string, string>> = {
+      telegram: {
+        vc: 'VC',
+        voice: 'Voice Chat',
+        channel: 'VC',
+        session: 'VC session',
+        ingest: 'Telegram ingest',
+        uplink: 'Telegram VC',
+        connected: 'Connected to Telegram VC',
+        injecting: 'Injecting feed into VC',
+        bound: 'Bound to Telegram ingest',
+        relay: 'VC relay'
+      },
+      discord: {
+        vc: 'Voice',
+        voice: 'Voice Channel',
+        channel: 'Channel',
+        session: 'Voice session',
+        ingest: 'Discord voice',
+        uplink: 'Discord Voice',
+        connected: 'Connected to Discord voice channel',
+        injecting: 'Relay active in channel',
+        bound: 'Bound to Discord session',
+        relay: 'Channel relay'
+      }
+    }
+    
+    const currentPlatform = platform || 'telegram'
+    return language[currentPlatform][key] || key
+  }
+
   const addLog = (severity: LogEntryData['severity'], type: string, message: string) => {
     const newLog: LogEntryData = {
       id: Date.now().toString(),
@@ -198,7 +232,7 @@ function App() {
     if (inputProtocol === 'clipsflow') {
       addLog('info', 'INTAKE', 'ClipsFlow asset received')
       addLog('info', 'PREP', 'Compression profile applied')
-      addLog('info', 'SESSION', 'Linking prepared media to VC session...')
+      addLog('info', 'SESSION', `Linking prepared media to ${getPlatformLanguage('session')}...`)
       setResolution('Adaptive')
     } else if (inputProtocol === 'virtual-camera') {
       addLog('info', 'SOURCE', 'OBS Virtual Camera detected')
@@ -206,10 +240,10 @@ function App() {
       setResolution('720p')
     } else if (inputProtocol === 'rtmp') {
       addLog('info', 'UPLINK', 'RTMP handshake initiated')
-      addLog('info', 'SESSION', 'Binding to Telegram ingest...')
+      addLog('info', 'SESSION', `Binding to ${getPlatformLanguage('ingest')}...`)
       setResolution('1080p')
     } else {
-      addLog('info', 'SESSION', 'Initializing VC uplink...')
+      addLog('info', 'SESSION', `Initializing ${getPlatformLanguage('uplink')}...`)
       setResolution('480p')
     }
     
@@ -234,14 +268,14 @@ function App() {
       }
       
       if (inputProtocol === 'clipsflow') {
-        addLog('success', 'ROUTING', 'Prepared media linked to VC session')
+        addLog('success', 'ROUTING', `Prepared media linked to ${getPlatformLanguage('session')}`)
         addLog('success', 'LOAD', 'Direct ingest avoided')
         addLog('success', 'SESSION', 'Injection payload ready')
         addLog('info', 'PREVIEW', 'Optimized preview feed active')
         toast.success('Preflight active — ClipsFlow media routed')
       } else if (inputProtocol === 'virtual-camera') {
         setFrameRate(30)
-        addLog('success', 'SESSION', 'Injecting feed into Telegram VC')
+        addLog('success', 'SESSION', getPlatformLanguage('injecting'))
         addLog('success', 'PREVIEW', 'Frame sync stable')
         addLog('info', 'AUDIO', 'External audio routing active')
         addLog('success', 'SYNC', 'Frame alignment stable')
@@ -249,16 +283,16 @@ function App() {
       } else if (inputProtocol === 'rtmp') {
         setBitrate(2500)
         setPacketLoss(0.2)
-        addLog('success', 'SESSION', 'Bound to Telegram ingest')
+        addLog('success', 'SESSION', getPlatformLanguage('bound'))
         addLog('success', 'PREVIEW', 'Frame sync stable')
         addLog('success', 'STREAM', 'Bitrate stabilized at 2.5 Mbps')
         addLog('success', 'HEALTH', 'Packet loss within threshold')
         toast.success('Preflight active — RTMP stream ready')
       } else {
-        addLog('success', 'SESSION', 'Connected to voice chat')
+        addLog('success', 'SESSION', getPlatformLanguage('connected'))
         addLog('success', 'PREVIEW', 'Feed active')
         addLog('info', 'SOURCE', `Activated ${inputProtocol} media source`)
-        toast.success('Preflight active — VC session ready')
+        toast.success(`Preflight active — ${getPlatformLanguage('session')} ready`)
       }
     }, 1500)
   }
@@ -635,9 +669,41 @@ function App() {
           </h1>
           <div className="h-px w-24 mx-auto bg-gradient-to-r from-transparent via-accent to-transparent" />
           <p className="text-sm text-muted-foreground">
-            VC Node • Operator Control
+            Multi-Platform Session Control
           </p>
         </header>
+
+        <div className="glass-panel rounded-xl p-4">
+          <div className="space-y-3">
+            <div className="text-center">
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
+                Platform Destination
+              </h3>
+              <Tabs value={platform || "telegram"} onValueChange={(value) => {
+                if (sessionStatus === 'active' || sessionStatus === 'dj-mode') {
+                  toast.error('Cannot switch platform during active session')
+                  return
+                }
+                setPlatform(value as Platform)
+                addLog('info', 'PLATFORM', `Switched to ${value === 'telegram' ? 'Telegram' : 'Discord'}`)
+                toast.success(`Platform: ${value === 'telegram' ? 'Telegram' : 'Discord'}`)
+              }}>
+                <TabsList className="grid grid-cols-2 w-full max-w-md mx-auto">
+                  <TabsTrigger value="telegram" disabled={sessionStatus === 'active' || sessionStatus === 'dj-mode'}>
+                    Telegram
+                  </TabsTrigger>
+                  <TabsTrigger value="discord" disabled={sessionStatus === 'active' || sessionStatus === 'dj-mode'}>
+                    Discord
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+            <div className="text-center text-xs text-muted-foreground">
+              {platform === 'telegram' && 'Target: Telegram Voice Chat infrastructure'}
+              {platform === 'discord' && 'Target: Discord Voice Channel infrastructure'}
+            </div>
+          </div>
+        </div>
 
         <div className="space-y-6">
           <div className="glass-panel rounded-xl p-6 space-y-6">
@@ -645,12 +711,18 @@ function App() {
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
                   <h2 className="text-lg font-semibold">Live Preview</h2>
-                  {sessionMode && (
-                    <Badge variant="outline" className="gap-1.5 border-accent text-accent font-mono text-[10px]">
-                      <MonitorPlay size={12} weight="fill" />
-                      {getModeLabel()}
+                  <div className="flex gap-2 flex-wrap">
+                    <Badge variant="outline" className="gap-1.5 border-primary text-primary font-mono text-[10px]">
+                      <Broadcast size={12} weight="fill" />
+                      {platform === 'telegram' ? 'Telegram' : 'Discord'}
                     </Badge>
-                  )}
+                    {sessionMode && (
+                      <Badge variant="outline" className="gap-1.5 border-accent text-accent font-mono text-[10px]">
+                        <MonitorPlay size={12} weight="fill" />
+                        {getModeLabel()}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
                 <StatusIndicator {...statusIndicator} />
               </div>
@@ -1353,7 +1425,7 @@ function App() {
               <div className="flex items-center gap-2 flex-wrap">
                 <Funnel size={16} className="text-muted-foreground" />
                 <div className="flex gap-2 flex-wrap">
-                  {['all', 'source', 'session', 'audio', 'uplink', 'brand', 'dj', 'time', 'spotify'].map((filter) => (
+                  {['all', 'platform', 'source', 'session', 'audio', 'uplink', 'brand', 'dj', 'time', 'spotify'].map((filter) => (
                     <button
                       key={filter}
                       onClick={() => setDiagnosticFilter(filter)}
@@ -1435,7 +1507,7 @@ function App() {
             <Broadcast size={12} />
             <span className="font-mono">FRISKY DEVELOPMENTS</span>
           </div>
-          <p>OBS ↔ Telegram VC operator control infrastructure</p>
+          <p>Multi-platform session control • Telegram + Discord</p>
         </footer>
       </div>
     </div>
