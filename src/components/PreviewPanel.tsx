@@ -73,11 +73,6 @@ export function PreviewPanel({
   const [overlayEnabled, setOverlayEnabled] = useState(true)
   const [safeModeEnabled, setSafeModeEnabled] = useState(false)
   const [visionCondition, setVisionCondition] = useState<VisionCondition>('no-signal')
-  
-  const isSpotifyPlaying = sessionStatus === 'dj-mode' && 
-    djAudioSource === 'spotify' && 
-    spotifyStatus === 'connected' && 
-    spotifyTrack !== null
 
   useEffect(() => {
     if (sessionStatus === 'standby') {
@@ -517,17 +512,16 @@ export function PreviewPanel({
                   <Broadcast size={96} className="text-primary/20 animate-pulse-glow" weight="duotone" />
                 </div>
                 
-                {isSpotifyPlaying && (
-                  <div className="absolute inset-0 flex items-center justify-center p-8">
-                    <div className="w-full max-w-2xl">
-                      <AudioVisualizer 
-                        isActive={true} 
-                        trackName={spotifyTrack || null}
-                        variant="full"
-                      />
-                    </div>
+                <div className="absolute inset-0 flex items-center justify-center p-8">
+                  <div className="w-full max-w-2xl">
+                    <AudioVisualizer 
+                      isActive={true} 
+                      trackName={djAudioSource === 'spotify' && spotifyStatus === 'connected' && spotifyTrack ? spotifyTrack : null}
+                      variant="full"
+                      audioSource={djAudioSource}
+                    />
                   </div>
-                )}
+                </div>
                 
                 <div 
                   className="absolute inset-0 opacity-[0.04] mix-blend-overlay"
