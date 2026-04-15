@@ -13,7 +13,7 @@ import {
 } from "@phosphor-icons/react"
 
 type PreviewState = 'idle' | 'active' | 'degraded' | 'no-signal'
-type InputProtocol = 'virtual-camera' | 'rtmp' | 'local' | 'relay'
+type InputProtocol = 'virtual-camera' | 'rtmp' | 'local' | 'relay' | 'clipsflow'
 
 interface PreviewPanelProps {
   sessionStatus: 'standby' | 'active' | 'connecting' | 'error'
@@ -56,6 +56,7 @@ export function PreviewPanel({
   }, [sessionStatus, signalQuality])
 
   const getPreviewLabel = () => {
+    if (inputProtocol === 'clipsflow') return 'ClipsFlow Render'
     if (inputProtocol === 'virtual-camera') return 'OBS Feed'
     if (inputProtocol === 'rtmp') return 'RTMP Input'
     if (inputProtocol === 'local') return 'Local Source'

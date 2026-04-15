@@ -36,12 +36,14 @@ import {
   FileVideo,
   GitBranch,
   Eye,
-  Key
+  Key,
+  CloudArrowUp,
+  Package
 } from "@phosphor-icons/react"
 import { toast } from "sonner"
 
 type SessionStatus = 'standby' | 'active' | 'connecting' | 'error'
-type InputProtocol = 'virtual-camera' | 'rtmp' | 'local' | 'relay'
+type InputProtocol = 'virtual-camera' | 'rtmp' | 'local' | 'relay' | 'clipsflow'
 type SessionMode = 'call' | 'broadcast' | null
 
 interface LogEntryData {
@@ -62,7 +64,7 @@ interface ProtocolConfig {
 
 function App() {
   const [sessionStatus, setSessionStatus] = useKV<SessionStatus>("session-status", "standby")
-  const [inputProtocol, setInputProtocol] = useKV<InputProtocol>("input-protocol", "virtual-camera")
+  const [inputProtocol, setInputProtocol] = useKV<InputProtocol>("input-protocol", "clipsflow")
   const [logs, setLogs] = useKV<LogEntryData[]>("diagnostic-logs", [])
   const [streamKey] = useState("sk_live_" + Math.random().toString(36).substring(2, 15))
   
@@ -75,6 +77,13 @@ function App() {
   const [resolution, setResolution] = useState('720p')
 
   const protocols: ProtocolConfig[] = [
+    { 
+      id: 'clipsflow', 
+      label: 'ClipsFlow File', 
+      description: 'Prepared media intake via ClipsFlow pipeline', 
+      icon: Package, 
+      mode: null 
+    },
     { 
       id: 'virtual-camera', 
       label: 'Virtual Camera', 
@@ -123,7 +132,12 @@ function App() {
     setSessionStatus('connecting')
     addLog('info', 'PREVIEW', 'Feed initialized')
     
-    if (inputProtocol === 'virtual-camera') {
+    if (inputProtocol === 'clipsflow') {
+      addLog('info', 'INTAKE', 'ClipsFlow asset received')
+      addLog('info', 'PREP', 'Compression profile applied')
+      addLog('info', 'SESSION', 'Linking prepared media to VC session...')
+      setResolution('Adaptive')
+    } else if (inputProtocol === 'virtual-camera') {
       addLog('info', 'SOURCE', 'OBS Virtual Camera detected')
       addLog('info', 'SESSION', 'Initializing camera injection...')
       setResolution('720p')
@@ -142,7 +156,13 @@ function App() {
       setLatency(45)
       setAudioSync('stable')
       
-      if (inputProtocol === 'virtual-camera') {
+      if (inputProtocol === 'clipsflow') {
+        addLog('success', 'ROUTING', 'Prepared media linked to VC session')
+        addLog('success', 'LOAD', 'Direct ingest avoided')
+        addLog('success', 'SESSION', 'Injection payload ready')
+        addLog('info', 'PREVIEW', 'Optimized preview feed active')
+        toast.success('ClipsFlow media routed to VC')
+      } else if (inputProtocol === 'virtual-camera') {
         setFrameRate(30)
         addLog('success', 'SESSION', 'Injecting feed into Telegram VC')
         addLog('success', 'PREVIEW', 'Frame sync stable')
@@ -484,7 +504,105 @@ function App() {
               </>
             )}
 
-            {inputProtocol !== 'virtual-camera' && inputProtocol !== 'rtmp' && (
+            {inputProtocol === 'clipsflow' && (
+              <>
+                <div className="space-y-4">
+                  <div className="glass-panel p-4 rounded-lg space-y-3">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <Package size={16} className="text-accent" />
+                      <span>Source Metadata</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <div className="text-muted-foreground">Source</div>
+                        <div className="font-mono text-foreground">ClipsFlow Intake</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Asset Type</div>
+                        <div className="font-mono text-foreground">Video / Mixed</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Preparation State</div>
+                        <div className="font-mono text-success">Optimized</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Delivery Mode</div>
+                        <div className="font-mono text-accent">Ready for Injection</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Compression Profile</div>
+                        <div className="font-mono text-foreground">Adaptive</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Payload Status</div>
+                        <div className="font-mono text-success">Server-Safe</div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="glass-panel p-4 rounded-lg space-y-2 bg-accent/5 border-accent/20">
+                    <div className="text-xs text-muted-foreground">Infrastructure Protection</div>
+                    <div className="text-sm space-y-1">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle size={14} className="text-success" weight="fill" />
+                        <span>Prepared upstream through ClipsFlow</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <CheckCircle size={14} className="text-success" weight="fill" />
+                        <span>Optimized media handoff active</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <CheckCircle size={14} className="text-success" weight="fill" />
+                        <span>Direct raw ingestion bypassed</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <CheckCircle size={14} className="text-success" weight="fill" />
+                        <span>Server load preserved through staged intake</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <MetricDisplay
+                    icon={<Package size={20} />}
+                    label="Intake Status"
+                    value={sessionStatus === 'active' ? 'PREPARED' : 'OFFLINE'}
+                    status={sessionStatus === 'active' ? 'good' : 'neutral'}
+                  />
+                  <MetricDisplay
+                    icon={<CheckCircle size={20} />}
+                    label="Routing State"
+                    value={sessionStatus === 'active' ? 'LINKED' : '--'}
+                    status={sessionStatus === 'active' ? 'good' : 'neutral'}
+                  />
+                  <MetricDisplay
+                    icon={<WifiHigh size={20} />}
+                    label="Signal Quality"
+                    value={sessionStatus === 'active' ? `${Math.round(signalQuality)}%` : '--'}
+                    status={signalQuality > 85 ? 'good' : signalQuality > 65 ? 'warning' : 'error'}
+                  />
+                  <MetricDisplay
+                    icon={<Timer size={20} />}
+                    label="Latency"
+                    value={sessionStatus === 'active' ? `${Math.round(latency)}ms` : '--'}
+                    status={latency < 50 ? 'good' : latency < 100 ? 'warning' : 'error'}
+                  />
+                </div>
+
+                {sessionStatus === 'active' && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Payload Quality</span>
+                      <span>{signalQuality >= 90 ? 'OPTIMAL' : signalQuality >= 70 ? 'GOOD' : 'DEGRADED'}</span>
+                    </div>
+                    <Progress value={signalQuality} className="h-1" />
+                  </div>
+                )}
+              </>
+            )}
+
+            {inputProtocol !== 'virtual-camera' && inputProtocol !== 'rtmp' && inputProtocol !== 'clipsflow' && (
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <MetricDisplay
@@ -536,7 +654,7 @@ function App() {
                 size="lg"
               >
                 <PlayCircle size={20} weight="fill" />
-                {inputProtocol === 'virtual-camera' ? 'Inject Camera' : inputProtocol === 'rtmp' ? 'Start Stream' : 'Join VC'}
+                {inputProtocol === 'clipsflow' ? 'Route to VC' : inputProtocol === 'virtual-camera' ? 'Inject Camera' : inputProtocol === 'rtmp' ? 'Start Stream' : 'Join VC'}
               </Button>
             )}
             
@@ -578,15 +696,22 @@ function App() {
 
         <GlassCard title="System Architecture">
           <div className="flex flex-col md:flex-row items-center justify-center gap-4 py-8">
-            {['OBS', 'VC NODE', inputProtocol === 'rtmp' ? 'Telegram RTMP' : 'Telegram VC'].map((layer, index, arr) => (
+            {(inputProtocol === 'clipsflow' 
+              ? ['ClipsFlow', 'VC NODE', 'Telegram VC']
+              : inputProtocol === 'virtual-camera' || inputProtocol === 'rtmp'
+              ? ['OBS', 'VC NODE', inputProtocol === 'rtmp' ? 'Telegram RTMP' : 'Telegram VC']
+              : ['Source', 'VC NODE', 'Telegram VC']
+            ).map((layer, index, arr) => (
               <div key={layer} className="flex items-center gap-4">
                 <div className={`glass-panel px-6 py-4 rounded-lg text-center min-w-[140px] transition-all duration-300 ${
-                  index === 0 && sessionStatus === 'active' && (inputProtocol === 'virtual-camera' || inputProtocol === 'rtmp') 
+                  index === 0 && sessionStatus === 'active' && (inputProtocol === 'virtual-camera' || inputProtocol === 'rtmp' || inputProtocol === 'clipsflow') 
                     ? 'border-2 border-accent/50 shadow-accent/20 shadow-lg' 
                     : ''
                 }`}>
                   <div className="flex items-center justify-center gap-2">
-                    {index === 0 && <Eye size={16} className="text-accent" />}
+                    {index === 0 && inputProtocol === 'clipsflow' && <Package size={16} className="text-accent" />}
+                    {index === 0 && (inputProtocol === 'virtual-camera' || inputProtocol === 'rtmp') && <Eye size={16} className="text-accent" />}
+                    {index === 0 && inputProtocol !== 'clipsflow' && inputProtocol !== 'virtual-camera' && inputProtocol !== 'rtmp' && <Database size={16} className="text-accent" />}
                     {index === 1 && <TreeStructure size={16} className="text-primary" />}
                     {index === 2 && <Broadcast size={16} className="text-foreground" />}
                     <div className="font-mono text-sm">{layer}</div>

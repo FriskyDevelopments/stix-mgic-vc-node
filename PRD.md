@@ -13,11 +13,18 @@ STIX MΛGIC VC NODE is a premium operator-facing control surface for OBS ↔ Tel
 ## Essential Features
 
 ### Input Protocol Selector
-- **Functionality**: Primary mode selector for media input routing: Virtual Camera (OBS call mode), RTMP Stream (broadcast mode), Local Media, or Relay Input
-- **Purpose**: Establishes the fundamental system mode and determines how media enters the VC node, reflecting real-world OBS integration patterns
+- **Functionality**: Primary mode selector for media input routing: ClipsFlow File (prepared media intake), Virtual Camera (OBS call mode), RTMP Stream (broadcast mode), Local Media, or Relay Input
+- **Purpose**: Establishes the fundamental system mode and determines how media enters the VC node, with ClipsFlow representing upstream prepared media that protects the node from heavy file processing
 - **Trigger**: User selects protocol type; selection is locked when session is active
-- **Progression**: Page loads → Default protocol shown → User reviews options → Selects protocol → Active protocol highlights → System mode adapts → Controls update to match protocol
-- **Success criteria**: Clear visual distinction between protocols, obvious active state, mode-appropriate controls appear
+- **Progression**: Page loads → ClipsFlow default shown → User reviews options → Selects protocol → Active protocol highlights → System mode adapts → Controls and metrics update to match protocol
+- **Success criteria**: Clear visual distinction between protocols, obvious active state, mode-appropriate controls appear, ClipsFlow shows distinct prepared media messaging
+
+### ClipsFlow File Mode (Prepared Media Intake)
+- **Functionality**: ClipsFlow file intake mode showing prepared media metadata including asset type, preparation state, compression profile, delivery mode, and payload status with infrastructure protection messaging
+- **Purpose**: Represents the architectural pattern where heavy media processing happens upstream in ClipsFlow, protecting the VC NODE from raw file handling and server burden
+- **Trigger**: User selects ClipsFlow File protocol and initiates routing
+- **Progression**: Protocol selected → "Route to VC" appears → User clicks → ClipsFlow asset received → Preparation verified → Media linked to session → Routing confirmed
+- **Success criteria**: Metadata clearly shows prepared/optimized state; logs reflect INTAKE/PREP/ROUTING events; interface communicates infrastructure efficiency; metrics show intake and routing status
 
 ### Virtual Camera Mode (Call Injection)
 - **Functionality**: OBS Virtual Camera integration mode showing camera feed status, frame rate, audio sync, and latency metrics specific to camera injection
@@ -55,18 +62,18 @@ STIX MΛGIC VC NODE is a premium operator-facing control surface for OBS ↔ Tel
 - **Success criteria**: Clear differentiation between protocol types, obvious active state, mode indicators visible, seamless visual transitions
 
 ### Architecture Visualization
-- **Functionality**: Clean visual diagram showing OBS → VC NODE → Telegram flow with dynamic highlighting based on active protocol
-- **Purpose**: Communicates product architecture with emphasis on OBS integration and positions the system as a bridge between OBS and Telegram
-- **Trigger**: User scrolls to architecture section; diagram adapts to show "Telegram RTMP" when in RTMP mode or "Telegram VC" otherwise
-- **Progression**: Section enters viewport → Layers animate in sequentially → OBS highlighted when active → Connections draw with pulse animation → Labels adapt to mode → System feels cohesive
-- **Success criteria**: Non-developers understand the OBS → VC NODE → Telegram flow; technical users see the architectural value; active connections visually pulse
+- **Functionality**: Clean visual diagram showing system flow with dynamic highlighting based on active protocol: ClipsFlow → VC NODE → Telegram for prepared media, OBS → VC NODE → Telegram for live feeds
+- **Purpose**: Communicates product architecture with emphasis on upstream intake layers (ClipsFlow or OBS) and positions the system as a bridge with intelligent routing based on source type
+- **Trigger**: User scrolls to architecture section; diagram adapts to show ClipsFlow when using prepared media, OBS when using camera/RTMP, or generic Source otherwise
+- **Progression**: Section enters viewport → Layers animate in sequentially → Source layer highlighted when active → Connections draw with pulse animation → Labels adapt to protocol → System feels cohesive
+- **Success criteria**: Users understand ClipsFlow protects the node from heavy processing; technical users see the layered architecture value; active connections visually pulse; ClipsFlow mode shows distinct upstream intake layer
 
 ### Diagnostic Telemetry Stream
-- **Functionality**: Live event log with protocol-specific categories (SOURCE, SESSION, AUDIO, UPLINK, SYNC, HEALTH) showing realistic system-level events
-- **Purpose**: Provides operational transparency with language that reflects real OBS/Telegram interactions, not generic events
+- **Functionality**: Live event log with protocol-specific categories (SOURCE, SESSION, AUDIO, UPLINK, SYNC, HEALTH, INTAKE, PREP, ROUTING) showing realistic system-level events tailored to each input protocol
+- **Purpose**: Provides operational transparency with language that reflects real system interactions, including ClipsFlow intake/preparation flow, OBS/Telegram events, and routing operations
 - **Trigger**: Events generate continuously based on protocol actions; log auto-scrolls and updates in real-time
-- **Progression**: Event occurs → Protocol-aware log entry appears with timestamp → Color-coded by severity → Category reflects protocol context → Auto-scroll maintains latest focus → History preserved
-- **Success criteria**: Operators can trace protocol-specific behavior, identify issues, verify command execution, and see realistic OBS/Telegram system events
+- **Progression**: Event occurs → Protocol-aware log entry appears with timestamp → Color-coded by severity → Category reflects protocol context (INTAKE/PREP for ClipsFlow) → Auto-scroll maintains latest focus → History preserved
+- **Success criteria**: Operators can trace protocol-specific behavior, identify issues, verify command execution, see realistic system events including ClipsFlow intake preparation messaging
 
 ## Edge Case Handling
 
@@ -75,12 +82,13 @@ STIX MΛGIC VC NODE is a premium operator-facing control surface for OBS ↔ Tel
 - **Protocol Switch During Active Session**: Prevent protocol changes when session is active; show error toast explaining session must be disconnected first
 - **Multiple Rapid Actions**: Queue or debounce control actions to prevent conflicting state changes
 - **RTMP Stream Key Security**: Display stream key as password field by default; provide copy button for secure clipboard transfer
+- **ClipsFlow Prepared Media Not Available**: In ClipsFlow mode, show metadata indicating prepared/optimized state even when inactive (UI simulation only)
 - **OBS Virtual Camera Not Detected**: In virtual camera mode, show diagnostic message if OBS virtual camera device is unavailable (UI simulation only)
 - **Emergency Stop Invoked**: Immediately override all other states regardless of protocol, display critical alert, require deliberate recovery action
 
 ## Design Direction
 
-The interface should evoke the feeling of operating **premium broadcast infrastructure with real OBS integration**—a cinematic operator console that feels technical, alive, and grounded in actual Telegram + OBS workflows. Think: Telegram's clean interaction patterns meets Apple's obsessive finish meets high-grade A/V equipment control surfaces. The aesthetic should be **radiant dark**: deep charcoal foundations with glass panels, restrained glow on active elements, and carbon-fiber-like textures. Virtual Camera mode should have a softer glow suggesting local control, while RTMP mode should have sharper, brighter signal glow suggesting uplink energy. Every element should feel deliberate, precise, and operator-grade—not a consumer music bot, not a cheap hacker terminal, not a generic admin dashboard. This is a control node for live media injection that visually communicates: "You are not inside Telegram—you are controlling what Telegram receives."
+The interface should evoke the feeling of operating **premium broadcast infrastructure with intelligent upstream intake layers**—a cinematic operator console that understands the difference between prepared ClipsFlow media (which protects infrastructure) and live OBS feeds (which require real-time handling). ClipsFlow mode should feel clean, optimized, and server-efficient with messaging that emphasizes staged preparation and infrastructure protection. Think: Telegram's clean interaction patterns meets Apple's obsessive finish meets high-grade A/V equipment control surfaces with smart media routing. The aesthetic should be **radiant dark**: deep charcoal foundations with glass panels, restrained glow on active elements, and carbon-fiber-like textures. ClipsFlow mode should have a cool, prepared glow suggesting optimized handoff. Virtual Camera mode should have a softer glow suggesting local control, while RTMP mode should have sharper, brighter signal glow suggesting uplink energy. Every element should feel deliberate, precise, and operator-grade—not a consumer music bot, not a cheap hacker terminal, not a generic admin dashboard. This is a control node for intelligent media routing that visually communicates: "You are not inside Telegram—you are controlling what Telegram receives, with smart upstream layers protecting your infrastructure."
 
 ## Color Selection
 
