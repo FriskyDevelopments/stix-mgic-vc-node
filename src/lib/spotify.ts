@@ -24,6 +24,7 @@ export interface SpotifyTrack {
   }
   duration_ms: number
   uri: string
+  preview_url?: string | null
 }
 
 export interface SpotifyUser {
