@@ -48,13 +48,25 @@ STIX MΛGIC VC NODE is a premium operator-facing control surface for OBS ↔ Tel
 - **Success criteria**: Operator can instantly assess session health, identify protocol mode, see mode-specific metrics, and detect issues at a glance
 
 ### Operator Control Surface
-- **Functionality**: Protocol-aware action controls that adapt to input mode (Virtual Camera: "Inject Camera", RTMP: "Start Stream", etc.) for lifecycle management
-- **Purpose**: Provides direct operator command execution with language and actions appropriate to the selected protocol
-- **Trigger**: User clicks control buttons based on operational needs and current protocol
-- **Progression**: Operator assesses protocol and state → Selects appropriate action → Button provides feedback → State updates reflect action → Status panel confirms change with protocol-specific logs
-- **Success criteria**: Controls feel responsive, use correct terminology per protocol, and provide clear confirmation of execution
+- **Functionality**: Protocol-aware action controls that adapt to input mode (Virtual Camera: "Inject Camera", RTMP: "Start Stream", etc.) for lifecycle management, with automatic operator session timer countdown (2 minutes) and seamless DJ Mode fallback transition when time expires
+- **Purpose**: Provides direct operator command execution with language and actions appropriate to the selected protocol, while demonstrating the premium tier fallback behavior where active operator sessions gracefully transition to autonomous DJ Mode
+- **Trigger**: User clicks control buttons based on operational needs and current protocol; operator timer starts automatically when premium user activates preflight; timer countdown triggers warnings at 60s, 30s, and 10s; automatic transition initiates at 0s
+- **Progression**: Operator assesses protocol and state → Selects appropriate action → Button provides feedback → State updates reflect action → Status panel confirms change with protocol-specific logs → (Premium tier) Timer counts down during active session → Warnings appear at intervals → Session seamlessly transitions to DJ Mode at expiration → Logs document continuity preservation
+- **Success criteria**: Controls feel responsive, use correct terminology per protocol, provide clear confirmation of execution; timer displays in MM:SS format with visual urgency (amber when <30s); transition happens smoothly without session drop; DJ Mode activates with autonomous loop + audio; logs clearly communicate fallback behavior
 
-### Source Layer Management
+### DJ Mode (Autonomous Session Fallback)
+- **Functionality**: Lightweight autonomous session mode running looping visual content + ambient audio track with session branding, serving as both no-cost entry point and automatic fallback when premium operator time expires
+- **Purpose**: Demonstrates the commercial tier system where sessions gracefully transition from active operator control to autonomous presence, maintaining session continuity without interruption
+- **Trigger**: User can start DJ Mode directly from standby as free/no-cost entry; automatic transition occurs when premium operator session timer reaches zero; manual upgrade available from DJ Mode to operator session
+- **Progression**: (Direct start) User selects DJ Mode protocol → Clicks "Start DJ Mode" → Connecting state → DJ Mode activates with loop + audio | (Fallback) Active operator session → Timer reaches 60s warning → 30s warning → 10s warning → 0s triggers transition → Connecting state with fallback logs → Input protocol switches to dj-mode → DJ Mode activates → Session continues autonomously → Session mark persists → Signal metrics adjust to autonomous mode values
+- **Success criteria**: Direct start works from standby; fallback transition happens smoothly during active session without session drop; logs communicate "operator window completed" → "fallback initiated" → "DJ Mode active"; visual preview updates to show looping content; audio state reflects ambient track; signal quality stabilizes around 88%; operator can upgrade from DJ Mode back to full session; branding/session mark persists through transition
+
+### Operator Session Timer & Seamless Fallback
+- **Functionality**: Live countdown timer (2 minutes default) displayed during active premium operator sessions, with progressive warnings and automatic seamless transition to DJ Mode when time expires, plus "Extend Time" control available when timer is running low
+- **Purpose**: Demonstrates the premium tier's time-based operator sessions with intelligent fallback behavior that preserves session continuity rather than abruptly ending the session
+- **Trigger**: Timer starts automatically when premium user initiates preflight; countdown runs every second; warnings trigger at 60s, 30s, and 10s remaining; transition triggers at 0s; "Extend Time" button appears when time is below 90s
+- **Progression**: Preflight starts → Timer badge appears in session status (MM:SS format) → Countdown runs → 60s: info log + toast → 30s: warning log + toast + timer badge turns amber → 10s: warning log + toast → 0s: transition flag set → Status changes to "connecting" → Logs document completion and fallback → Brief delay → Input protocol switches to "dj-mode" → Additional logs for routing change → DJ Mode activates → Transition flag clears → Session continues in autonomous mode | (Extension) Timer running low → "Extend Time" button visible → User clicks → 60s added to timer → Success log + toast
+- **Success criteria**: Timer displays prominently with clear MM:SS format; visual urgency increases as time decreases (amber at <30s); warnings provide clear advance notice; transition happens smoothly without UI jank; logs tell clear story of session continuity; DJ Mode takes over seamlessly; all session state (branding, preview) persists through transition; "Extend Time" button appears conditionally and adds time successfully; no duplicate transitions occur
 - **Functionality**: Visual representation of available input protocols with mode indicators (Virtual Camera/RTMP show their session modes)
 - **Purpose**: Communicates the system's protocol-agnostic architecture and establishes whether the system is in call injection or broadcast uplink mode
 - **Trigger**: Displays available protocols on load; operator can select different protocol when session is inactive

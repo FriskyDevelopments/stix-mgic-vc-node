@@ -72,9 +72,10 @@ function App() {
   const [inputProtocol, setInputProtocol] = useKV<InputProtocol>("input-protocol", "dj-mode")
   const [sessionMark, setSessionMark] = useKV<SessionMark>("session-mark", "stix-default")
   const [logs, setLogs] = useKV<LogEntryData[]>("diagnostic-logs", [])
-  const [operatorTier] = useState<OperatorTier>('free')
-  const [operatorTimeRemaining, setOperatorTimeRemaining] = useState(0)
+  const [operatorTier] = useState<OperatorTier>('premium')
+  const [operatorTimeRemaining, setOperatorTimeRemaining] = useState(120)
   const [streamKey] = useState("sk_live_" + Math.random().toString(36).substring(2, 15))
+  const [isTransitioning, setIsTransitioning] = useState(false)
   
   const [signalQuality, setSignalQuality] = useState(0)
   const [latency, setLatency] = useState(0)
@@ -152,6 +153,10 @@ function App() {
     setSessionStatus('connecting')
     addLog('info', 'TEST', 'Preflight initiated')
     
+    if (operatorTier === 'premium' && operatorTimeRemaining === 0) {
+      setOperatorTimeRemaining(120)
+    }
+    
     let detectedMode = 'PREPARED'
     if (inputProtocol === 'virtual-camera') {
       detectedMode = 'CALL'
@@ -192,6 +197,10 @@ function App() {
       setSignalQuality(92)
       setLatency(45)
       setAudioSync('stable')
+      
+      if (operatorTier === 'premium') {
+        addLog('success', 'SESSION', `Operator session active — ${Math.floor(operatorTimeRemaining / 60)}:${String(operatorTimeRemaining % 60).padStart(2, '0')} available`)
+      }
       
       addLog('success', 'PREVIEW', 'Preflight feed active')
       
@@ -288,21 +297,47 @@ function App() {
     }
   }
 
+  const handleExtendTime = () => {
+    const additionalTime = 60
+    setOperatorTimeRemaining((prev) => prev + additionalTime)
+    addLog('success', 'SESSION', `Operator session extended — ${additionalTime}s added`)
+    toast.success(`Session extended by ${additionalTime} seconds`)
+  }
+
   const handleOperatorTimeExpired = () => {
-    if (sessionStatus === 'active' && operatorTimeRemaining === 0) {
+    if (sessionStatus === 'active' && operatorTimeRemaining === 0 && !isTransitioning) {
+      setIsTransitioning(true)
       setSessionStatus('connecting')
-      addLog('info', 'SESSION', 'Operator window ended')
-      addLog('info', 'FALLBACK', 'Switching to DJ Mode')
-      addLog('info', 'SESSION', 'Session continuing in autonomous mode')
+      addLog('info', 'SESSION', 'Operator window completed')
+      addLog('info', 'FALLBACK', 'Initiating seamless transition to DJ Mode')
+      addLog('info', 'SESSION', 'Session continuity preserved')
+      
+      toast('Transitioning to DJ Mode — session remains active', {
+        duration: 3000,
+      })
       
       setTimeout(() => {
         setInputProtocol('dj-mode')
-        setSessionStatus('dj-mode')
-        setSignalQuality(88)
+        addLog('info', 'ROUTING', 'Input switched to autonomous loop')
         addLog('success', 'DJ', 'DJ Mode active (fallback)')
+        addLog('success', 'LOOP', 'Visual cycle running')
+        addLog('success', 'AUDIO', 'Ambient track active')
         addLog('success', 'SESSION', 'Autonomous mode maintaining presence')
-        toast('Operator session complete — continuing in DJ Mode')
-      }, 1000)
+        
+        setTimeout(() => {
+          setSessionStatus('dj-mode')
+          setSignalQuality(88)
+          setLatency(35)
+          setAudioSync('stable')
+          setResolution('720p')
+          setFrameRate(0)
+          setBitrate(0)
+          setPacketLoss(0)
+          setIsTransitioning(false)
+          
+          toast.success('DJ Mode active — session continuing autonomously')
+        }, 800)
+      }, 1200)
     }
   }
 
@@ -404,6 +439,38 @@ function App() {
     addLog('warning', 'SECURITY', 'Stream key reset requested')
     toast('Stream key would be regenerated (demo mode)')
   }
+
+  useEffect(() => {
+    if (sessionStatus === 'active' && operatorTier === 'premium' && operatorTimeRemaining > 0) {
+      const countdownInterval = setInterval(() => {
+        setOperatorTimeRemaining((prev) => {
+          const newTime = Math.max(0, prev - 1)
+          
+          if (newTime === 60) {
+            addLog('info', 'SESSION', 'Operator window: 1 minute remaining')
+            toast('1 minute remaining in operator session', {
+              duration: 4000,
+            })
+          } else if (newTime === 30) {
+            addLog('warning', 'SESSION', 'Operator window: 30 seconds remaining')
+            toast('30 seconds remaining — DJ Mode fallback standby', {
+              duration: 4000,
+            })
+          } else if (newTime === 10) {
+            addLog('warning', 'SESSION', 'Operator window: 10 seconds remaining')
+            toast('10 seconds remaining', {
+              duration: 3000,
+            })
+          } else if (newTime === 0) {
+            handleOperatorTimeExpired()
+          }
+          
+          return newTime
+        })
+      }, 1000)
+      return () => clearInterval(countdownInterval)
+    }
+  }, [sessionStatus, operatorTier, operatorTimeRemaining])
 
   useEffect(() => {
     if (sessionStatus === 'active' || sessionStatus === 'dj-mode') {
@@ -550,7 +617,20 @@ function App() {
                   </Badge>
                 )}
               </div>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 flex-wrap">
+                {sessionStatus === 'active' && operatorTier === 'premium' && operatorTimeRemaining > 0 && (
+                  <Badge 
+                    variant="outline" 
+                    className={`gap-2 font-mono ${
+                      operatorTimeRemaining <= 30 
+                        ? 'border-warning text-warning animate-pulse-glow' 
+                        : 'border-primary text-primary'
+                    }`}
+                  >
+                    <Timer size={14} weight="fill" />
+                    {Math.floor(operatorTimeRemaining / 60)}:{String(operatorTimeRemaining % 60).padStart(2, '0')}
+                  </Badge>
+                )}
                 {sessionMode && sessionStatus === 'active' && (
                   <Badge variant="outline" className="gap-2 border-accent text-accent font-mono">
                     <VideoCamera size={14} weight="fill" />
@@ -887,6 +967,18 @@ function App() {
                   <Stop size={20} weight="fill" />
                   Stop Preflight
                 </Button>
+
+                {operatorTier === 'premium' && operatorTimeRemaining > 0 && operatorTimeRemaining < 90 && (
+                  <Button 
+                    onClick={handleExtendTime} 
+                    variant="outline"
+                    className="gap-2 border-accent text-accent hover:bg-accent/10"
+                    size="lg"
+                  >
+                    <Timer size={20} weight="fill" />
+                    Extend Time
+                  </Button>
+                )}
 
                 <Button 
                   onClick={handleGoLive} 
