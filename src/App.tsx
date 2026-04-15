@@ -4,6 +4,9 @@ import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
 import { GlassCard } from "@/components/GlassCard"
 import { StatusIndicator } from "@/components/StatusIndicator"
 import { MetricDisplay } from "@/components/MetricDisplay"
@@ -22,12 +25,23 @@ import {
   Pulse,
   WifiHigh,
   Timer,
-  CheckCircle
+  CheckCircle,
+  VideoCamera,
+  Webcam,
+  Microphone,
+  SpeakerHigh,
+  Copy,
+  ArrowsDownUp,
+  FileVideo,
+  GitBranch,
+  Eye,
+  Key
 } from "@phosphor-icons/react"
 import { toast } from "sonner"
 
 type SessionStatus = 'standby' | 'active' | 'connecting' | 'error'
-type SourceType = 'local' | 'relay' | 'live' | 'bridge'
+type InputProtocol = 'virtual-camera' | 'rtmp' | 'local' | 'relay'
+type SessionMode = 'call' | 'broadcast' | null
 
 interface LogEntryData {
   id: string
@@ -37,28 +51,60 @@ interface LogEntryData {
   message: string
 }
 
-interface SourceConfig {
-  id: SourceType
+interface ProtocolConfig {
+  id: InputProtocol
   label: string
   description: string
   icon: typeof Database
-  available: boolean
+  mode: SessionMode
 }
 
 function App() {
   const [sessionStatus, setSessionStatus] = useKV<SessionStatus>("session-status", "standby")
-  const [activeSource, setActiveSource] = useKV<SourceType>("active-source", "local")
+  const [inputProtocol, setInputProtocol] = useKV<InputProtocol>("input-protocol", "virtual-camera")
   const [logs, setLogs] = useKV<LogEntryData[]>("diagnostic-logs", [])
+  const [streamKey] = useState("sk_live_" + Math.random().toString(36).substring(2, 15))
   
   const [signalQuality, setSignalQuality] = useState(0)
   const [latency, setLatency] = useState(0)
+  const [frameRate, setFrameRate] = useState(0)
+  const [bitrate, setBitrate] = useState(0)
+  const [packetLoss, setPacketLoss] = useState(0)
+  const [audioSync, setAudioSync] = useState<'stable' | 'drift' | 'muted'>('stable')
 
-  const sources: SourceConfig[] = [
-    { id: 'local', label: 'Local Media', description: 'File-based audio source', icon: Database, available: true },
-    { id: 'relay', label: 'Stream Relay', description: 'External stream input', icon: Lightning, available: true },
-    { id: 'live', label: 'Live Input', description: 'Real-time audio capture', icon: Pulse, available: false },
-    { id: 'bridge', label: 'Bridge Input', description: 'Cross-platform relay', icon: TreeStructure, available: false }
+  const protocols: ProtocolConfig[] = [
+    { 
+      id: 'virtual-camera', 
+      label: 'Virtual Camera', 
+      description: 'OBS Virtual Camera (Call Mode)', 
+      icon: Webcam, 
+      mode: 'call' 
+    },
+    { 
+      id: 'rtmp', 
+      label: 'RTMP Stream', 
+      description: 'RTMP Broadcast Protocol', 
+      icon: Lightning, 
+      mode: 'broadcast' 
+    },
+    { 
+      id: 'local', 
+      label: 'Local Media', 
+      description: 'File-based audio source', 
+      icon: Database, 
+      mode: null 
+    },
+    { 
+      id: 'relay', 
+      label: 'Relay Input', 
+      description: 'External stream relay', 
+      icon: ArrowsDownUp, 
+      mode: null 
+    }
   ]
+
+  const currentProtocol = protocols.find(p => p.id === inputProtocol)
+  const sessionMode = currentProtocol?.mode
 
   const addLog = (severity: LogEntryData['severity'], type: string, message: string) => {
     const newLog: LogEntryData = {
@@ -68,20 +114,46 @@ function App() {
       type,
       message
     }
-    setLogs((currentLogs) => [newLog, ...(currentLogs || [])].slice(0, 50))
+    setLogs((currentLogs) => [newLog, ...(currentLogs || [])].slice(0, 100))
   }
 
   const handleJoinVC = () => {
     setSessionStatus('connecting')
-    addLog('info', 'SESSION', 'Initializing VC uplink...')
+    
+    if (inputProtocol === 'virtual-camera') {
+      addLog('info', 'SOURCE', 'OBS Virtual Camera detected')
+      addLog('info', 'SESSION', 'Initializing camera injection...')
+    } else if (inputProtocol === 'rtmp') {
+      addLog('info', 'UPLINK', 'RTMP handshake initiated')
+      addLog('info', 'SESSION', 'Binding to Telegram ingest...')
+    } else {
+      addLog('info', 'SESSION', 'Initializing VC uplink...')
+    }
     
     setTimeout(() => {
       setSessionStatus('active')
       setSignalQuality(92)
       setLatency(45)
-      addLog('success', 'SESSION', 'Connected to voice chat')
-      addLog('info', 'SOURCE', `Activated ${activeSource} media source`)
-      toast.success('VC session established')
+      setAudioSync('stable')
+      
+      if (inputProtocol === 'virtual-camera') {
+        setFrameRate(30)
+        addLog('success', 'SESSION', 'Injecting feed into Telegram VC')
+        addLog('info', 'AUDIO', 'External audio routing active')
+        addLog('success', 'SYNC', 'Frame alignment stable')
+        toast.success('Camera feed injected into VC')
+      } else if (inputProtocol === 'rtmp') {
+        setBitrate(2500)
+        setPacketLoss(0.2)
+        addLog('success', 'SESSION', 'Bound to Telegram ingest')
+        addLog('success', 'STREAM', 'Bitrate stabilized at 2.5 Mbps')
+        addLog('success', 'HEALTH', 'Packet loss within threshold')
+        toast.success('RTMP stream connected')
+      } else {
+        addLog('success', 'SESSION', 'Connected to voice chat')
+        addLog('info', 'SOURCE', `Activated ${inputProtocol} media source`)
+        toast.success('VC session established')
+      }
     }, 1500)
   }
 
@@ -89,27 +161,48 @@ function App() {
     setSessionStatus('standby')
     setSignalQuality(0)
     setLatency(0)
-    addLog('info', 'SESSION', 'Disconnected from voice chat')
+    setFrameRate(0)
+    setBitrate(0)
+    setPacketLoss(0)
+    setAudioSync('muted')
+    
+    if (inputProtocol === 'rtmp') {
+      addLog('info', 'UPLINK', 'RTMP stream disconnected')
+    } else {
+      addLog('info', 'SESSION', 'Disconnected from voice chat')
+    }
     toast('Session terminated')
   }
 
-  const handleSwitchSource = (source: SourceType) => {
-    if (!sources.find(s => s.id === source)?.available) {
-      toast.error('Source unavailable')
+  const handleSwitchProtocol = (protocol: InputProtocol) => {
+    if (sessionStatus === 'active') {
+      toast.error('Cannot switch protocol while session is active')
       return
     }
     
-    setActiveSource(source)
-    addLog('info', 'SOURCE', `Switched to ${source} input`)
-    toast.success(`Source: ${source}`)
+    setInputProtocol(protocol)
+    const protocolConfig = protocols.find(p => p.id === protocol)
+    addLog('info', 'PROTOCOL', `Switched to ${protocolConfig?.label || protocol}`)
+    toast.success(`Protocol: ${protocolConfig?.label || protocol}`)
   }
 
   const handleStabilize = () => {
-    addLog('info', 'SIGNAL', 'Initiating signal stabilization...')
+    if (inputProtocol === 'rtmp') {
+      addLog('info', 'UPLINK', 'Optimizing RTMP connection...')
+    } else {
+      addLog('info', 'SIGNAL', 'Initiating signal stabilization...')
+    }
+    
     setTimeout(() => {
       setSignalQuality(98)
       setLatency(32)
-      addLog('success', 'SIGNAL', 'Signal optimized')
+      setPacketLoss(0.1)
+      
+      if (inputProtocol === 'rtmp') {
+        addLog('success', 'UPLINK', 'Stream parameters optimized')
+      } else {
+        addLog('success', 'SIGNAL', 'Signal optimized')
+      }
       toast.success('Signal stabilized')
     }, 800)
   }
@@ -118,8 +211,22 @@ function App() {
     setSessionStatus('standby')
     setSignalQuality(0)
     setLatency(0)
+    setFrameRate(0)
+    setBitrate(0)
+    setPacketLoss(0)
+    setAudioSync('muted')
     addLog('warning', 'EMERGENCY', 'Emergency stop activated')
     toast.error('Emergency stop executed')
+  }
+
+  const handleCopyStreamKey = () => {
+    navigator.clipboard.writeText(streamKey)
+    toast.success('Stream key copied to clipboard')
+  }
+
+  const handleResetKey = () => {
+    addLog('warning', 'SECURITY', 'Stream key reset requested')
+    toast('Stream key would be regenerated (demo mode)')
   }
 
   useEffect(() => {
@@ -127,10 +234,19 @@ function App() {
       const interval = setInterval(() => {
         setSignalQuality((prev) => Math.min(100, Math.max(75, prev + (Math.random() - 0.5) * 3)))
         setLatency((prev) => Math.max(25, prev + (Math.random() - 0.5) * 5))
+        
+        if (inputProtocol === 'virtual-camera') {
+          setFrameRate((prev) => Math.min(30, Math.max(24, prev + (Math.random() - 0.5) * 2)))
+        }
+        
+        if (inputProtocol === 'rtmp') {
+          setBitrate((prev) => Math.min(3000, Math.max(2000, prev + (Math.random() - 0.5) * 100)))
+          setPacketLoss((prev) => Math.min(2, Math.max(0, prev + (Math.random() - 0.5) * 0.3)))
+        }
       }, 3000)
       return () => clearInterval(interval)
     }
-  }, [sessionStatus])
+  }, [sessionStatus, inputProtocol])
 
   const getStatusIndicator = (): { status: 'active' | 'standby' | 'warning' | 'error' | 'connecting', label: string, pulse: boolean } => {
     switch (sessionStatus) {
@@ -147,6 +263,11 @@ function App() {
 
   const statusIndicator = getStatusIndicator()
 
+  const getModeLabel = () => {
+    if (!sessionMode) return null
+    return sessionMode === 'call' ? 'CALL INJECTION' : 'BROADCAST UPLINK'
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto max-w-7xl px-4 py-12 space-y-16">
@@ -157,9 +278,42 @@ function App() {
           </h1>
           <div className="h-px w-32 mx-auto bg-gradient-to-r from-transparent via-accent to-transparent" />
           <p className="text-xl text-muted-foreground">
-            Operator control for live Telegram voice infrastructure
+            OBS ↔ Telegram VC integration control node
           </p>
         </header>
+
+        <GlassCard title="Input Protocol" description="Media routing configuration">
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {protocols.map((protocol) => {
+                const Icon = protocol.icon
+                const isActive = inputProtocol === protocol.id
+                const isDisabled = sessionStatus === 'active'
+                
+                return (
+                  <button
+                    key={protocol.id}
+                    onClick={() => handleSwitchProtocol(protocol.id)}
+                    disabled={isDisabled}
+                    className={`
+                      p-4 rounded-lg border-2 transition-all duration-200 text-left
+                      ${isActive ? 'border-accent bg-accent/10' : 'border-border hover:border-accent/50'}
+                      ${isDisabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}
+                    `}
+                  >
+                    <div className="flex flex-col items-center gap-2 text-center">
+                      <Icon size={28} className={isActive ? 'text-accent' : 'text-muted-foreground'} weight={isActive ? 'fill' : 'regular'} />
+                      <div className="space-y-1">
+                        <div className="font-medium text-sm">{protocol.label}</div>
+                        <p className="text-[10px] text-muted-foreground leading-tight">{protocol.description}</p>
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </GlassCard>
 
         <GlassCard 
           title="Session Status" 
@@ -167,51 +321,177 @@ function App() {
           glowColor={sessionStatus === 'active' ? 'shadow-accent/20 shadow-lg' : ''}
         >
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-4">
               <StatusIndicator {...statusIndicator} />
-              <div className="flex items-center gap-2 font-mono text-sm text-muted-foreground">
-                <Broadcast size={16} />
-                <span>VC NODE</span>
+              <div className="flex items-center gap-4">
+                {sessionMode && sessionStatus === 'active' && (
+                  <Badge variant="outline" className="gap-2 border-accent text-accent font-mono">
+                    <VideoCamera size={14} weight="fill" />
+                    MODE: {getModeLabel()}
+                  </Badge>
+                )}
+                <div className="flex items-center gap-2 font-mono text-sm text-muted-foreground">
+                  <Broadcast size={16} />
+                  <span>VC NODE</span>
+                </div>
               </div>
             </div>
 
             <Separator />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <MetricDisplay
-                icon={<Lightning size={20} />}
-                label="Uplink State"
-                value={sessionStatus === 'active' ? 'OPERATIONAL' : 'OFFLINE'}
-                status={sessionStatus === 'active' ? 'good' : 'neutral'}
-              />
-              <MetricDisplay
-                icon={<Database size={20} />}
-                label="Active Source"
-                value={(activeSource || 'local').toUpperCase()}
-                status="neutral"
-              />
-              <MetricDisplay
-                icon={<WifiHigh size={20} />}
-                label="Signal Quality"
-                value={sessionStatus === 'active' ? `${Math.round(signalQuality)}%` : '--'}
-                status={signalQuality > 85 ? 'good' : signalQuality > 65 ? 'warning' : 'error'}
-              />
-              <MetricDisplay
-                icon={<Timer size={20} />}
-                label="Latency"
-                value={sessionStatus === 'active' ? `${Math.round(latency)}ms` : '--'}
-                status={latency < 50 ? 'good' : latency < 100 ? 'warning' : 'error'}
-              />
-            </div>
-
-            {sessionStatus === 'active' && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Signal Strength</span>
-                  <span>{Math.round(signalQuality)}%</span>
+            {inputProtocol === 'virtual-camera' && (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <MetricDisplay
+                    icon={<Webcam size={20} />}
+                    label="Camera Feed"
+                    value={sessionStatus === 'active' ? 'ACTIVE' : 'OFFLINE'}
+                    status={sessionStatus === 'active' ? 'good' : 'neutral'}
+                  />
+                  <MetricDisplay
+                    icon={<Pulse size={20} />}
+                    label="Frame Rate"
+                    value={sessionStatus === 'active' ? `${Math.round(frameRate)} fps` : '--'}
+                    status={frameRate >= 28 ? 'good' : frameRate >= 24 ? 'warning' : 'error'}
+                  />
+                  <MetricDisplay
+                    icon={<SpeakerHigh size={20} />}
+                    label="Audio Sync"
+                    value={sessionStatus === 'active' ? audioSync.toUpperCase() : '--'}
+                    status={audioSync === 'stable' ? 'good' : audioSync === 'drift' ? 'warning' : 'neutral'}
+                  />
+                  <MetricDisplay
+                    icon={<Timer size={20} />}
+                    label="Latency"
+                    value={sessionStatus === 'active' ? `${Math.round(latency)}ms` : '--'}
+                    status={latency < 50 ? 'good' : latency < 100 ? 'warning' : 'error'}
+                  />
                 </div>
-                <Progress value={signalQuality} className="h-1" />
-              </div>
+
+                {sessionStatus === 'active' && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Signal Integrity</span>
+                      <span>{signalQuality >= 90 ? 'HIGH' : signalQuality >= 70 ? 'MEDIUM' : 'LOW'}</span>
+                    </div>
+                    <Progress value={signalQuality} className="h-1" />
+                  </div>
+                )}
+              </>
+            )}
+
+            {inputProtocol === 'rtmp' && (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <MetricDisplay
+                    icon={<Lightning size={20} />}
+                    label="Uplink State"
+                    value={sessionStatus === 'active' ? 'CONNECTED' : sessionStatus === 'connecting' ? 'HANDSHAKE' : 'OFFLINE'}
+                    status={sessionStatus === 'active' ? 'good' : sessionStatus === 'connecting' ? 'warning' : 'neutral'}
+                  />
+                  <MetricDisplay
+                    icon={<ArrowsDownUp size={20} />}
+                    label="Bitrate"
+                    value={sessionStatus === 'active' ? `${(bitrate / 1000).toFixed(1)} Mbps` : '--'}
+                    status={bitrate >= 2000 ? 'good' : bitrate >= 1500 ? 'warning' : 'error'}
+                  />
+                  <MetricDisplay
+                    icon={<Warning size={20} />}
+                    label="Packet Loss"
+                    value={sessionStatus === 'active' ? `${packetLoss.toFixed(2)}%` : '--'}
+                    status={packetLoss < 1 ? 'good' : packetLoss < 3 ? 'warning' : 'error'}
+                  />
+                  <MetricDisplay
+                    icon={<Timer size={20} />}
+                    label="Latency"
+                    value={sessionStatus === 'active' ? `${Math.round(latency)}ms` : '--'}
+                    status={latency < 50 ? 'good' : latency < 100 ? 'warning' : 'error'}
+                  />
+                </div>
+
+                <Separator />
+
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Key size={16} />
+                    <span className="font-medium">Stream Key</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Input 
+                      value={streamKey} 
+                      readOnly 
+                      className="font-mono text-xs"
+                      type="password"
+                    />
+                    <Button 
+                      onClick={handleCopyStreamKey} 
+                      variant="outline" 
+                      size="icon"
+                    >
+                      <Copy size={16} />
+                    </Button>
+                  </div>
+                  <Button 
+                    onClick={handleResetKey} 
+                    variant="ghost" 
+                    size="sm"
+                    className="text-xs"
+                  >
+                    Reset Key
+                  </Button>
+                </div>
+
+                {sessionStatus === 'active' && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Stream Health</span>
+                      <span>{signalQuality >= 90 ? 'EXCELLENT' : signalQuality >= 70 ? 'GOOD' : 'DEGRADED'}</span>
+                    </div>
+                    <Progress value={signalQuality} className="h-1" />
+                  </div>
+                )}
+              </>
+            )}
+
+            {inputProtocol !== 'virtual-camera' && inputProtocol !== 'rtmp' && (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <MetricDisplay
+                    icon={<Lightning size={20} />}
+                    label="Uplink State"
+                    value={sessionStatus === 'active' ? 'OPERATIONAL' : 'OFFLINE'}
+                    status={sessionStatus === 'active' ? 'good' : 'neutral'}
+                  />
+                  <MetricDisplay
+                    icon={<Database size={20} />}
+                    label="Active Source"
+                    value={(inputProtocol || 'local').toUpperCase()}
+                    status="neutral"
+                  />
+                  <MetricDisplay
+                    icon={<WifiHigh size={20} />}
+                    label="Signal Quality"
+                    value={sessionStatus === 'active' ? `${Math.round(signalQuality)}%` : '--'}
+                    status={signalQuality > 85 ? 'good' : signalQuality > 65 ? 'warning' : 'error'}
+                  />
+                  <MetricDisplay
+                    icon={<Timer size={20} />}
+                    label="Latency"
+                    value={sessionStatus === 'active' ? `${Math.round(latency)}ms` : '--'}
+                    status={latency < 50 ? 'good' : latency < 100 ? 'warning' : 'error'}
+                  />
+                </div>
+
+                {sessionStatus === 'active' && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Signal Strength</span>
+                      <span>{Math.round(signalQuality)}%</span>
+                    </div>
+                    <Progress value={signalQuality} className="h-1" />
+                  </div>
+                )}
+              </>
             )}
           </div>
         </GlassCard>
@@ -225,7 +505,7 @@ function App() {
                 size="lg"
               >
                 <PlayCircle size={20} weight="fill" />
-                Join VC
+                {inputProtocol === 'virtual-camera' ? 'Inject Camera' : inputProtocol === 'rtmp' ? 'Start Stream' : 'Join VC'}
               </Button>
             )}
             
@@ -238,7 +518,7 @@ function App() {
                   size="lg"
                 >
                   <Stop size={20} weight="fill" />
-                  Disconnect
+                  {inputProtocol === 'rtmp' ? 'Stop Stream' : 'Disconnect'}
                 </Button>
 
                 <Button 
@@ -248,7 +528,7 @@ function App() {
                   size="lg"
                 >
                   <ArrowsClockwise size={20} />
-                  Stabilize
+                  {inputProtocol === 'rtmp' ? 'Stabilize Uplink' : 'Stabilize'}
                 </Button>
 
                 <Button 
@@ -265,53 +545,31 @@ function App() {
           </div>
         </GlassCard>
 
-        <GlassCard title="Source Layer" description="Media input routing">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {sources.map((source) => {
-              const Icon = source.icon
-              const isActive = activeSource === source.id
-              const isAvailable = source.available
-              
-              return (
-                <button
-                  key={source.id}
-                  onClick={() => handleSwitchSource(source.id)}
-                  disabled={!isAvailable}
-                  className={`
-                    p-4 rounded-lg border-2 transition-all duration-200 text-left
-                    ${isActive ? 'border-accent bg-accent/10' : 'border-border hover:border-accent/50'}
-                    ${!isAvailable ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}
-                  `}
-                >
-                  <div className="flex items-start gap-3">
-                    <Icon size={24} className={isActive ? 'text-accent' : 'text-muted-foreground'} />
-                    <div className="flex-1 space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium">{source.label}</span>
-                        {isActive && <CheckCircle size={16} weight="fill" className="text-accent" />}
-                        {!isAvailable && <Warning size={16} className="text-warning" />}
-                      </div>
-                      <p className="text-xs text-muted-foreground">{source.description}</p>
-                    </div>
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-        </GlassCard>
-
         <GlassCard title="System Architecture">
           <div className="flex flex-col md:flex-row items-center justify-center gap-4 py-8">
-            {['Operator UI', 'Control Bot', 'VC Engine', 'Source Adapters', 'Bridge Layer'].map((layer, index, arr) => (
+            {['OBS', 'VC NODE', inputProtocol === 'rtmp' ? 'Telegram RTMP' : 'Telegram VC'].map((layer, index, arr) => (
               <div key={layer} className="flex items-center gap-4">
-                <div className="glass-panel px-6 py-4 rounded-lg text-center min-w-[140px]">
-                  <div className="font-mono text-sm text-accent">{layer}</div>
+                <div className={`glass-panel px-6 py-4 rounded-lg text-center min-w-[140px] transition-all duration-300 ${
+                  index === 0 && sessionStatus === 'active' && (inputProtocol === 'virtual-camera' || inputProtocol === 'rtmp') 
+                    ? 'border-2 border-accent/50 shadow-accent/20 shadow-lg' 
+                    : ''
+                }`}>
+                  <div className="flex items-center justify-center gap-2">
+                    {index === 0 && <Eye size={16} className="text-accent" />}
+                    {index === 1 && <TreeStructure size={16} className="text-primary" />}
+                    {index === 2 && <Broadcast size={16} className="text-foreground" />}
+                    <div className="font-mono text-sm">{layer}</div>
+                  </div>
                 </div>
                 {index < arr.length - 1 && (
-                  <div className="hidden md:block w-8 h-px bg-accent/50" />
-                )}
-                {index < arr.length - 1 && (
-                  <div className="md:hidden h-8 w-px bg-accent/50" />
+                  <>
+                    <div className="hidden md:block w-8 h-px bg-gradient-to-r from-accent/50 to-accent/20 relative">
+                      {sessionStatus === 'active' && (
+                        <div className="absolute inset-0 bg-gradient-to-r from-accent to-transparent animate-pulse-glow" />
+                      )}
+                    </div>
+                    <div className="md:hidden h-8 w-px bg-gradient-to-b from-accent/50 to-accent/20" />
+                  </>
                 )}
               </div>
             ))}
@@ -345,7 +603,7 @@ function App() {
             <Broadcast size={14} />
             <span className="font-mono">FRISKY DEVELOPMENTS</span>
           </div>
-          <p>Premium operator-grade voice infrastructure control</p>
+          <p>OBS ↔ Telegram VC operator-grade control infrastructure</p>
         </footer>
       </div>
     </div>
