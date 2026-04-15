@@ -12,6 +12,7 @@ import { StatusIndicator } from "@/components/StatusIndicator"
 import { MetricDisplay } from "@/components/MetricDisplay"
 import { LogEntry } from "@/components/LogEntry"
 import { PreviewPanel } from "@/components/PreviewPanel"
+import { BrandControl } from "@/components/BrandControl"
 import { 
   Broadcast, 
   Lightning, 
@@ -45,6 +46,7 @@ import { toast } from "sonner"
 type SessionStatus = 'standby' | 'active' | 'connecting' | 'error'
 type InputProtocol = 'virtual-camera' | 'rtmp' | 'local' | 'relay' | 'clipsflow'
 type SessionMode = 'call' | 'broadcast' | null
+type SessionMark = 'stix-default' | 'client-sticker' | 'off'
 
 interface LogEntryData {
   id: string
@@ -65,6 +67,7 @@ interface ProtocolConfig {
 function App() {
   const [sessionStatus, setSessionStatus] = useKV<SessionStatus>("session-status", "standby")
   const [inputProtocol, setInputProtocol] = useKV<InputProtocol>("input-protocol", "clipsflow")
+  const [sessionMark, setSessionMark] = useKV<SessionMark>("session-mark", "stix-default")
   const [logs, setLogs] = useKV<LogEntryData[]>("diagnostic-logs", [])
   const [streamKey] = useState("sk_live_" + Math.random().toString(36).substring(2, 15))
   
@@ -132,6 +135,13 @@ function App() {
     setSessionStatus('connecting')
     addLog('info', 'PREVIEW', 'Feed initialized')
     
+    if (sessionMark === 'stix-default') {
+      addLog('info', 'BRAND', 'STIX MΛGIC default mark loaded')
+    } else if (sessionMark === 'client-sticker') {
+      addLog('info', 'BRAND', 'Client session sticker received')
+      addLog('success', 'BRAND', 'Branded sticker asset prepared')
+    }
+    
     if (inputProtocol === 'clipsflow') {
       addLog('info', 'INTAKE', 'ClipsFlow asset received')
       addLog('info', 'PREP', 'Compression profile applied')
@@ -155,6 +165,13 @@ function App() {
       setSignalQuality(92)
       setLatency(45)
       setAudioSync('stable')
+      
+      if (sessionMark !== 'off') {
+        addLog('success', 'BRAND', 'Sticker overlay synced to preview layer')
+        if (sessionMark === 'client-sticker') {
+          addLog('success', 'SESSION', 'Premium branded mark active')
+        }
+      }
       
       if (inputProtocol === 'clipsflow') {
         addLog('success', 'ROUTING', 'Prepared media linked to VC session')
@@ -213,6 +230,26 @@ function App() {
     const protocolConfig = protocols.find(p => p.id === protocol)
     addLog('info', 'PROTOCOL', `Switched to ${protocolConfig?.label || protocol}`)
     toast.success(`Protocol: ${protocolConfig?.label || protocol}`)
+  }
+
+  const handleSessionMarkChange = (mark: SessionMark) => {
+    setSessionMark(mark)
+    
+    if (mark === 'stix-default') {
+      addLog('info', 'BRAND', 'STIX MΛGIC default mark selected')
+    } else if (mark === 'client-sticker') {
+      addLog('info', 'BRAND', 'Client session sticker selected')
+      addLog('info', 'BRAND', 'Premium sticker mark ready')
+    } else {
+      addLog('info', 'BRAND', 'Session branding disabled')
+    }
+    
+    const markLabels = {
+      'stix-default': 'STIX MΛGIC Default',
+      'client-sticker': 'Client Sticker Mark',
+      'off': 'Branding Off'
+    }
+    toast.success(`Session Mark: ${markLabels[mark]}`)
   }
 
   const handleStabilize = () => {
@@ -363,6 +400,15 @@ function App() {
             bitrate={bitrate}
             audioSync={audioSync}
             resolution={resolution}
+            sessionMark={sessionMark || "stix-default"}
+          />
+        </GlassCard>
+
+        <GlassCard title="Session Branding" description="Branded overlay via STIX MΛGIC sticker assets">
+          <BrandControl
+            sessionMark={sessionMark || "stix-default"}
+            onSessionMarkChange={handleSessionMarkChange}
+            sessionActive={sessionStatus === 'active'}
           />
         </GlassCard>
 

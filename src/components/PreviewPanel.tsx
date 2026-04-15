@@ -26,6 +26,7 @@ type VisionCondition =
   | 'recovery'
   
 type InputProtocol = 'virtual-camera' | 'rtmp' | 'local' | 'relay' | 'clipsflow'
+type SessionMark = 'stix-default' | 'client-sticker' | 'off'
 
 interface PreviewPanelProps {
   sessionStatus: 'standby' | 'active' | 'connecting' | 'error'
@@ -35,6 +36,7 @@ interface PreviewPanelProps {
   bitrate: number
   audioSync: 'stable' | 'drift' | 'muted'
   resolution: string
+  sessionMark: SessionMark
 }
 
 interface ConditionConfig {
@@ -54,7 +56,8 @@ export function PreviewPanel({
   frameRate,
   bitrate,
   audioSync,
-  resolution
+  resolution,
+  sessionMark
 }: PreviewPanelProps) {
   const [previewEnabled, setPreviewEnabled] = useState(true)
   const [overlayEnabled, setOverlayEnabled] = useState(true)
@@ -593,12 +596,28 @@ export function PreviewPanel({
                       {config.label}
                     </Badge>
                     
-                    <Badge 
-                      variant="secondary" 
-                      className="font-mono text-[9px] bg-black/70 border-muted/30 text-muted-foreground backdrop-blur-sm px-2 py-0.5"
-                    >
-                      STIX NODE
-                    </Badge>
+                    {sessionMark !== 'off' && (
+                      <div 
+                        className={cn(
+                          "font-mono text-[9px] backdrop-blur-sm px-2 py-1 rounded-md flex items-center gap-1.5",
+                          sessionMark === 'stix-default' 
+                            ? "bg-primary/80 text-primary-foreground border border-primary/50"
+                            : "bg-accent/80 text-accent-foreground border border-accent/50"
+                        )}
+                      >
+                        {sessionMark === 'stix-default' ? (
+                          <>
+                            <span className="text-[8px]">✦</span>
+                            <span>STIX MΛGIC</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-[8px]">●</span>
+                            <span>CLIENT SESSION</span>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
