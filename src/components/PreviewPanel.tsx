@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
+import { AudioVisualizer } from "@/components/AudioVisualizer"
 import { 
   EyeSlash, 
   MonitorPlay,
@@ -28,6 +29,8 @@ type VisionCondition =
   
 type InputProtocol = 'virtual-camera' | 'rtmp' | 'local' | 'relay' | 'clipsflow' | 'dj-mode'
 type SessionMark = 'stix-default' | 'client-sticker' | 'off'
+type DJAudioSource = 'stix-library' | 'clipsflow-pack' | 'session-pack' | 'spotify'
+type SpotifyConnectionStatus = 'disconnected' | 'connecting' | 'connected'
 
 interface PreviewPanelProps {
   sessionStatus: 'standby' | 'active' | 'connecting' | 'error' | 'dj-mode'
@@ -38,6 +41,9 @@ interface PreviewPanelProps {
   audioSync: 'stable' | 'drift' | 'muted'
   resolution: string
   sessionMark: SessionMark
+  djAudioSource?: DJAudioSource
+  spotifyStatus?: SpotifyConnectionStatus
+  spotifyTrack?: string | null
 }
 
 interface ConditionConfig {
@@ -58,12 +64,20 @@ export function PreviewPanel({
   bitrate,
   audioSync,
   resolution,
-  sessionMark
+  sessionMark,
+  djAudioSource,
+  spotifyStatus,
+  spotifyTrack
 }: PreviewPanelProps) {
   const [previewEnabled, setPreviewEnabled] = useState(true)
   const [overlayEnabled, setOverlayEnabled] = useState(true)
   const [safeModeEnabled, setSafeModeEnabled] = useState(false)
   const [visionCondition, setVisionCondition] = useState<VisionCondition>('no-signal')
+  
+  const isSpotifyPlaying = sessionStatus === 'dj-mode' && 
+    djAudioSource === 'spotify' && 
+    spotifyStatus === 'connected' && 
+    spotifyTrack !== null
 
   useEffect(() => {
     if (sessionStatus === 'standby') {
@@ -502,6 +516,19 @@ export function PreviewPanel({
                 <div className="absolute inset-0 flex items-center justify-center">
                   <Broadcast size={96} className="text-primary/20 animate-pulse-glow" weight="duotone" />
                 </div>
+                
+                {isSpotifyPlaying && (
+                  <div className="absolute inset-0 flex items-center justify-center p-8">
+                    <div className="w-full max-w-2xl">
+                      <AudioVisualizer 
+                        isActive={true} 
+                        trackName={spotifyTrack || null}
+                        variant="full"
+                      />
+                    </div>
+                  </div>
+                )}
+                
                 <div 
                   className="absolute inset-0 opacity-[0.04] mix-blend-overlay"
                   style={{

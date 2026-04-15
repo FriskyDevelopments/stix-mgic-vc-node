@@ -660,6 +660,9 @@ function App() {
                 audioSync={audioSync}
                 resolution={resolution}
                 sessionMark={sessionMark || "stix-default"}
+                djAudioSource={djAudioSource}
+                spotifyStatus={spotifyStatus}
+                spotifyTrack={spotifyTrack}
               />
               
               {sessionStatus === 'active' && operatorTier === 'premium' && operatorTimeRemaining > 0 && (
