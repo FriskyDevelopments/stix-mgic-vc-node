@@ -279,5 +279,6 @@ export async function searchTracks(
 }
 
 export function formatTrackDisplay(track: SpotifyTrack): string {
-  return `${track.name} - ${track.artists.map(a => a.name).join(', ')}`
+  const artists = track.artists?.map(a => a.name).join(', ') || 'Unknown Artist'
+  return `${track.name} - ${artists}`
 }

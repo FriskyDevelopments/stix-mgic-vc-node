@@ -138,7 +138,7 @@ export function SpotifyTrackPicker({
                       className="w-full glass-panel p-3 rounded-lg text-left hover:border-accent transition-all"
                     >
                       <div className="flex items-center gap-3">
-                        {track.album.images[0] && (
+                        {track.album?.images?.[0] && (
                           <img
                             src={track.album.images[0].url}
                             alt={track.album.name}
@@ -150,7 +150,7 @@ export function SpotifyTrackPicker({
                             {track.name}
                           </div>
                           <div className="text-xs text-muted-foreground truncate">
-                            {track.artists.map(a => a.name).join(', ')}
+                            {track.artists?.map(a => a.name).join(', ') || 'Unknown Artist'}
                           </div>
                         </div>
                         <MusicNote size={18} className="text-accent flex-shrink-0" />
@@ -185,7 +185,7 @@ export function SpotifyTrackPicker({
                         }`}
                       >
                         <div className="flex items-center gap-3">
-                          {playlist.images[0] && (
+                          {playlist.images?.[0] && (
                             <img
                               src={playlist.images[0].url}
                               alt={playlist.name}
@@ -197,7 +197,7 @@ export function SpotifyTrackPicker({
                               {playlist.name}
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              {playlist.tracks.total} tracks
+                              {playlist.tracks?.total || 0} tracks
                             </div>
                           </div>
                           <ListBullets size={18} className="text-accent flex-shrink-0" />
@@ -217,7 +217,7 @@ export function SpotifyTrackPicker({
                                 <div className="flex-1 min-w-0">
                                   <div className="text-xs truncate">{track.name}</div>
                                   <div className="text-[10px] text-muted-foreground truncate">
-                                    {track.artists.map(a => a.name).join(', ')}
+                                    {track.artists?.map(a => a.name).join(', ') || 'Unknown Artist'}
                                   </div>
                                 </div>
                               </div>
@@ -269,7 +269,7 @@ export function SpotifyTrackPicker({
                         className="w-full glass-panel p-3 rounded-lg text-left hover:border-accent transition-all"
                       >
                         <div className="flex items-center gap-3">
-                          {track.album.images[0] && (
+                          {track.album?.images?.[0] && (
                             <img
                               src={track.album.images[0].url}
                               alt={track.album.name}
@@ -281,7 +281,7 @@ export function SpotifyTrackPicker({
                               {track.name}
                             </div>
                             <div className="text-xs text-muted-foreground truncate">
-                              {track.artists.map(a => a.name).join(', ')}
+                              {track.artists?.map(a => a.name).join(', ') || 'Unknown Artist'}
                             </div>
                           </div>
                           <MusicNote size={18} className="text-accent flex-shrink-0" />
