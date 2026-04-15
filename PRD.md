@@ -12,6 +12,13 @@ STIX MΛGIC VC NODE is a premium operator-facing control surface for OBS ↔ Tel
 
 ## Essential Features
 
+### DJ Audio Source Selection (Optional Spotify Integration)
+- **Functionality**: Audio source management for DJ Mode with managed sources (STIX Library, ClipsFlow Audio Pack, STIX MΛGIC Session Pack) and optional personal Spotify integration, clearly positioning Spotify as secondary personalization layer
+- **Purpose**: Provides flexible audio routing while maintaining managed STIX audio as the default path, with Spotify as an optional "bring your own music" enhancement for users who want personalized tracks
+- **Trigger**: Appears as collapsible section when DJ Mode protocol is selected or when session is in DJ Mode state; users can choose from managed sources or optionally log into Spotify
+- **Progression**: Section collapsed by default → User expands "DJ Audio Source" → Sees Managed Sources (STIX Library, ClipsFlow Pack, Session Pack) → Sees Personal Source section below → (Optional) Clicks "Log in with Spotify" → OAuth simulation (1.5s) → Spotify connected → User can choose track → Selected track displayed → User can switch back to managed sources anytime → Spotify remains available but not required
+- **Success criteria**: Managed sources appear first and feel primary; Spotify appears in separate "Personal Source" section; Spotify login is clearly optional; users can disconnect Spotify; switching between sources updates diagnostic logs; selected Spotify track displays when connected; system works fully without Spotify; UI communicates "bring your own music" positioning
+
 ### Input Protocol Selector
 - **Functionality**: Primary mode selector for media input routing: ClipsFlow File (prepared media intake), Virtual Camera (OBS call mode), RTMP Stream (broadcast mode), Local Media, or Relay Input
 - **Purpose**: Establishes the fundamental system mode and determines how media enters the VC node, with ClipsFlow representing upstream prepared media that protects the node from heavy file processing

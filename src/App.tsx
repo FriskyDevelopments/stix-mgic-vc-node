@@ -43,7 +43,12 @@ import {
   Package,
   DiscoBall,
   MusicNote,
-  FunnelSimple
+  FunnelSimple,
+  SpotifyLogo,
+  SignIn,
+  SignOut,
+  MusicNotes,
+  User
 } from "@phosphor-icons/react"
 import { toast } from "sonner"
 
@@ -52,6 +57,8 @@ type InputProtocol = 'virtual-camera' | 'rtmp' | 'local' | 'relay' | 'clipsflow'
 type SessionMode = 'call' | 'broadcast' | 'dj' | null
 type SessionMark = 'stix-default' | 'client-sticker' | 'off'
 type OperatorTier = 'free' | 'premium'
+type DJAudioSource = 'stix-library' | 'clipsflow-pack' | 'session-pack' | 'spotify'
+type SpotifyConnectionStatus = 'disconnected' | 'connecting' | 'connected'
 
 interface LogEntryData {
   id: string
@@ -79,6 +86,11 @@ function App() {
   const [operatorTimeElapsed, setOperatorTimeElapsed] = useState(0)
   const [streamKey] = useState("sk_live_" + Math.random().toString(36).substring(2, 15))
   const [isTransitioning, setIsTransitioning] = useState(false)
+  
+  const [djAudioSource, setDjAudioSource] = useKV<DJAudioSource>("dj-audio-source", "stix-library")
+  const [spotifyStatus, setSpotifyStatus] = useKV<SpotifyConnectionStatus>("spotify-status", "disconnected")
+  const [spotifyTrack, setSpotifyTrack] = useKV<string | null>("spotify-track", null)
+  const [spotifyUser, setSpotifyUser] = useKV<string | null>("spotify-user", null)
   
   const [signalQuality, setSignalQuality] = useState(0)
   const [latency, setLatency] = useState(0)
@@ -446,6 +458,63 @@ function App() {
   const handleResetKey = () => {
     addLog('warning', 'SECURITY', 'Stream key reset requested')
     toast('Stream key would be regenerated (demo mode)')
+  }
+
+  const handleSpotifyLogin = () => {
+    setSpotifyStatus('connecting')
+    addLog('info', 'SPOTIFY', 'Initiating Spotify OAuth')
+    
+    setTimeout(() => {
+      setSpotifyStatus('connected')
+      setSpotifyUser('demo_user')
+      addLog('success', 'SPOTIFY', 'Spotify account connected')
+      addLog('info', 'AUDIO', 'Personal music source available')
+      toast.success('Spotify connected')
+    }, 1500)
+  }
+
+  const handleSpotifyDisconnect = () => {
+    setSpotifyStatus('disconnected')
+    setSpotifyUser(null)
+    setSpotifyTrack(null)
+    if (djAudioSource === 'spotify') {
+      setDjAudioSource('stix-library')
+    }
+    addLog('info', 'SPOTIFY', 'Spotify disconnected')
+    toast('Spotify disconnected')
+  }
+
+  const handleSelectSpotifyTrack = () => {
+    const mockTracks = [
+      'Midnight City - M83',
+      'Electric Feel - MGMT',
+      'Do I Wanna Know? - Arctic Monkeys',
+      'Strobe - deadmau5',
+      'Feel It Still - Portugal. The Man'
+    ]
+    const randomTrack = mockTracks[Math.floor(Math.random() * mockTracks.length)]
+    setSpotifyTrack(randomTrack)
+    addLog('success', 'SPOTIFY', `Track selected: ${randomTrack}`)
+    toast.success(`Selected: ${randomTrack}`)
+  }
+
+  const handleDJAudioSourceChange = (source: DJAudioSource) => {
+    setDjAudioSource(source)
+    
+    const sourceLabels = {
+      'stix-library': 'STIX Library',
+      'clipsflow-pack': 'ClipsFlow Audio Pack',
+      'session-pack': 'Session Pack',
+      'spotify': 'Spotify'
+    }
+    
+    addLog('info', 'AUDIO', `DJ audio source: ${sourceLabels[source]}`)
+    
+    if (source === 'spotify' && spotifyStatus === 'connected' && spotifyTrack) {
+      addLog('info', 'AUDIO', `Playing: ${spotifyTrack}`)
+    }
+    
+    toast.success(`Audio source: ${sourceLabels[source]}`)
   }
 
   useEffect(() => {
@@ -816,6 +885,222 @@ function App() {
             </div>
           </CollapsibleSection>
           
+          {(inputProtocol === 'dj-mode' || sessionStatus === 'dj-mode') && (
+            <CollapsibleSection
+              title="DJ Audio Source"
+              description="Select audio for DJ Mode session"
+              defaultOpen={false}
+            >
+              <div className="space-y-4">
+                <div className="space-y-3">
+                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Managed Sources
+                  </div>
+                  <div className="grid gap-3">
+                    <button
+                      onClick={() => handleDJAudioSourceChange('stix-library')}
+                      className={`glass-panel p-4 rounded-lg text-left transition-all ${
+                        djAudioSource === 'stix-library'
+                          ? 'border-2 border-accent bg-accent/5'
+                          : 'border border-border hover:border-accent/50'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`p-2 rounded-lg ${djAudioSource === 'stix-library' ? 'bg-accent/20' : 'bg-muted'}`}>
+                          <MusicNote size={18} className={djAudioSource === 'stix-library' ? 'text-accent' : 'text-foreground'} />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-sm font-semibold">STIX Library</h4>
+                            {djAudioSource === 'stix-library' && (
+                              <Badge variant="outline" className="gap-1 border-accent text-accent text-[10px]">
+                                <CheckCircle size={10} weight="fill" />
+                                Active
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Curated ambient tracks for operator sessions
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => handleDJAudioSourceChange('clipsflow-pack')}
+                      className={`glass-panel p-4 rounded-lg text-left transition-all ${
+                        djAudioSource === 'clipsflow-pack'
+                          ? 'border-2 border-accent bg-accent/5'
+                          : 'border border-border hover:border-accent/50'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`p-2 rounded-lg ${djAudioSource === 'clipsflow-pack' ? 'bg-accent/20' : 'bg-muted'}`}>
+                          <Package size={18} className={djAudioSource === 'clipsflow-pack' ? 'text-accent' : 'text-foreground'} />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-sm font-semibold">ClipsFlow Audio Pack</h4>
+                            {djAudioSource === 'clipsflow-pack' && (
+                              <Badge variant="outline" className="gap-1 border-accent text-accent text-[10px]">
+                                <CheckCircle size={10} weight="fill" />
+                                Active
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Prepared audio packages via ClipsFlow
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => handleDJAudioSourceChange('session-pack')}
+                      className={`glass-panel p-4 rounded-lg text-left transition-all ${
+                        djAudioSource === 'session-pack'
+                          ? 'border-2 border-accent bg-accent/5'
+                          : 'border border-border hover:border-accent/50'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`p-2 rounded-lg ${djAudioSource === 'session-pack' ? 'bg-accent/20' : 'bg-muted'}`}>
+                          <DiscoBall size={18} className={djAudioSource === 'session-pack' ? 'text-accent' : 'text-foreground'} />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-sm font-semibold">STIX MΛGIC Session Pack</h4>
+                            {djAudioSource === 'session-pack' && (
+                              <Badge variant="outline" className="gap-1 border-accent text-accent text-[10px]">
+                                <CheckCircle size={10} weight="fill" />
+                                Active
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Premium session-tailored audio collection
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-3">
+                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Personal Source
+                  </div>
+                  
+                  {spotifyStatus === 'disconnected' || spotifyStatus === 'connecting' ? (
+                    <div className="glass-panel p-4 rounded-lg border border-border">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 rounded-lg bg-muted">
+                          <SpotifyLogo size={18} className="text-foreground" />
+                        </div>
+                        <div className="flex-1 space-y-3">
+                          <div>
+                            <h4 className="text-sm font-semibold">Spotify</h4>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Optional personal music source
+                            </p>
+                          </div>
+                          <Button
+                            onClick={handleSpotifyLogin}
+                            variant="outline"
+                            size="sm"
+                            className="gap-2 w-full"
+                            disabled={spotifyStatus === 'connecting'}
+                          >
+                            <SignIn size={16} />
+                            {spotifyStatus === 'connecting' ? 'Connecting...' : 'Log in with Spotify'}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {spotifyStatus === 'connected' && (
+                    <button
+                      onClick={() => handleDJAudioSourceChange('spotify')}
+                      className={`glass-panel p-4 rounded-lg text-left transition-all ${
+                        djAudioSource === 'spotify'
+                          ? 'border-2 border-accent bg-accent/5'
+                          : 'border border-border hover:border-accent/50'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`p-2 rounded-lg ${djAudioSource === 'spotify' ? 'bg-accent/20' : 'bg-muted'}`}>
+                          <SpotifyLogo size={18} weight="fill" className={djAudioSource === 'spotify' ? 'text-accent' : 'text-foreground'} />
+                        </div>
+                        <div className="flex-1 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h4 className="text-sm font-semibold">Spotify</h4>
+                              <div className="flex items-center gap-2 mt-1">
+                                <Badge variant="outline" className="gap-1 border-success text-success text-[10px]">
+                                  <User size={10} weight="fill" />
+                                  {spotifyUser}
+                                </Badge>
+                                {djAudioSource === 'spotify' && (
+                                  <Badge variant="outline" className="gap-1 border-accent text-accent text-[10px]">
+                                    <CheckCircle size={10} weight="fill" />
+                                    Active
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          {spotifyTrack && (
+                            <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                              <MusicNotes size={12} />
+                              {spotifyTrack}
+                            </div>
+                          )}
+                          <div className="flex gap-2 pt-1">
+                            <Button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleSelectSpotifyTrack()
+                              }}
+                              variant="outline"
+                              size="sm"
+                              className="gap-1.5 text-xs flex-1"
+                            >
+                              <MusicNotes size={14} />
+                              {spotifyTrack ? 'Change Track' : 'Choose Track'}
+                            </Button>
+                            <Button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleSpotifyDisconnect()
+                              }}
+                              variant="ghost"
+                              size="sm"
+                              className="gap-1.5 text-xs"
+                            >
+                              <SignOut size={14} />
+                              Disconnect
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  )}
+                </div>
+
+                {djAudioSource === 'spotify' && spotifyStatus === 'connected' && (
+                  <div className="glass-panel p-3 rounded-lg bg-accent/5 border border-accent/20">
+                    <p className="text-xs text-muted-foreground">
+                      <span className="text-accent font-medium">Personal Source Active</span> — DJ Mode will use your selected Spotify track
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CollapsibleSection>
+          )}
+          
           {sessionStatus === 'dj-mode' && operatorTimeElapsed === 0 && (
             <div className="glass-panel rounded-xl p-6 bg-muted/5 border border-muted/20">
               <div className="flex items-start gap-4">
@@ -1061,7 +1346,7 @@ function App() {
               <div className="flex items-center gap-2 flex-wrap">
                 <FunnelSimple size={16} className="text-muted-foreground" />
                 <div className="flex gap-2 flex-wrap">
-                  {['all', 'source', 'session', 'audio', 'uplink', 'brand', 'dj', 'time'].map((filter) => (
+                  {['all', 'source', 'session', 'audio', 'uplink', 'brand', 'dj', 'time', 'spotify'].map((filter) => (
                     <button
                       key={filter}
                       onClick={() => setDiagnosticFilter(filter)}
