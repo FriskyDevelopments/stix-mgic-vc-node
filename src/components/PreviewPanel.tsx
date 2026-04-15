@@ -513,39 +513,85 @@ export function PreviewPanel({
                     `
                   }}
                 />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <Broadcast size={96} className="text-primary/20 animate-pulse-glow" weight="duotone" />
-                </div>
                 
-                <div className="absolute inset-0 flex items-center justify-center p-8">
-                  <div className="w-full max-w-2xl space-y-4">
-                    <AudioVisualizer 
-                      isActive={true} 
-                      trackName={djAudioSource === 'spotify' && spotifyStatus === 'connected' && spotifyTrack ? formatTrackDisplay(spotifyTrack) : null}
-                      variant="full"
-                      audioSource={djAudioSource}
-                    />
-                    
-                    {djAudioSource === 'spotify' && spotifyTrack && spotifyStatus === 'connected' && (
-                      <div className="mt-6 space-y-2 px-4">
-                        <div className="h-1.5 bg-black/40 rounded-full overflow-hidden backdrop-blur-sm">
-                          <div 
-                            className="h-full bg-accent transition-all duration-1000 ease-linear"
-                            style={{ width: `${(trackPlaybackTime / (spotifyTrack.duration_ms / 1000)) * 100}%` }}
+                {djAudioSource === 'spotify' && spotifyTrack && spotifyStatus === 'connected' && spotifyTrack.album.images[0] ? (
+                  <div className="absolute inset-0 flex items-center justify-center p-8">
+                    <div className="flex items-center gap-8 max-w-4xl w-full">
+                      <div className="relative flex-shrink-0">
+                        <div className="w-48 h-48 rounded-lg overflow-hidden border-2 border-accent/30 shadow-2xl">
+                          <img 
+                            src={spotifyTrack.album.images[0].url} 
+                            alt={spotifyTrack.album.name}
+                            className="w-full h-full object-cover"
                           />
                         </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-[10px] font-mono text-accent/80">
-                            {formatDuration(trackPlaybackTime * 1000)}
-                          </span>
-                          <span className="text-[10px] font-mono text-muted-foreground/60">
-                            {formatDuration(spotifyTrack.duration_ms)}
-                          </span>
+                        <div 
+                          className="absolute inset-0 rounded-lg pointer-events-none"
+                          style={{
+                            boxShadow: `0 0 40px ${config.accentColor}40, 0 0 80px ${config.accentColor}20`
+                          }}
+                        />
+                      </div>
+                      
+                      <div className="flex-1 space-y-4 min-w-0">
+                        <AudioVisualizer 
+                          isActive={true} 
+                          trackName={null}
+                          variant="full"
+                          audioSource={djAudioSource}
+                        />
+                        
+                        <div className="space-y-3">
+                          <div className="space-y-1">
+                            <h3 className="text-lg font-semibold text-foreground truncate">
+                              {spotifyTrack.name}
+                            </h3>
+                            <p className="text-sm text-muted-foreground truncate">
+                              {spotifyTrack.artists.map(a => a.name).join(', ')}
+                            </p>
+                            <p className="text-xs text-muted-foreground/70 truncate">
+                              {spotifyTrack.album.name}
+                            </p>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <div className="h-1.5 bg-black/40 rounded-full overflow-hidden backdrop-blur-sm">
+                              <div 
+                                className="h-full bg-accent transition-all duration-1000 ease-linear"
+                                style={{ width: `${(trackPlaybackTime / (spotifyTrack.duration_ms / 1000)) * 100}%` }}
+                              />
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-[10px] font-mono text-accent/80">
+                                {formatDuration(trackPlaybackTime * 1000)}
+                              </span>
+                              <span className="text-[10px] font-mono text-muted-foreground/60">
+                                {formatDuration(spotifyTrack.duration_ms)}
+                              </span>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    )}
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Broadcast size={96} className="text-primary/20 animate-pulse-glow" weight="duotone" />
+                    </div>
+                    
+                    <div className="absolute inset-0 flex items-center justify-center p-8">
+                      <div className="w-full max-w-2xl space-y-4">
+                        <AudioVisualizer 
+                          isActive={true} 
+                          trackName={djAudioSource === 'spotify' && spotifyStatus === 'connected' && spotifyTrack ? formatTrackDisplay(spotifyTrack) : null}
+                          variant="full"
+                          audioSource={djAudioSource}
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
                 
                 <div 
                   className="absolute inset-0 opacity-[0.04] mix-blend-overlay"
