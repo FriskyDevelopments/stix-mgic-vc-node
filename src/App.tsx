@@ -131,9 +131,19 @@ function App() {
     setLogs((currentLogs) => [newLog, ...(currentLogs || [])].slice(0, 100))
   }
 
-  const handleJoinVC = () => {
+  const handleRunPreflight = () => {
     setSessionStatus('connecting')
-    addLog('info', 'PREVIEW', 'Feed initialized')
+    addLog('info', 'TEST', 'Preflight initiated')
+    
+    let detectedMode = 'PREPARED'
+    if (inputProtocol === 'virtual-camera') {
+      detectedMode = 'CALL'
+    } else if (inputProtocol === 'rtmp') {
+      detectedMode = 'BROADCAST'
+    }
+    
+    addLog('info', 'ROUTE', `Mode detected: ${detectedMode}`)
+    addLog('info', 'SOURCE', 'Test input bound')
     
     if (sessionMark === 'stix-default') {
       addLog('info', 'BRAND', 'STIX MΛGIC default mark loaded')
@@ -166,8 +176,10 @@ function App() {
       setLatency(45)
       setAudioSync('stable')
       
+      addLog('success', 'PREVIEW', 'Preflight feed active')
+      
       if (sessionMark !== 'off') {
-        addLog('success', 'BRAND', 'Sticker overlay synced to preview layer')
+        addLog('success', 'BRAND', 'Overlay applied')
         if (sessionMark === 'client-sticker') {
           addLog('success', 'SESSION', 'Premium branded mark active')
         }
@@ -178,14 +190,14 @@ function App() {
         addLog('success', 'LOAD', 'Direct ingest avoided')
         addLog('success', 'SESSION', 'Injection payload ready')
         addLog('info', 'PREVIEW', 'Optimized preview feed active')
-        toast.success('ClipsFlow media routed to VC')
+        toast.success('Preflight active — ClipsFlow media routed')
       } else if (inputProtocol === 'virtual-camera') {
         setFrameRate(30)
         addLog('success', 'SESSION', 'Injecting feed into Telegram VC')
         addLog('success', 'PREVIEW', 'Frame sync stable')
         addLog('info', 'AUDIO', 'External audio routing active')
         addLog('success', 'SYNC', 'Frame alignment stable')
-        toast.success('Camera feed injected into VC')
+        toast.success('Preflight active — Camera feed ready')
       } else if (inputProtocol === 'rtmp') {
         setBitrate(2500)
         setPacketLoss(0.2)
@@ -193,17 +205,17 @@ function App() {
         addLog('success', 'PREVIEW', 'Frame sync stable')
         addLog('success', 'STREAM', 'Bitrate stabilized at 2.5 Mbps')
         addLog('success', 'HEALTH', 'Packet loss within threshold')
-        toast.success('RTMP stream connected')
+        toast.success('Preflight active — RTMP stream ready')
       } else {
         addLog('success', 'SESSION', 'Connected to voice chat')
         addLog('success', 'PREVIEW', 'Feed active')
         addLog('info', 'SOURCE', `Activated ${inputProtocol} media source`)
-        toast.success('VC session established')
+        toast.success('Preflight active — VC session ready')
       }
     }, 1500)
   }
 
-  const handleDisconnect = () => {
+  const handleStopPreflight = () => {
     setSessionStatus('standby')
     setSignalQuality(0)
     setLatency(0)
@@ -212,12 +224,14 @@ function App() {
     setPacketLoss(0)
     setAudioSync('muted')
     
+    addLog('info', 'TEST', 'Preflight stopped')
+    
     if (inputProtocol === 'rtmp') {
       addLog('info', 'UPLINK', 'RTMP stream disconnected')
     } else {
       addLog('info', 'SESSION', 'Disconnected from voice chat')
     }
-    toast('Session terminated')
+    toast('Preflight terminated')
   }
 
   const handleSwitchProtocol = (protocol: InputProtocol) => {
@@ -271,6 +285,11 @@ function App() {
       }
       toast.success('Signal stabilized')
     }, 800)
+  }
+
+  const handleGoLive = () => {
+    addLog('success', 'LIVE', 'Session transitioned to live')
+    toast.success('Now live')
   }
 
   const handleEmergencyStop = () => {
@@ -342,6 +361,13 @@ function App() {
   const getModeLabel = () => {
     if (!sessionMode) return null
     return sessionMode === 'call' ? 'CALL INJECTION' : 'BROADCAST UPLINK'
+  }
+
+  const getPreflightLabel = () => {
+    if (inputProtocol === 'virtual-camera') return 'CALL'
+    if (inputProtocol === 'rtmp') return 'BROADCAST'
+    if (inputProtocol === 'clipsflow') return 'PREPARED'
+    return 'TEST'
   }
 
   return (
@@ -419,7 +445,15 @@ function App() {
         >
           <div className="space-y-6">
             <div className="flex items-center justify-between flex-wrap gap-4">
-              <StatusIndicator {...statusIndicator} />
+              <div className="flex items-center gap-3">
+                <StatusIndicator {...statusIndicator} />
+                {sessionStatus === 'active' && (
+                  <Badge variant="outline" className="gap-2 border-warning text-warning font-mono animate-pulse-glow">
+                    <Lightning size={14} weight="fill" />
+                    PREFLIGHT ACTIVE
+                  </Badge>
+                )}
+              </div>
               <div className="flex items-center gap-4">
                 {sessionMode && sessionStatus === 'active' && (
                   <Badge variant="outline" className="gap-2 border-accent text-accent font-mono">
@@ -691,39 +725,47 @@ function App() {
           </div>
         </GlassCard>
 
-        <GlassCard title="Control Surface">
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <GlassCard title="Operator Control">
+          <div className="space-y-4">
             {sessionStatus === 'standby' && (
-              <Button 
-                onClick={handleJoinVC} 
-                className="gap-2"
-                size="lg"
-              >
-                <PlayCircle size={20} weight="fill" />
-                {inputProtocol === 'clipsflow' ? 'Route to VC' : inputProtocol === 'virtual-camera' ? 'Inject Camera' : inputProtocol === 'rtmp' ? 'Start Stream' : 'Join VC'}
-              </Button>
+              <div className="space-y-3">
+                <Button 
+                  onClick={handleRunPreflight} 
+                  className="w-full gap-3 h-14"
+                  size="lg"
+                >
+                  <PlayCircle size={24} weight="fill" />
+                  <div className="flex flex-col items-start">
+                    <span className="text-lg font-semibold">Run Preflight</span>
+                    <span className="text-xs opacity-80 font-normal">MODE: {getPreflightLabel()}</span>
+                  </div>
+                </Button>
+                <p className="text-xs text-muted-foreground text-center">
+                  Intelligent test preview — adapts to selected protocol and source
+                </p>
+              </div>
             )}
             
             {sessionStatus !== 'standby' && (
-              <>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <Button 
-                  onClick={handleDisconnect} 
+                  onClick={handleStopPreflight} 
                   variant="secondary"
                   className="gap-2"
                   size="lg"
                 >
                   <Stop size={20} weight="fill" />
-                  {inputProtocol === 'rtmp' ? 'Stop Stream' : 'Disconnect'}
+                  Stop Preflight
                 </Button>
 
                 <Button 
-                  onClick={handleStabilize} 
-                  variant="outline"
-                  className="gap-2"
+                  onClick={handleGoLive} 
+                  variant="default"
+                  className="gap-2 bg-success hover:bg-success/90"
                   size="lg"
                 >
-                  <ArrowsClockwise size={20} />
-                  {inputProtocol === 'rtmp' ? 'Stabilize Uplink' : 'Stabilize'}
+                  <Broadcast size={20} weight="fill" />
+                  Go Live
                 </Button>
 
                 <Button 
@@ -735,7 +777,7 @@ function App() {
                   <WaveformSlash size={20} />
                   Emergency Stop
                 </Button>
-              </>
+              </div>
             )}
           </div>
         </GlassCard>
