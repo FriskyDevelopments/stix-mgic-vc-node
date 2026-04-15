@@ -11,6 +11,7 @@ import { GlassCard } from "@/components/GlassCard"
 import { StatusIndicator } from "@/components/StatusIndicator"
 import { MetricDisplay } from "@/components/MetricDisplay"
 import { LogEntry } from "@/components/LogEntry"
+import { PreviewPanel } from "@/components/PreviewPanel"
 import { 
   Broadcast, 
   Lightning, 
@@ -71,6 +72,7 @@ function App() {
   const [bitrate, setBitrate] = useState(0)
   const [packetLoss, setPacketLoss] = useState(0)
   const [audioSync, setAudioSync] = useState<'stable' | 'drift' | 'muted'>('stable')
+  const [resolution, setResolution] = useState('720p')
 
   const protocols: ProtocolConfig[] = [
     { 
@@ -119,15 +121,19 @@ function App() {
 
   const handleJoinVC = () => {
     setSessionStatus('connecting')
+    addLog('info', 'PREVIEW', 'Feed initialized')
     
     if (inputProtocol === 'virtual-camera') {
       addLog('info', 'SOURCE', 'OBS Virtual Camera detected')
       addLog('info', 'SESSION', 'Initializing camera injection...')
+      setResolution('720p')
     } else if (inputProtocol === 'rtmp') {
       addLog('info', 'UPLINK', 'RTMP handshake initiated')
       addLog('info', 'SESSION', 'Binding to Telegram ingest...')
+      setResolution('1080p')
     } else {
       addLog('info', 'SESSION', 'Initializing VC uplink...')
+      setResolution('480p')
     }
     
     setTimeout(() => {
@@ -139,6 +145,7 @@ function App() {
       if (inputProtocol === 'virtual-camera') {
         setFrameRate(30)
         addLog('success', 'SESSION', 'Injecting feed into Telegram VC')
+        addLog('success', 'PREVIEW', 'Frame sync stable')
         addLog('info', 'AUDIO', 'External audio routing active')
         addLog('success', 'SYNC', 'Frame alignment stable')
         toast.success('Camera feed injected into VC')
@@ -146,11 +153,13 @@ function App() {
         setBitrate(2500)
         setPacketLoss(0.2)
         addLog('success', 'SESSION', 'Bound to Telegram ingest')
+        addLog('success', 'PREVIEW', 'Frame sync stable')
         addLog('success', 'STREAM', 'Bitrate stabilized at 2.5 Mbps')
         addLog('success', 'HEALTH', 'Packet loss within threshold')
         toast.success('RTMP stream connected')
       } else {
         addLog('success', 'SESSION', 'Connected to voice chat')
+        addLog('success', 'PREVIEW', 'Feed active')
         addLog('info', 'SOURCE', `Activated ${inputProtocol} media source`)
         toast.success('VC session established')
       }
@@ -232,7 +241,17 @@ function App() {
   useEffect(() => {
     if (sessionStatus === 'active') {
       const interval = setInterval(() => {
-        setSignalQuality((prev) => Math.min(100, Math.max(75, prev + (Math.random() - 0.5) * 3)))
+        setSignalQuality((prev) => {
+          const newQuality = Math.min(100, Math.max(75, prev + (Math.random() - 0.5) * 3))
+          
+          if (newQuality < 60 && prev >= 60) {
+            addLog('warning', 'PREVIEW', 'Degraded mode active')
+          } else if (newQuality < 30 && prev >= 30) {
+            addLog('error', 'PREVIEW', 'Signal loss detected')
+          }
+          
+          return newQuality
+        })
         setLatency((prev) => Math.max(25, prev + (Math.random() - 0.5) * 5))
         
         if (inputProtocol === 'virtual-camera') {
@@ -313,6 +332,18 @@ function App() {
               })}
             </div>
           </div>
+        </GlassCard>
+
+        <GlassCard>
+          <PreviewPanel
+            sessionStatus={sessionStatus || "standby"}
+            inputProtocol={inputProtocol || "virtual-camera"}
+            signalQuality={signalQuality}
+            frameRate={frameRate}
+            bitrate={bitrate}
+            audioSync={audioSync}
+            resolution={resolution}
+          />
         </GlassCard>
 
         <GlassCard 
