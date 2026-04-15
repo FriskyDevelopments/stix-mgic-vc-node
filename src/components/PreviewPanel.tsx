@@ -517,20 +517,28 @@ export function PreviewPanel({
                 {djAudioSource === 'spotify' && spotifyTrack && spotifyStatus === 'connected' && spotifyTrack.album.images[0] ? (
                   <div className="absolute inset-0 flex items-center justify-center p-8">
                     <div className="flex items-center gap-8 max-w-4xl w-full">
-                      <div className="relative flex-shrink-0">
-                        <div className="w-48 h-48 rounded-lg overflow-hidden border-2 border-accent/30 shadow-2xl">
+                      <div className="relative flex-shrink-0 group cursor-pointer">
+                        <div className="w-48 h-48 rounded-lg overflow-hidden border-2 border-accent/30 shadow-2xl transition-all duration-500 ease-out group-hover:scale-105 group-hover:border-accent/60 group-hover:shadow-[0_0_60px_rgba(var(--accent),0.4)]">
                           <img 
                             src={spotifyTrack.album.images[0].url} 
                             alt={spotifyTrack.album.name}
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-cover transition-all duration-700 ease-out group-hover:scale-110 group-hover:brightness-110"
                           />
                         </div>
                         <div 
-                          className="absolute inset-0 rounded-lg pointer-events-none"
+                          className="absolute inset-0 rounded-lg pointer-events-none transition-all duration-500 opacity-100 group-hover:opacity-0"
                           style={{
                             boxShadow: `0 0 40px ${config.accentColor}40, 0 0 80px ${config.accentColor}20`
                           }}
                         />
+                        <div 
+                          className="absolute inset-0 rounded-lg pointer-events-none transition-all duration-500 opacity-0 group-hover:opacity-100"
+                          style={{
+                            boxShadow: `0 0 60px ${config.accentColor}80, 0 0 120px ${config.accentColor}40, 0 0 160px ${config.accentColor}20`
+                          }}
+                        />
+                        <div className="absolute inset-0 rounded-lg bg-gradient-to-tr from-accent/0 via-accent/0 to-accent/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                        <div className="absolute -inset-1 rounded-lg bg-gradient-to-br from-accent/20 via-transparent to-primary/20 opacity-0 group-hover:opacity-30 blur-xl transition-all duration-700 pointer-events-none" />
                       </div>
                       
                       <div className="flex-1 space-y-4 min-w-0">
