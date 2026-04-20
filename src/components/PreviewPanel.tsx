@@ -81,6 +81,8 @@ export function PreviewPanel({
   const [visionCondition, setVisionCondition] = useState<VisionCondition>('no-signal')
   const [extractedColors, setExtractedColors] = useState<ExtractedColors | null>(null)
   const [isExtractingColors, setIsExtractingColors] = useState(false)
+  const [previousTrackId, setPreviousTrackId] = useState<string | null>(null)
+  const [isTransitioning, setIsTransitioning] = useState(false)
 
   useEffect(() => {
     if (sessionStatus === 'standby') {
@@ -115,23 +117,37 @@ export function PreviewPanel({
         spotifyStatus === 'connected' &&
         !isExtractingColors
       ) {
+        const currentTrackId = spotifyTrack.id
+        
+        if (currentTrackId !== previousTrackId && previousTrackId !== null) {
+          setIsTransitioning(true)
+        }
+        
         try {
           setIsExtractingColors(true)
           const colors = await extractColorsFromImage(spotifyTrack.album.images[0].url)
           setExtractedColors(colors)
+          setPreviousTrackId(currentTrackId)
+          
+          setTimeout(() => {
+            setIsTransitioning(false)
+          }, 2000)
         } catch (error) {
           console.error('Failed to extract colors from album art:', error)
           setExtractedColors(null)
+          setIsTransitioning(false)
         } finally {
           setIsExtractingColors(false)
         }
       } else if (sessionStatus !== 'dj-mode' || djAudioSource !== 'spotify') {
         setExtractedColors(null)
+        setPreviousTrackId(null)
+        setIsTransitioning(false)
       }
     }
 
     extractColors()
-  }, [sessionStatus, djAudioSource, spotifyTrack, spotifyStatus, isExtractingColors])
+  }, [sessionStatus, djAudioSource, spotifyTrack, spotifyStatus])
 
   const getConditionConfig = (): ConditionConfig => {
     switch (visionCondition) {
@@ -605,6 +621,7 @@ export function PreviewPanel({
                           variant="full"
                           audioSource={djAudioSource}
                           extractedColors={extractedColors}
+                          isTransitioning={isTransitioning}
                         />
                         
                         <div className="space-y-3">

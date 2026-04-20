@@ -10,6 +10,7 @@ interface AudioVisualizerProps {
   variant?: 'compact' | 'full'
   audioSource?: AudioSource
   extractedColors?: ExtractedColors | null
+  isTransitioning?: boolean
 }
 
 interface VisualizerStyle {
@@ -106,7 +107,8 @@ export function AudioVisualizer({
   trackName, 
   variant = 'full',
   audioSource = 'stix-library',
-  extractedColors = null
+  extractedColors = null,
+  isTransitioning = false
 }: AudioVisualizerProps) {
   const style = visualizerStyles[audioSource]
   const barCount = variant === 'compact' ? Math.floor(style.barCount / 2) : style.barCount
@@ -138,6 +140,10 @@ export function AudioVisualizer({
           } else if (highRange) {
             intensity = Math.random() * (style.intensity.high.max - style.intensity.high.min) + style.intensity.high.min
           }
+          
+          if (isTransitioning) {
+            intensity *= 0.6
+          }
 
           const currentHeight = prevBars[index] || 0
           return currentHeight * style.smoothing + intensity * (1 - style.smoothing)
@@ -146,7 +152,7 @@ export function AudioVisualizer({
     }, style.updateInterval)
 
     return () => clearInterval(interval)
-  }, [isActive, barCount, style])
+  }, [isActive, barCount, style, isTransitioning])
 
   const getColorForIndex = (index: number, normalizedHeight: number) => {
     if (extractedColors && audioSource === 'spotify') {
@@ -198,7 +204,10 @@ export function AudioVisualizer({
       return (
         <div
           key={index}
-          className="flex-1 rounded-t-sm transition-all duration-75 ease-out relative"
+          className={cn(
+            "flex-1 rounded-t-sm ease-out relative",
+            isTransitioning ? "transition-all duration-[2000ms]" : "transition-all duration-75"
+          )}
           style={{
             height: `${normalizedHeight * 100}%`,
             backgroundColor: color,
@@ -322,7 +331,10 @@ export function AudioVisualizer({
       variant === 'compact' ? "h-12" : "h-24"
     )}>
       <div 
-        className="absolute inset-0"
+        className={cn(
+          "absolute inset-0",
+          isTransitioning ? "transition-all duration-[2000ms] ease-out" : "transition-all duration-300 ease-out"
+        )}
         style={{
           background: `radial-gradient(circle at center, oklch(${style.colorScheme.brightness - 0.1} ${style.colorScheme.saturation * 0.3} ${style.colorScheme.hueStart}) 0%, transparent 70%)`
         }}
