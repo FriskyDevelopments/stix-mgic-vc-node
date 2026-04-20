@@ -150,13 +150,29 @@ export function AudioVisualizer({
 
   const getColorForIndex = (index: number, normalizedHeight: number) => {
     if (extractedColors && audioSource === 'spotify') {
-      const colorArray = [
-        extractedColors.primary,
-        extractedColors.vibrant,
-        extractedColors.accent,
-        extractedColors.secondary
-      ]
-      const colorIndex = Math.floor((index / barCount) * colorArray.length)
+      const bassRange = index < barCount * 0.2
+      const midRange = index >= barCount * 0.2 && index < barCount * 0.6
+      const highRange = index >= barCount * 0.6
+      
+      let colorArray: string[]
+      
+      if (bassRange) {
+        colorArray = [extractedColors.dark, extractedColors.warm, extractedColors.secondary]
+      } else if (midRange) {
+        colorArray = [extractedColors.primary, extractedColors.vibrant, extractedColors.accent]
+      } else if (highRange) {
+        colorArray = [extractedColors.light, extractedColors.cool, extractedColors.accent]
+      } else {
+        colorArray = extractedColors.palette
+      }
+      
+      const position = bassRange 
+        ? (index / (barCount * 0.2))
+        : midRange 
+          ? ((index - barCount * 0.2) / (barCount * 0.4))
+          : ((index - barCount * 0.6) / (barCount * 0.4))
+      
+      const colorIndex = Math.floor(position * colorArray.length)
       const baseColor = colorArray[colorIndex] || extractedColors.primary
       
       const match = baseColor.match(/oklch\(([0-9.]+)\s+([0-9.]+)\s+([0-9.]+)\)/)

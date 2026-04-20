@@ -530,11 +530,14 @@ export function PreviewPanel({
                   )}
                   style={{
                     background: extractedColors ? `
-                      radial-gradient(ellipse at 20% 30%, ${extractedColors.primary}25 0%, transparent 45%),
-                      radial-gradient(ellipse at 80% 70%, ${extractedColors.secondary}20 0%, transparent 50%),
-                      radial-gradient(ellipse at 50% 50%, ${extractedColors.vibrant}15 0%, transparent 60%),
-                      radial-gradient(circle at 30% 80%, ${extractedColors.accent}18 0%, transparent 40%),
-                      linear-gradient(135deg, ${extractedColors.primary}08 0%, ${extractedColors.secondary}12 50%, ${extractedColors.vibrant}10 100%)
+                      radial-gradient(ellipse at 15% 25%, ${extractedColors.warm}25 0%, transparent 40%),
+                      radial-gradient(ellipse at 85% 20%, ${extractedColors.cool}20 0%, transparent 45%),
+                      radial-gradient(ellipse at 60% 80%, ${extractedColors.light}15 0%, transparent 50%),
+                      radial-gradient(ellipse at 30% 60%, ${extractedColors.vibrant}18 0%, transparent 45%),
+                      radial-gradient(circle at 75% 70%, ${extractedColors.muted}12 0%, transparent 55%),
+                      radial-gradient(ellipse at 40% 30%, ${extractedColors.primary}20 0%, transparent 50%),
+                      radial-gradient(circle at 20% 85%, ${extractedColors.dark}15 0%, transparent 40%),
+                      linear-gradient(135deg, ${extractedColors.primary}08 0%, ${extractedColors.secondary}12 30%, ${extractedColors.vibrant}10 60%, ${extractedColors.accent}08 100%)
                     ` : `
                       repeating-conic-gradient(
                         from 45deg at 50% 50%,
@@ -565,7 +568,7 @@ export function PreviewPanel({
                           className="absolute inset-0 rounded-lg pointer-events-none transition-all duration-[2000ms] opacity-100 group-hover:opacity-0"
                           style={{
                             boxShadow: extractedColors 
-                              ? `0 0 40px ${extractedColors.primary}60, 0 0 80px ${extractedColors.vibrant}30, 0 0 120px ${extractedColors.accent}20`
+                              ? `0 0 40px ${extractedColors.warm}60, 0 0 60px ${extractedColors.primary}40, 0 0 80px ${extractedColors.vibrant}30, 0 0 100px ${extractedColors.cool}20, 0 0 120px ${extractedColors.light}15`
                               : `0 0 40px ${config.accentColor}40, 0 0 80px ${config.accentColor}20`
                           }}
                         />
@@ -573,7 +576,7 @@ export function PreviewPanel({
                           className="absolute inset-0 rounded-lg pointer-events-none transition-all duration-[2000ms] opacity-0 group-hover:opacity-100"
                           style={{
                             boxShadow: extractedColors
-                              ? `0 0 60px ${extractedColors.vibrant}90, 0 0 120px ${extractedColors.primary}50, 0 0 180px ${extractedColors.accent}30, 0 0 240px ${extractedColors.secondary}20`
+                              ? `0 0 60px ${extractedColors.vibrant}90, 0 0 90px ${extractedColors.warm}70, 0 0 120px ${extractedColors.primary}50, 0 0 160px ${extractedColors.light}40, 0 0 200px ${extractedColors.cool}30, 0 0 240px ${extractedColors.muted}20`
                               : `0 0 60px ${config.accentColor}80, 0 0 120px ${config.accentColor}40, 0 0 160px ${config.accentColor}20`
                           }}
                         />
@@ -581,7 +584,7 @@ export function PreviewPanel({
                           className="absolute inset-0 rounded-lg bg-gradient-to-tr opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
                           style={{
                             background: extractedColors
-                              ? `linear-gradient(135deg, ${extractedColors.primary}00 0%, ${extractedColors.vibrant}00 50%, ${extractedColors.accent}20 100%)`
+                              ? `linear-gradient(135deg, ${extractedColors.dark}00 0%, ${extractedColors.warm}00 25%, ${extractedColors.vibrant}00 50%, ${extractedColors.light}15 75%, ${extractedColors.cool}20 100%)`
                               : 'linear-gradient(135deg, transparent 0%, transparent 50%, var(--accent) / 0.2 100%)'
                           }}
                         />
@@ -589,7 +592,7 @@ export function PreviewPanel({
                           className="absolute -inset-1 rounded-lg opacity-0 group-hover:opacity-30 blur-xl transition-all duration-700 pointer-events-none"
                           style={{
                             background: extractedColors
-                              ? `linear-gradient(135deg, ${extractedColors.vibrant}40 0%, ${extractedColors.primary}30 50%, ${extractedColors.accent}20 100%)`
+                              ? `linear-gradient(135deg, ${extractedColors.vibrant}50 0%, ${extractedColors.warm}40 25%, ${extractedColors.primary}30 50%, ${extractedColors.cool}25 75%, ${extractedColors.light}20 100%)`
                               : 'linear-gradient(135deg, var(--accent) / 0.2 0%, transparent 50%, var(--primary) / 0.2 100%)'
                           }}
                         />

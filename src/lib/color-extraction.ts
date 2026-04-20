@@ -3,6 +3,12 @@ export interface ExtractedColors {
   secondary: string
   accent: string
   vibrant: string
+  muted: string
+  light: string
+  dark: string
+  warm: string
+  cool: string
+  palette: string[]
 }
 
 export async function extractColorsFromImage(imageUrl: string): Promise<ExtractedColors> {
@@ -71,7 +77,19 @@ export async function extractColorsFromImage(imageUrl: string): Promise<Extracte
             primary: 'oklch(0.55 0.18 250)',
             secondary: 'oklch(0.35 0.02 260)',
             accent: 'oklch(0.75 0.14 195)',
-            vibrant: 'oklch(0.65 0.20 220)'
+            vibrant: 'oklch(0.65 0.20 220)',
+            muted: 'oklch(0.45 0.08 260)',
+            light: 'oklch(0.70 0.12 250)',
+            dark: 'oklch(0.30 0.10 260)',
+            warm: 'oklch(0.60 0.15 50)',
+            cool: 'oklch(0.60 0.15 220)',
+            palette: [
+              'oklch(0.55 0.18 250)',
+              'oklch(0.45 0.12 195)',
+              'oklch(0.65 0.20 220)',
+              'oklch(0.50 0.15 180)',
+              'oklch(0.70 0.18 270)'
+            ]
           })
           return
         }
@@ -125,11 +143,58 @@ export async function extractColorsFromImage(imageUrl: string): Promise<Extracte
           sortedColors[Math.min(1, sortedColors.length - 1)][1].b
         )
         
+        const mutedColors = sortedColors.filter(c => c[1].saturation < 0.4)
+        const muted = mutedColors.length > 0 
+          ? rgbToOklch(mutedColors[0][1].r, mutedColors[0][1].g, mutedColors[0][1].b)
+          : secondary
+        
+        const lightColors = sortedColors.filter(c => c[1].brightness > 150)
+        const light = lightColors.length > 0
+          ? rgbToOklch(lightColors[0][1].r, lightColors[0][1].g, lightColors[0][1].b)
+          : accent
+        
+        const darkColors = sortedColors.filter(c => c[1].brightness < 100)
+        const dark = darkColors.length > 0
+          ? rgbToOklch(darkColors[darkColors.length - 1][1].r, darkColors[darkColors.length - 1][1].g, darkColors[darkColors.length - 1][1].b)
+          : secondary
+        
+        const warmColors = sortedColors.filter(c => {
+          const max = Math.max(c[1].r, c[1].g, c[1].b)
+          return max === c[1].r && c[1].r > c[1].b
+        })
+        const warm = warmColors.length > 0
+          ? rgbToOklch(warmColors[0][1].r, warmColors[0][1].g, warmColors[0][1].b)
+          : primary
+        
+        const coolColors = sortedColors.filter(c => {
+          const max = Math.max(c[1].r, c[1].g, c[1].b)
+          return max === c[1].b || c[1].b > c[1].r
+        })
+        const cool = coolColors.length > 0
+          ? rgbToOklch(coolColors[0][1].r, coolColors[0][1].g, coolColors[0][1].b)
+          : accent
+        
+        const palette: string[] = []
+        const paletteIndices = [0, 2, 4, 6, 8].filter(i => i < sortedColors.length)
+        for (const i of paletteIndices) {
+          palette.push(rgbToOklch(sortedColors[i][1].r, sortedColors[i][1].g, sortedColors[i][1].b))
+        }
+        
+        while (palette.length < 5) {
+          palette.push(primary)
+        }
+        
         resolve({
           primary,
           secondary,
           accent,
-          vibrant
+          vibrant,
+          muted,
+          light,
+          dark,
+          warm,
+          cool,
+          palette
         })
       } catch (error) {
         reject(error)
