@@ -16,6 +16,7 @@ import { PreviewPanel } from "@/components/PreviewPanel"
 import { BrandControl } from "@/components/BrandControl"
 import { SpotifyTrackPicker } from "@/components/SpotifyTrackPicker"
 import { DeviceSelector } from "@/components/DeviceSelector"
+import { PlatformAccess } from "@/components/PlatformAccess"
 import { 
   Broadcast, 
   Lightning, 
@@ -59,6 +60,13 @@ import {
 import { toast } from "sonner"
 import { initiateSpotifyAuth, getSpotifyUser, formatTrackDisplay } from "@/lib/spotify"
 import type { SpotifyTrack } from "@/lib/spotify"
+import { 
+  initiateTelegramAuth, 
+  initiateDiscordAuth,
+  type PlatformAuthStatus,
+  type TelegramUser,
+  type DiscordUser
+} from "@/lib/auth"
 
 type Platform = 'telegram' | 'discord'
 type SessionStatus = 'standby' | 'active' | 'connecting' | 'error' | 'dj-mode'
@@ -115,6 +123,14 @@ function App() {
   
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null)
   const [cameraPermissionError, setCameraPermissionError] = useState<string | null>(null)
+
+  const [telegramAuthStatus, setTelegramAuthStatus] = useKV<PlatformAuthStatus>("telegram-auth-status", "disconnected")
+  const [telegramUser, setTelegramUser] = useKV<TelegramUser | null>("telegram-user", null)
+  const [telegramAuthError, setTelegramAuthError] = useState<string | null>(null)
+  
+  const [discordAuthStatus, setDiscordAuthStatus] = useKV<PlatformAuthStatus>("discord-auth-status", "disconnected")
+  const [discordUser, setDiscordUser] = useKV<DiscordUser | null>("discord-user", null)
+  const [discordAuthError, setDiscordAuthError] = useState<string | null>(null)
 
   const protocols: ProtocolConfig[] = [
     { 
@@ -206,6 +222,72 @@ function App() {
     }
     setLogs((currentLogs) => [newLog, ...(currentLogs || [])].slice(0, 100))
   }
+
+  const handleTelegramAuth = async () => {
+    setTelegramAuthStatus('connecting')
+    setTelegramAuthError(null)
+    addLog('info', 'AUTH', 'Telegram authorization initiated')
+    
+    try {
+      await initiateTelegramAuth()
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Authorization failed'
+      setTelegramAuthStatus('error')
+      setTelegramAuthError(errorMessage)
+      addLog('error', 'AUTH', `Telegram authorization failed: ${errorMessage}`)
+      toast.error('Telegram authorization failed')
+    }
+  }
+
+  const handleTelegramDisconnect = () => {
+    setTelegramAuthStatus('disconnected')
+    setTelegramUser(null)
+    setTelegramAuthError(null)
+    addLog('info', 'AUTH', 'Telegram platform disconnected')
+    toast('Telegram disconnected')
+  }
+
+  const handleDiscordAuth = async () => {
+    setDiscordAuthStatus('connecting')
+    setDiscordAuthError(null)
+    addLog('info', 'AUTH', 'Discord authorization initiated')
+    
+    try {
+      initiateDiscordAuth()
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Authorization failed'
+      setDiscordAuthStatus('error')
+      setDiscordAuthError(errorMessage)
+      addLog('error', 'AUTH', `Discord authorization failed: ${errorMessage}`)
+      toast.error('Discord authorization failed')
+    }
+  }
+
+  const handleDiscordDisconnect = () => {
+    setDiscordAuthStatus('disconnected')
+    setDiscordUser(null)
+    setDiscordAuthError(null)
+    addLog('info', 'AUTH', 'Discord platform disconnected')
+    toast('Discord disconnected')
+  }
+
+  useEffect(() => {
+    const handleAuthMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return
+      
+      if (event.data.type === 'telegram-auth' && event.data.user) {
+        const user = event.data.user as TelegramUser
+        setTelegramAuthStatus('connected')
+        setTelegramUser(user)
+        addLog('success', 'AUTH', 'Telegram platform identity linked')
+        addLog('success', 'AUTH', 'Session authorization ready')
+        toast.success('Telegram authorized')
+      }
+    }
+    
+    window.addEventListener('message', handleAuthMessage)
+    return () => window.removeEventListener('message', handleAuthMessage)
+  }, [])
 
   const handleRunPreflight = async () => {
     if (inputProtocol === 'dj-mode') {
@@ -811,6 +893,19 @@ function App() {
             </div>
           </div>
         </div>
+
+        <PlatformAccess
+          telegramStatus={telegramAuthStatus || 'disconnected'}
+          telegramUser={telegramUser === undefined ? null : telegramUser}
+          telegramError={telegramAuthError}
+          discordStatus={discordAuthStatus || 'disconnected'}
+          discordUser={discordUser === undefined ? null : discordUser}
+          discordError={discordAuthError}
+          onTelegramAuth={handleTelegramAuth}
+          onTelegramDisconnect={handleTelegramDisconnect}
+          onDiscordAuth={handleDiscordAuth}
+          onDiscordDisconnect={handleDiscordDisconnect}
+        />
 
         <div className="space-y-6">
           <div className="glass-panel rounded-xl p-6 space-y-6">
@@ -1548,7 +1643,7 @@ function App() {
               <div className="flex items-center gap-2 flex-wrap">
                 <Funnel size={16} className="text-muted-foreground" />
                 <div className="flex gap-2 flex-wrap">
-                  {['all', 'platform', 'source', 'session', 'audio', 'uplink', 'brand', 'dj', 'time', 'spotify'].map((filter) => (
+                  {['all', 'platform', 'auth', 'source', 'session', 'audio', 'uplink', 'brand', 'dj', 'time', 'spotify'].map((filter) => (
                     <button
                       key={filter}
                       onClick={() => setDiagnosticFilter(filter)}
