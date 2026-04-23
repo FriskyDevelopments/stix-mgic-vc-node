@@ -283,6 +283,22 @@ function App() {
         addLog('success', 'AUTH', 'Session authorization ready')
         toast.success('Telegram authorized')
       }
+      
+      if (event.data.type === 'discord-auth' && event.data.user) {
+        const user = event.data.user as DiscordUser
+        setDiscordAuthStatus('connected')
+        setDiscordUser(user)
+        addLog('success', 'AUTH', 'Discord platform identity linked')
+        addLog('success', 'AUTH', 'Session authorization ready')
+        toast.success('Discord authorized')
+      }
+      
+      if (event.data.type === 'discord-auth-error') {
+        setDiscordAuthStatus('error')
+        setDiscordAuthError('Authorization failed')
+        addLog('error', 'AUTH', 'Discord authorization failed')
+        toast.error('Discord authorization failed')
+      }
     }
     
     window.addEventListener('message', handleAuthMessage)

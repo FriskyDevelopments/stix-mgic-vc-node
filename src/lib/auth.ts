@@ -158,7 +158,7 @@ export async function handleDiscordCallback(code: string): Promise<DiscordUser> 
     username: 'operator',
     discriminator: '0001',
     global_name: 'STIX Operator',
-    avatar: null
+    avatar: undefined
   }
 }
 
