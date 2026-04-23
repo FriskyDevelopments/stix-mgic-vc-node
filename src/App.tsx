@@ -112,6 +112,9 @@ function App() {
   const [packetLoss, setPacketLoss] = useState(0)
   const [audioSync, setAudioSync] = useState<'stable' | 'drift' | 'muted'>('stable')
   const [resolution, setResolution] = useState('720p')
+  
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null)
+  const [cameraPermissionError, setCameraPermissionError] = useState<string | null>(null)
 
   const protocols: ProtocolConfig[] = [
     { 
@@ -204,7 +207,7 @@ function App() {
     setLogs((currentLogs) => [newLog, ...(currentLogs || [])].slice(0, 100))
   }
 
-  const handleRunPreflight = () => {
+  const handleRunPreflight = async () => {
     if (inputProtocol === 'dj-mode') {
       handleStartDJMode()
       return
@@ -236,15 +239,31 @@ function App() {
       addLog('success', 'BRAND', 'Branded sticker asset prepared')
     }
     
-    if (inputProtocol === 'clipsflow') {
+    if (inputProtocol === 'virtual-camera') {
+      addLog('info', 'SOURCE', 'Requesting camera access')
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true
+        })
+        setCameraStream(stream)
+        setCameraPermissionError(null)
+        addLog('success', 'SOURCE', 'Camera permission granted')
+        addLog('info', 'SESSION', 'Initializing camera injection...')
+        setResolution('720p')
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Permission denied'
+        setCameraPermissionError(errorMessage)
+        addLog('error', 'SOURCE', `Camera access failed: ${errorMessage}`)
+        toast.error('Camera permission denied')
+        setSessionStatus('standby')
+        return
+      }
+    } else if (inputProtocol === 'clipsflow') {
       addLog('info', 'INTAKE', 'ClipsFlow asset received')
       addLog('info', 'PREP', 'Compression profile applied')
       addLog('info', 'SESSION', `Linking prepared media to ${getPlatformLanguage('session')}...`)
       setResolution('Adaptive')
-    } else if (inputProtocol === 'virtual-camera') {
-      addLog('info', 'SOURCE', 'OBS Virtual Camera detected')
-      addLog('info', 'SESSION', 'Initializing camera injection...')
-      setResolution('720p')
     } else if (inputProtocol === 'rtmp') {
       addLog('info', 'UPLINK', 'RTMP handshake initiated')
       addLog('info', 'SESSION', `Binding to ${getPlatformLanguage('ingest')}...`)
@@ -407,6 +426,12 @@ function App() {
   }
 
   const handleStopPreflight = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop())
+      setCameraStream(null)
+      addLog('info', 'SOURCE', 'Camera stream stopped')
+    }
+    
     setSessionStatus('standby')
     setSignalQuality(0)
     setLatency(0)
@@ -455,6 +480,44 @@ function App() {
       'off': 'Branding Off'
     }
     toast.success(`Session Mark: ${markLabels[mark]}`)
+  }
+
+  const handleVideoDeviceChange = async (deviceId: string) => {
+    if (!cameraStream) return
+    
+    try {
+      cameraStream.getTracks().forEach(track => track.stop())
+      
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        video: { deviceId: { exact: deviceId } },
+        audio: true
+      })
+      
+      setCameraStream(newStream)
+      addLog('success', 'SOURCE', 'Camera device switched')
+    } catch (error) {
+      addLog('error', 'SOURCE', 'Failed to switch camera device')
+      toast.error('Failed to switch camera')
+    }
+  }
+
+  const handleAudioDeviceChange = async (deviceId: string) => {
+    if (!cameraStream) return
+    
+    try {
+      cameraStream.getTracks().forEach(track => track.stop())
+      
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: { deviceId: { exact: deviceId } }
+      })
+      
+      setCameraStream(newStream)
+      addLog('success', 'AUDIO', 'Microphone device switched')
+    } catch (error) {
+      addLog('error', 'AUDIO', 'Failed to switch microphone')
+      toast.error('Failed to switch microphone')
+    }
   }
 
   const handleStabilize = () => {
@@ -784,6 +847,9 @@ function App() {
                 spotifyStatus={spotifyStatus}
                 spotifyTrack={spotifyTrack}
                 trackPlaybackTime={trackPlaybackTime}
+                cameraStream={cameraStream}
+                onVideoDeviceChange={handleVideoDeviceChange}
+                onAudioDeviceChange={handleAudioDeviceChange}
               />
               
               {sessionStatus === 'active' && operatorTier === 'premium' && operatorTimeRemaining > 0 && (
@@ -1268,15 +1334,9 @@ function App() {
                 <>
                   <div className="mb-4">
                     <DeviceSelector 
-                      disabled={sessionStatus === 'active'}
-                      onVideoDeviceChange={(deviceId) => {
-                        addLog('info', 'SOURCE', `Camera switched: ${deviceId.substring(0, 8)}...`)
-                        toast.success('Camera device updated')
-                      }}
-                      onAudioDeviceChange={(deviceId) => {
-                        addLog('info', 'AUDIO', `Microphone switched: ${deviceId.substring(0, 8)}...`)
-                        toast.success('Audio device updated')
-                      }}
+                      disabled={sessionStatus !== 'active'}
+                      onVideoDeviceChange={handleVideoDeviceChange}
+                      onAudioDeviceChange={handleAudioDeviceChange}
                     />
                   </div>
                   

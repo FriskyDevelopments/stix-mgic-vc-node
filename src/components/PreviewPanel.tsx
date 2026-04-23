@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
@@ -49,6 +49,9 @@ interface PreviewPanelProps {
   spotifyStatus?: SpotifyConnectionStatus
   spotifyTrack?: SpotifyTrack | null
   trackPlaybackTime?: number
+  cameraStream?: MediaStream | null
+  onVideoDeviceChange?: (deviceId: string) => void
+  onAudioDeviceChange?: (deviceId: string) => void
 }
 
 interface ConditionConfig {
@@ -73,7 +76,10 @@ export function PreviewPanel({
   djAudioSource,
   spotifyStatus,
   spotifyTrack,
-  trackPlaybackTime = 0
+  trackPlaybackTime = 0,
+  cameraStream,
+  onVideoDeviceChange,
+  onAudioDeviceChange
 }: PreviewPanelProps) {
   const [previewEnabled, setPreviewEnabled] = useState(true)
   const [overlayEnabled, setOverlayEnabled] = useState(true)
@@ -83,6 +89,7 @@ export function PreviewPanel({
   const [isExtractingColors, setIsExtractingColors] = useState(false)
   const [previousTrackId, setPreviousTrackId] = useState<string | null>(null)
   const [isTransitioning, setIsTransitioning] = useState(false)
+  const videoRef = useRef<HTMLVideoElement>(null)
 
   useEffect(() => {
     if (sessionStatus === 'standby') {
@@ -148,6 +155,13 @@ export function PreviewPanel({
 
     extractColors()
   }, [sessionStatus, djAudioSource, spotifyTrack, spotifyStatus])
+
+  useEffect(() => {
+    if (videoRef.current && cameraStream) {
+      videoRef.current.srcObject = cameraStream
+      videoRef.current.play().catch(() => {})
+    }
+  }, [cameraStream])
 
   const getConditionConfig = (): ConditionConfig => {
     switch (visionCondition) {
@@ -437,13 +451,22 @@ export function PreviewPanel({
 
             {visionCondition === 'injected' && (
               <div className="absolute inset-0">
+                {cameraStream && (
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="absolute inset-0 w-full h-full object-cover"
+                  />
+                )}
                 <div 
                   className={cn(
                     "absolute inset-0",
                     safeModeEnabled && "blur-sm brightness-75"
                   )}
                   style={{
-                    background: `
+                    background: cameraStream ? 'transparent' : `
                       repeating-linear-gradient(
                         0deg,
                         transparent,
@@ -461,9 +484,12 @@ export function PreviewPanel({
                       radial-gradient(circle at center, ${config.accentColor}15 0%, transparent 50%)
                     `
                   }}
-                />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <VideoCamera size={96} className="text-accent/15" weight="duotone" />
+                >
+                  {!cameraStream && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <VideoCamera size={96} className="text-accent/15" weight="duotone" />
+                    </div>
+                  )}
                 </div>
                 <div className="absolute top-4 left-4 bottom-4 right-4 border-2 border-accent/10 rounded-md" />
               </div>
