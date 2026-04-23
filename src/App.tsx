@@ -15,6 +15,7 @@ import { LogEntry } from "@/components/LogEntry"
 import { PreviewPanel } from "@/components/PreviewPanel"
 import { BrandControl } from "@/components/BrandControl"
 import { SpotifyTrackPicker } from "@/components/SpotifyTrackPicker"
+import { DeviceSelector } from "@/components/DeviceSelector"
 import { 
   Broadcast, 
   Lightning, 
@@ -1264,32 +1265,50 @@ function App() {
               description="Protocol-specific metrics and status"
             >
               {inputProtocol === 'virtual-camera' && (
-                <div className="grid grid-cols-2 gap-3">
-                  <MetricDisplay
-                    icon={<Camera size={18} />}
-                    label="Camera Feed"
-                    value={sessionStatus === 'active' ? 'ACTIVE' : 'OFFLINE'}
-                    status={sessionStatus === 'active' ? 'good' : 'neutral'}
-                  />
-                  <MetricDisplay
-                    icon={<Pulse size={18} />}
-                    label="Frame Rate"
-                    value={sessionStatus === 'active' ? `${Math.round(frameRate)} fps` : '--'}
-                    status={frameRate >= 28 ? 'good' : frameRate >= 24 ? 'warning' : 'error'}
-                  />
-                  <MetricDisplay
-                    icon={<SpeakerHigh size={18} />}
-                    label="Audio Sync"
-                    value={sessionStatus === 'active' ? audioSync.toUpperCase() : '--'}
-                    status={audioSync === 'stable' ? 'good' : audioSync === 'drift' ? 'warning' : 'neutral'}
-                  />
-                  <MetricDisplay
-                    icon={<Clock size={18} />}
-                    label="Latency"
-                    value={sessionStatus === 'active' ? `${Math.round(latency)}ms` : '--'}
-                    status={latency < 50 ? 'good' : latency < 100 ? 'warning' : 'error'}
-                  />
-                </div>
+                <>
+                  <div className="mb-4">
+                    <DeviceSelector 
+                      disabled={sessionStatus === 'active'}
+                      onVideoDeviceChange={(deviceId) => {
+                        addLog('info', 'SOURCE', `Camera switched: ${deviceId.substring(0, 8)}...`)
+                        toast.success('Camera device updated')
+                      }}
+                      onAudioDeviceChange={(deviceId) => {
+                        addLog('info', 'AUDIO', `Microphone switched: ${deviceId.substring(0, 8)}...`)
+                        toast.success('Audio device updated')
+                      }}
+                    />
+                  </div>
+                  
+                  <Separator className="my-4" />
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <MetricDisplay
+                      icon={<Camera size={18} />}
+                      label="Camera Feed"
+                      value={sessionStatus === 'active' ? 'ACTIVE' : 'OFFLINE'}
+                      status={sessionStatus === 'active' ? 'good' : 'neutral'}
+                    />
+                    <MetricDisplay
+                      icon={<Pulse size={18} />}
+                      label="Frame Rate"
+                      value={sessionStatus === 'active' ? `${Math.round(frameRate)} fps` : '--'}
+                      status={frameRate >= 28 ? 'good' : frameRate >= 24 ? 'warning' : 'error'}
+                    />
+                    <MetricDisplay
+                      icon={<SpeakerHigh size={18} />}
+                      label="Audio Sync"
+                      value={sessionStatus === 'active' ? audioSync.toUpperCase() : '--'}
+                      status={audioSync === 'stable' ? 'good' : audioSync === 'drift' ? 'warning' : 'neutral'}
+                    />
+                    <MetricDisplay
+                      icon={<Clock size={18} />}
+                      label="Latency"
+                      value={sessionStatus === 'active' ? `${Math.round(latency)}ms` : '--'}
+                      status={latency < 50 ? 'good' : latency < 100 ? 'warning' : 'error'}
+                    />
+                  </div>
+                </>
               )}
 
               {inputProtocol === 'rtmp' && (
