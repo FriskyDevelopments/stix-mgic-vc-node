@@ -24,8 +24,8 @@ export function DeviceSelector({
 }: DeviceSelectorProps) {
   const [videoDevices, setVideoDevices] = useState<DeviceInfo[]>([])
   const [audioDevices, setAudioDevices] = useState<DeviceInfo[]>([])
-  const [selectedVideo, setSelectedVideo] = useKV<string>("selected-video-device", "")
-  const [selectedAudio, setSelectedAudio] = useKV<string>("selected-audio-device", "")
+  const [selectedVideo, setSelectedVideo] = useKV<string | undefined>("selected-video-device", undefined)
+  const [selectedAudio, setSelectedAudio] = useKV<string | undefined>("selected-audio-device", undefined)
   const [hasPermission, setHasPermission] = useState(false)
 
   const enumerateDevices = async () => {
@@ -118,7 +118,7 @@ export function DeviceSelector({
             Video Device
           </Label>
           <Select
-            value={selectedVideo}
+            value={selectedVideo || undefined}
             onValueChange={handleVideoChange}
             disabled={disabled || videoDevices.length === 0}
           >
@@ -148,7 +148,7 @@ export function DeviceSelector({
             Audio Device
           </Label>
           <Select
-            value={selectedAudio}
+            value={selectedAudio || undefined}
             onValueChange={handleAudioChange}
             disabled={disabled || audioDevices.length === 0}
           >
