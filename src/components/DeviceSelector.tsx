@@ -118,7 +118,7 @@ export function DeviceSelector({
             Video Device
           </Label>
           <Select
-            value={selectedVideo || undefined}
+            value={selectedVideo}
             onValueChange={handleVideoChange}
             disabled={disabled || videoDevices.length === 0}
           >
@@ -148,7 +148,7 @@ export function DeviceSelector({
             Audio Device
           </Label>
           <Select
-            value={selectedAudio || undefined}
+            value={selectedAudio}
             onValueChange={handleAudioChange}
             disabled={disabled || audioDevices.length === 0}
           >
