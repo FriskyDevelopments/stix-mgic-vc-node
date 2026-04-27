@@ -581,39 +581,57 @@ function App() {
   }
 
   const handleVideoDeviceChange = async (deviceId: string) => {
-    if (!cameraStream) return
+    if (!cameraStream) {
+      addLog('info', 'SOURCE', 'No active stream - start preflight first')
+      toast.error('Start preflight before switching devices')
+      return
+    }
     
     try {
+      const audioTrack = cameraStream.getAudioTracks()[0]
+      const currentAudioDeviceId = audioTrack?.getSettings().deviceId
+      
       cameraStream.getTracks().forEach(track => track.stop())
       
       const newStream = await navigator.mediaDevices.getUserMedia({
         video: { deviceId: { exact: deviceId } },
-        audio: true
+        audio: currentAudioDeviceId ? { deviceId: { exact: currentAudioDeviceId } } : true
       })
       
       setCameraStream(newStream)
       addLog('success', 'SOURCE', 'Camera device switched')
+      toast.success('Camera device switched')
     } catch (error) {
-      addLog('error', 'SOURCE', 'Failed to switch camera device')
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      addLog('error', 'SOURCE', `Failed to switch camera: ${errorMessage}`)
       toast.error('Failed to switch camera')
     }
   }
 
   const handleAudioDeviceChange = async (deviceId: string) => {
-    if (!cameraStream) return
+    if (!cameraStream) {
+      addLog('info', 'AUDIO', 'No active stream - start preflight first')
+      toast.error('Start preflight before switching devices')
+      return
+    }
     
     try {
+      const videoTrack = cameraStream.getVideoTracks()[0]
+      const currentVideoDeviceId = videoTrack?.getSettings().deviceId
+      
       cameraStream.getTracks().forEach(track => track.stop())
       
       const newStream = await navigator.mediaDevices.getUserMedia({
-        video: true,
+        video: currentVideoDeviceId ? { deviceId: { exact: currentVideoDeviceId } } : true,
         audio: { deviceId: { exact: deviceId } }
       })
       
       setCameraStream(newStream)
       addLog('success', 'AUDIO', 'Microphone device switched')
+      toast.success('Microphone device switched')
     } catch (error) {
-      addLog('error', 'AUDIO', 'Failed to switch microphone')
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      addLog('error', 'AUDIO', `Failed to switch microphone: ${errorMessage}`)
       toast.error('Failed to switch microphone')
     }
   }

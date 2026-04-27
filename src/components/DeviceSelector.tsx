@@ -76,6 +76,17 @@ export function DeviceSelector({
     }
   }, [])
 
+  useEffect(() => {
+    if (videoDevices.length > 0 && !selectedVideo && videoDevices[0].deviceId) {
+      setSelectedVideo(videoDevices[0].deviceId)
+      onVideoDeviceChange?.(videoDevices[0].deviceId)
+    }
+    if (audioDevices.length > 0 && !selectedAudio && audioDevices[0].deviceId) {
+      setSelectedAudio(audioDevices[0].deviceId)
+      onAudioDeviceChange?.(audioDevices[0].deviceId)
+    }
+  }, [videoDevices, audioDevices, selectedVideo, selectedAudio, onVideoDeviceChange, onAudioDeviceChange, setSelectedVideo, setSelectedAudio])
+
   const handleVideoChange = (deviceId: string) => {
     setSelectedVideo(deviceId)
     onVideoDeviceChange?.(deviceId)
