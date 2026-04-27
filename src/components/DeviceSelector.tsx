@@ -118,7 +118,7 @@ export function DeviceSelector({
             Video Device
           </Label>
           <Select
-            value={selectedVideo}
+            value={selectedVideo || undefined}
             onValueChange={handleVideoChange}
             disabled={disabled || videoDevices.length === 0}
           >
@@ -132,7 +132,7 @@ export function DeviceSelector({
               {videoDevices.map((device) => (
                 <SelectItem 
                   key={device.deviceId} 
-                  value={device.deviceId}
+                  value={device.deviceId || `device-${device.kind}-${Math.random()}`}
                   className="font-mono text-xs"
                 >
                   {device.label}
@@ -148,7 +148,7 @@ export function DeviceSelector({
             Audio Device
           </Label>
           <Select
-            value={selectedAudio}
+            value={selectedAudio || undefined}
             onValueChange={handleAudioChange}
             disabled={disabled || audioDevices.length === 0}
           >
@@ -162,7 +162,7 @@ export function DeviceSelector({
               {audioDevices.map((device) => (
                 <SelectItem 
                   key={device.deviceId} 
-                  value={device.deviceId}
+                  value={device.deviceId || `device-${device.kind}-${Math.random()}`}
                   className="font-mono text-xs"
                 >
                   {device.label}
