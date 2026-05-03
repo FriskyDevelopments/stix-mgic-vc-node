@@ -1,23 +1,19 @@
-# ✨ Welcome to Your Spark Template!
-You've just launched your brand-new Spark Template Codespace — everything’s fired up and ready for you to explore, build, and create with Spark!
+# stix-mgic-vc-node
 
-This template is your blank canvas. It comes with a minimal setup to help you get started quickly with Spark development.
+Voice/Node companion service for STIX MAGIC.
 
-🚀 What's Inside?
-- A clean, minimal Spark environment
-- Pre-configured for local development
-- Ready to scale with your ideas
-  
-🧠 What Can You Do?
+## Status
 
-Right now, this is just a starting point — the perfect place to begin building and testing your Spark applications.
+> ⚠️ This is currently an unstarted scaffold. Decision needed: **implement or archive.**
+>
+> If this is still on the roadmap, implement the voice channel integration and remove this notice.
+> If superseded, archive this repo with a pointer to the active replacement.
 
-🧹 Just Exploring?
-No problem! If you were just checking things out and don’t need to keep this code:
+## Intended purpose
 
-- Simply delete your Spark.
-- Everything will be cleaned up — no traces left behind.
+Voice channel integration companion for STIX MAGIC bots — likely handles audio processing or voice-to-text for Telegram voice messages.
 
-📄 License For Spark Template Resources 
+## Related repos
 
-The Spark Template files and resources from GitHub are licensed under the terms of the MIT license, Copyright GitHub, Inc.
+- [stixmagic-bot](https://github.com/FriskyDevelopments/stixmagic-bot)
+- [stixmagic-web](https://github.com/FriskyDevelopments/stixmagic-web)
