@@ -1,24 +1,22 @@
 # stix-mgic-vc-node
 
-STIX MΛGIC VC NODE — a browser-based operator console for managing live voice and media sessions across Telegram and Discord. Built with React 19, Vite, and Tailwind CSS.
+STIX MΛGIC VC NODE — production control-plane for multi-platform session operations (Telegram + Discord). React 19 + Vite UI served by a Hono Node API.
 
 ## Production readiness
 
-This SPA is **production-deployable** as an operator shell:
+| Layer | Status |
+|-------|--------|
+| Control-plane API (`/v1/sessions`, `/v1/auth/*`, `/healthz`) | **Ready** |
+| Production server (`npm start` → `0.0.0.0:$PORT`, serves `dist` + API) | **Ready** |
+| Discord OAuth code exchange (server secret) | **Ready** when `DISCORD_CLIENT_*` set |
+| Telegram Login Widget HMAC verify | **Ready** when `TELEGRAM_BOT_TOKEN` set |
+| Operator session tokens (HMAC) | **Ready** |
+| Static deploy (Vercel) / Render blueprint / Docker | **Ready** |
+| Media plane (live VC join / RTMP ingest adapters) | **Deferred** — API returns `mediaPlane.ready=false` |
 
-| Capability | Status |
-|------------|--------|
-| Static hosting (Vercel / Netlify / any SPA host) | Ready — `vercel.json` + `public/_redirects` |
-| Persistence without Spark runtime | Ready — `localStorage` via `usePersistedState` |
-| Session start/stop API seam | Ready — `src/lib/session-api.ts` (`VITE_API_BASE_URL`) |
-| Demo mode (default) | Simulated sessions with honest in-app labeling |
-| Live mode | Set `VITE_DEMO_MODE=false` + `VITE_API_BASE_URL` to a real session API |
-| Platform auth (Telegram / Discord) | Still mock until server-side OAuth exists |
-| Spotify personal source | Real PKCE + refresh when `VITE_SPOTIFY_CLIENT_ID` is set |
+Default production mode uses the **live control plane**. Media adapters remain explicitly deferred (not faked as live).
 
-**Blocked on backend (not inventable in this SPA):** real Telegram/Discord identity verification, live VC join/relay, real RTMP ingest, ClipsFlow asset API, billing/entitlement truth.
-
-## Run locally
+## Local development
 
 ```bash
 cp .env.example .env
@@ -26,48 +24,62 @@ npm install
 npm run dev
 ```
 
-Default port: **5000**.
+This runs:
+- API on `127.0.0.1:8787`
+- Vite UI on `http://localhost:5000` (proxies `/v1` + `/healthz`)
+
+## Production
+
+```bash
+npm run build
+OPERATOR_TOKEN_SECRET=... NODE_ENV=production npm start
+```
+
+Binds `0.0.0.0:$PORT` (Render/Fly/Docker compatible).
+
+### Render
+
+`render.yaml` included. Set Discord/Telegram secrets in the dashboard.
+
+### Docker
+
+```bash
+docker build -t stix-mgic-vc-node .
+docker run --rm -p 10000:10000 -e PORT=10000 -e OPERATOR_TOKEN_SECRET=... stix-mgic-vc-node
+```
 
 ## Environment
 
-| Variable | Purpose |
-|----------|---------|
-| `VITE_DEMO_MODE` | `true` (default) keeps simulated sessions; `false` requires API |
-| `VITE_API_BASE_URL` | Live session API base (`POST /v1/sessions/start\|stop\|extend`) |
-| `VITE_OPERATOR_TIER` | `free` or `premium` |
-| `VITE_DISCORD_CLIENT_ID` | Optional Discord OAuth client ID |
-| `VITE_SPOTIFY_CLIENT_ID` | Optional Spotify PKCE client ID |
+### Client (`VITE_*`)
+| Var | Purpose |
+|-----|---------|
+| `VITE_DEMO_MODE` | `true` forces client-side simulation; unset/`false` uses API |
+| `VITE_API_BASE_URL` | Optional absolute API origin (blank = same-origin) |
+| `VITE_DISCORD_CLIENT_ID` | Public Discord OAuth client id |
+| `VITE_SPOTIFY_CLIENT_ID` | Optional Spotify PKCE |
+| `VITE_OPERATOR_TIER` | `free` \| `premium` |
+| `VITE_AUTH_REQUIRED` | UI hint when anonymous operators are disabled |
 
-Redirect URIs (local + production):
-
-- `https://YOUR_DOMAIN/auth/discord/callback`
-- `https://YOUR_DOMAIN/spotify-callback`
+### Server (secrets — never prefix with `VITE_`)
+| Var | Purpose |
+|-----|---------|
+| `OPERATOR_TOKEN_SECRET` | Required in production |
+| `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` / `DISCORD_REDIRECT_URI` | Real Discord exchange |
+| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_BOT_USERNAME` | Telegram Login Widget verify |
+| `AUTH_REQUIRED` | Require operator bearer token for sessions |
+| `MEDIA_PLANE_ENABLED` | Feature flag only; adapters not wired yet |
 
 ## Scripts
 
 | Command | Purpose |
 |---------|---------|
-| `npm run dev` | Local server |
-| `npm run build` | Production bundle |
-| `npm run preview` | Preview built assets |
+| `npm run dev` | API + Vite concurrently |
+| `npm run build` | Build SPA |
+| `npm start` | Production control plane |
+| `npm run typecheck` | Client + server types |
+| `npm run test:ci` | Vitest (UI + API) |
 | `npm run lint` | ESLint |
-| `npm run typecheck` | TypeScript `--noEmit` |
-| `npm test` / `npm run test:ci` | Vitest |
 
-## Deploy
+## Related
 
-### Vercel
-
-Connect the repo. `vercel.json` already configures SPA rewrites and security headers. Set env vars in the Vercel project settings.
-
-### Netlify / static
-
-`public/_redirects` maps OAuth callback paths and SPA fallback to `index.html`.
-
-### GitHub Spark
-
-Still supported for design-time Spark tooling, but runtime state no longer depends on `/_spark/kv`.
-
-## Related repos
-
-stixmagic-bot and stixmagic-web (FriskyDevelopments). Wire a session-control API to `VITE_API_BASE_URL` for live operator mode.
+stixmagic-bot / stixmagic-web — future media-plane adapters attach behind `/v1/media/*`.

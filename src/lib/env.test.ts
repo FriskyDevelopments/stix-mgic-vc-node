@@ -8,22 +8,20 @@ describe('getAppEnv', () => {
     vi.unstubAllEnvs()
   })
 
-  it('defaults to demo mode without API URL', () => {
+  it('defaults to demo mode in non-production builds', () => {
     const env = getAppEnv()
     expect(env.demoMode).toBe(true)
     expect(env.isLiveApiConfigured).toBe(false)
     expect(env.operatorTier).toBe('premium')
   })
 
-  it('enables live API when demo is false and API URL is set', () => {
+  it('enables live API when demo is false', () => {
     vi.stubEnv('VITE_DEMO_MODE', 'false')
-    vi.stubEnv('VITE_API_BASE_URL', 'https://api.example.com')
     resetAppEnvCache()
 
     const env = getAppEnv()
     expect(env.demoMode).toBe(false)
     expect(env.isLiveApiConfigured).toBe(true)
-    expect(env.apiBaseUrl).toBe('https://api.example.com')
   })
 })
 
@@ -34,7 +32,7 @@ describe('getSessionApi', () => {
     vi.unstubAllEnvs()
   })
 
-  it('uses demo API by default', async () => {
+  it('uses demo API by default in vitest', async () => {
     const api = getSessionApi()
     expect(api.isLiveConfigured()).toBe(false)
 

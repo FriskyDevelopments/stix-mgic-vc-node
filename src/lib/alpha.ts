@@ -15,7 +15,7 @@ export const ALPHA_BANNER =
 export function getRuntimeBanner(): string {
   const env = getAppEnv()
   if (env.isLiveApiConfigured) {
-    return 'Production mode — session control via configured API. Platform identity still requires server-side OAuth.'
+    return 'Production control plane — session authority via API. Media plane (live VC/RTMP join) remains deferred until adapters are wired.'
   }
   return ALPHA_BANNER
 }

@@ -1,23 +1,26 @@
 import { z } from 'zod'
 
 const envSchema = z.object({
-  VITE_DEMO_MODE: z
-    .enum(['true', 'false'])
-    .optional()
-    .transform((value) => value !== 'false'),
-  VITE_API_BASE_URL: z.string().url().optional().or(z.literal('')).transform((value) => value || undefined),
+  VITE_DEMO_MODE: z.enum(['true', 'false']).optional(),
+  VITE_API_BASE_URL: z.string().optional().transform((value) => {
+    const trimmed = value?.trim()
+    if (!trimmed) return ''
+    return trimmed.replace(/\/$/, '')
+  }),
   VITE_DISCORD_CLIENT_ID: z.string().optional().transform((value) => value?.trim() || undefined),
   VITE_SPOTIFY_CLIENT_ID: z.string().optional().transform((value) => value?.trim() || undefined),
   VITE_OPERATOR_TIER: z.enum(['free', 'premium']).optional().default('premium'),
+  VITE_AUTH_REQUIRED: z.enum(['true', 'false']).optional(),
 })
 
 export type AppEnv = {
   demoMode: boolean
-  apiBaseUrl?: string
+  apiBaseUrl: string
   discordClientId?: string
   spotifyClientId?: string
   operatorTier: 'free' | 'premium'
   isLiveApiConfigured: boolean
+  authRequired: boolean
 }
 
 function readRawEnv() {
@@ -27,6 +30,7 @@ function readRawEnv() {
     VITE_DISCORD_CLIENT_ID: import.meta.env.VITE_DISCORD_CLIENT_ID as string | undefined,
     VITE_SPOTIFY_CLIENT_ID: import.meta.env.VITE_SPOTIFY_CLIENT_ID as string | undefined,
     VITE_OPERATOR_TIER: import.meta.env.VITE_OPERATOR_TIER as string | undefined,
+    VITE_AUTH_REQUIRED: import.meta.env.VITE_AUTH_REQUIRED as string | undefined,
   }
 }
 
@@ -39,23 +43,27 @@ export function getAppEnv(): AppEnv {
   if (!parsed.success) {
     console.error('[env] Invalid environment configuration', parsed.error.flatten())
     cachedEnv = {
-      demoMode: true,
+      demoMode: !import.meta.env.PROD,
+      apiBaseUrl: '',
       operatorTier: 'premium',
-      isLiveApiConfigured: false,
+      isLiveApiConfigured: Boolean(import.meta.env.PROD),
+      authRequired: false,
     }
     return cachedEnv
   }
 
-  const apiBaseUrl = parsed.data.VITE_API_BASE_URL
-  const demoMode = parsed.data.VITE_DEMO_MODE || !apiBaseUrl
+  const explicitDemo = parsed.data.VITE_DEMO_MODE
+  const demoMode =
+    explicitDemo === 'true' ? true : explicitDemo === 'false' ? false : !import.meta.env.PROD
 
   cachedEnv = {
     demoMode,
-    apiBaseUrl,
+    apiBaseUrl: parsed.data.VITE_API_BASE_URL || '',
     discordClientId: parsed.data.VITE_DISCORD_CLIENT_ID,
     spotifyClientId: parsed.data.VITE_SPOTIFY_CLIENT_ID,
     operatorTier: parsed.data.VITE_OPERATOR_TIER,
-    isLiveApiConfigured: Boolean(apiBaseUrl) && !demoMode,
+    isLiveApiConfigured: !demoMode,
+    authRequired: parsed.data.VITE_AUTH_REQUIRED === 'true',
   }
 
   return cachedEnv

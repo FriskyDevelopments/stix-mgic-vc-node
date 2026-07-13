@@ -67,6 +67,7 @@ import {
 } from "@/lib/alpha"
 import { getAppEnv } from "@/lib/env"
 import { getSessionApi } from "@/lib/session-api"
+import { setOperatorToken } from "@/lib/operator-token"
 import { log } from "@/lib/log"
 import { 
   initiateTelegramAuth, 
@@ -288,23 +289,34 @@ function App() {
         const user = event.data.user as TelegramUser
         setTelegramAuthStatus('connected')
         setTelegramUser(user)
-        addLog('success', 'AUTH', 'Telegram platform identity linked')
+        addLog(
+          'success',
+          'AUTH',
+          event.data.demo ? 'Telegram demo identity linked' : 'Telegram platform identity verified'
+        )
         addLog('success', 'AUTH', 'Session authorization ready')
-        toast.success('Telegram authorized')
+        toast.success(event.data.demo ? 'Telegram demo authorized' : 'Telegram authorized')
       }
       
       if (event.data.type === 'discord-auth' && event.data.user) {
         const user = event.data.user as DiscordUser
+        if (typeof event.data.token === 'string' && event.data.token.length > 0) {
+          setOperatorToken(event.data.token)
+        }
         setDiscordAuthStatus('connected')
         setDiscordUser(user)
-        addLog('success', 'AUTH', 'Discord platform identity linked')
+        addLog(
+          'success',
+          'AUTH',
+          event.data.demo ? 'Discord demo identity linked' : 'Discord platform identity verified'
+        )
         addLog('success', 'AUTH', 'Session authorization ready')
-        toast.success('Discord authorized')
+        toast.success(event.data.demo ? 'Discord demo authorized' : 'Discord authorized')
       }
       
       if (event.data.type === 'discord-auth-error') {
         setDiscordAuthStatus('error')
-        setDiscordAuthError('Authorization failed')
+        setDiscordAuthError(event.data.error || 'Authorization failed')
         addLog('error', 'AUTH', 'Discord authorization failed')
         toast.error('Discord authorization failed')
       }

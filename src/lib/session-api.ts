@@ -1,5 +1,6 @@
 import { getAppEnv } from '@/lib/env'
 import { log } from '@/lib/log'
+import { clearOperatorToken, getOperatorToken, setOperatorToken } from '@/lib/operator-token'
 
 export type SessionProtocol =
   | 'dj-mode'
@@ -28,10 +29,17 @@ export interface SessionSnapshot {
   resolution: string
   streamKey?: string
   source: 'live-api' | 'demo'
+  remainingSeconds?: number
+  mediaPlane?: {
+    enabled: boolean
+    ready: boolean
+    reason: string
+  }
 }
 
 export interface SessionApi {
   isLiveConfigured(): boolean
+  ensureOperatorToken(): Promise<string | null>
   startSession(request: StartSessionRequest): Promise<SessionSnapshot>
   stopSession(): Promise<SessionSnapshot>
   extendOperatorTime(seconds: number): Promise<{ remainingSeconds: number }>
@@ -60,21 +68,29 @@ function demoSnapshot(
     resolution: '720p',
     streamKey: isRtmp ? `sk_demo_${Math.random().toString(36).slice(2, 10)}` : undefined,
     source: 'demo',
+    mediaPlane: {
+      enabled: false,
+      ready: false,
+      reason: 'control-plane-only',
+    },
   }
 }
 
-async function liveRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const { apiBaseUrl } = getAppEnv()
-  if (!apiBaseUrl) {
-    throw new Error('VITE_API_BASE_URL is not configured')
-  }
+function apiUrl(path: string): string {
+  const base = getAppEnv().apiBaseUrl
+  return `${base}${path}`
+}
 
-  const response = await fetch(`${apiBaseUrl.replace(/\/$/, '')}${path}`, {
+async function liveRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers || {})
+  headers.set('Content-Type', 'application/json')
+
+  const token = getOperatorToken()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+
+  const response = await fetch(apiUrl(path), {
     ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers || {}),
-    },
+    headers,
   })
 
   if (!response.ok) {
@@ -90,15 +106,19 @@ class DemoSessionApi implements SessionApi {
     return false
   }
 
+  async ensureOperatorToken(): Promise<string | null> {
+    return null
+  }
+
   async startSession(request: StartSessionRequest): Promise<SessionSnapshot> {
     log.info('session', 'Demo startSession', request)
-    await delay(request.mode === 'dj' ? 1200 : 1500)
+    await delay(request.mode === 'dj' ? 400 : 500)
     return demoSnapshot(request.mode === 'dj' ? 'dj-mode' : 'active', request.protocol)
   }
 
   async stopSession(): Promise<SessionSnapshot> {
     log.info('session', 'Demo stopSession')
-    await delay(400)
+    await delay(200)
     return demoSnapshot('standby', 'dj-mode')
   }
 
@@ -112,8 +132,26 @@ class LiveSessionApi implements SessionApi {
     return true
   }
 
+  async ensureOperatorToken(): Promise<string | null> {
+    const existing = getOperatorToken()
+    if (existing) return existing
+
+    if (getAppEnv().authRequired) {
+      return null
+    }
+
+    const response = await fetch(apiUrl('/v1/auth/anonymous'), { method: 'POST' })
+    if (!response.ok) {
+      throw new Error('Unable to mint anonymous operator token')
+    }
+    const data = (await response.json()) as { token: string }
+    setOperatorToken(data.token)
+    return data.token
+  }
+
   async startSession(request: StartSessionRequest): Promise<SessionSnapshot> {
     log.info('session', 'Live startSession', request)
+    await this.ensureOperatorToken()
     const snapshot = await liveRequest<SessionSnapshot>('/v1/sessions/start', {
       method: 'POST',
       body: JSON.stringify(request),
@@ -123,6 +161,7 @@ class LiveSessionApi implements SessionApi {
 
   async stopSession(): Promise<SessionSnapshot> {
     log.info('session', 'Live stopSession')
+    await this.ensureOperatorToken()
     const snapshot = await liveRequest<SessionSnapshot>('/v1/sessions/stop', {
       method: 'POST',
     })
@@ -130,6 +169,7 @@ class LiveSessionApi implements SessionApi {
   }
 
   async extendOperatorTime(seconds: number): Promise<{ remainingSeconds: number }> {
+    await this.ensureOperatorToken()
     return liveRequest<{ remainingSeconds: number }>('/v1/sessions/extend', {
       method: 'POST',
       body: JSON.stringify({ seconds }),
@@ -145,7 +185,8 @@ export function getSessionApi(): SessionApi {
   return sessionApi
 }
 
-/** Test helper */
 export function resetSessionApi(): void {
   sessionApi = null
 }
+
+export { clearOperatorToken, setOperatorToken, getOperatorToken }
