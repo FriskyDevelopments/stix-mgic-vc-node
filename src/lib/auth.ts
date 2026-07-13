@@ -1,3 +1,15 @@
+/**
+ * ⚠️ MOCK AUTHENTICATION — NOT REAL AUTH.
+  *
+   * The Telegram and Discord auth flows below are DEMO STUBS. They do NOT
+    * verify any identity: initiateTelegramAuth() returns a hardcoded fake user
+     * after a timeout, and handleDiscordCallback() ignores the OAuth `code` and
+      * returns a hardcoded fake Discord user without exchanging it for a token.
+       *
+        * The "connected" state is trivially spoofable and must NOT be used to gate
+         * access to real infrastructure. Replace with a real server-side OAuth token
+          * exchange before relying on this for authorization.
+           */
 export type PlatformAuthStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
 
 export interface TelegramUser {

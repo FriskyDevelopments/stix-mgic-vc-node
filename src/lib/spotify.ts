@@ -1,4 +1,4 @@
-const SPOTIFY_CLIENT_ID = '3e8f7a4b2c1d9e6f5a8b7c4d9e6f5a8b'
+const SPOTIFY_CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID || ''
 const SPOTIFY_REDIRECT_URI = window.location.origin + '/spotify-callback'
 const SPOTIFY_SCOPES = [
   'user-read-private',
