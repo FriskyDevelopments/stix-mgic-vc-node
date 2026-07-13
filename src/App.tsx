@@ -109,7 +109,7 @@ function App() {
   const [spotifyStatus, setSpotifyStatus] = useKV<SpotifyConnectionStatus>("spotify-status", "disconnected")
   const [spotifyTrack, setSpotifyTrack] = useKV<SpotifyTrack | null>("spotify-track", null)
   const [spotifyUser, setSpotifyUser] = useKV<string | null>("spotify-user", null)
-  const [spotifyAccessToken, setSpotifyAccessToken] = useKV<string | null>("spotify-access-token", null)
+  const [spotifyAccessToken, setSpotifyAccessToken] = useState<string | null>(null) // in-memory only: do not persist OAuth tokens
   const [showTrackPicker, setShowTrackPicker] = useState(false)
   const [trackPlaybackTime, setTrackPlaybackTime] = useState(0)
   
