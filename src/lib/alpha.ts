@@ -1,3 +1,5 @@
+import { getAppEnv } from '@/lib/env'
+
 export type AlphaPlatform = 'telegram' | 'discord'
 export type AlphaInputProtocol =
   | 'dj-mode'
@@ -9,6 +11,14 @@ export type AlphaInputProtocol =
 
 export const ALPHA_BANNER =
   'Alpha — local demo only. Sessions and platform auth are simulated; no production Telegram/Discord connectivity.'
+
+export function getRuntimeBanner(): string {
+  const env = getAppEnv()
+  if (env.isLiveApiConfigured) {
+    return 'Production mode — session control via configured API. Platform identity still requires server-side OAuth.'
+  }
+  return ALPHA_BANNER
+}
 
 export function getPlatformDestinationLabel(platform: AlphaPlatform): string {
   switch (platform) {

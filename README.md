@@ -1,55 +1,73 @@
 # stix-mgic-vc-node
 
-STIX MΛGIC VC NODE — a browser-based operator console for managing live voice and media sessions across Telegram and Discord. Built with React 19, Vite, and Tailwind CSS (generated with GitHub Spark).
+STIX MΛGIC VC NODE — a browser-based operator console for managing live voice and media sessions across Telegram and Discord. Built with React 19, Vite, and Tailwind CSS.
 
-## Alpha status
+## Production readiness
 
-**Alpha — local demo only.** This build demonstrates the operator control surface end-to-end in the browser. Session metrics, RTMP uplink, ClipsFlow intake, and most “connected to Telegram/Discord infrastructure” signals are **simulated**. Do not treat this as production session control.
+This SPA is **production-deployable** as an operator shell:
 
-| Layer | Status |
-|-------|--------|
-| Operator UI loop (platform → protocol → start/stop → diagnostics) | Working (client-side) |
-| Virtual camera preview | Real browser `getUserMedia` |
-| Telegram / Discord auth | **Mock** — demo identity only |
-| Spotify personal source | Optional real PKCE when `VITE_SPOTIFY_CLIENT_ID` is set |
-| Telegram / Discord / RTMP infrastructure | Not connected |
+| Capability | Status |
+|------------|--------|
+| Static hosting (Vercel / Netlify / any SPA host) | Ready — `vercel.json` + `public/_redirects` |
+| Persistence without Spark runtime | Ready — `localStorage` via `usePersistedState` |
+| Session start/stop API seam | Ready — `src/lib/session-api.ts` (`VITE_API_BASE_URL`) |
+| Demo mode (default) | Simulated sessions with honest in-app labeling |
+| Live mode | Set `VITE_DEMO_MODE=false` + `VITE_API_BASE_URL` to a real session API |
+| Platform auth (Telegram / Discord) | Still mock until server-side OAuth exists |
+| Spotify personal source | Real PKCE + refresh when `VITE_SPOTIFY_CLIENT_ID` is set |
 
-## Run (alpha)
+**Blocked on backend (not inventable in this SPA):** real Telegram/Discord identity verification, live VC join/relay, real RTMP ingest, ClipsFlow asset API, billing/entitlement truth.
+
+## Run locally
 
 ```bash
+cp .env.example .env
 npm install
 npm run dev
 ```
 
-Open the URL Vite prints (default port **5000**). No env vars are required for the core demo loop.
+Default port: **5000**.
 
-### Optional env
+## Environment
 
-Copy `.env.example` to `.env` and set:
+| Variable | Purpose |
+|----------|---------|
+| `VITE_DEMO_MODE` | `true` (default) keeps simulated sessions; `false` requires API |
+| `VITE_API_BASE_URL` | Live session API base (`POST /v1/sessions/start\|stop\|extend`) |
+| `VITE_OPERATOR_TIER` | `free` or `premium` |
+| `VITE_DISCORD_CLIENT_ID` | Optional Discord OAuth client ID |
+| `VITE_SPOTIFY_CLIENT_ID` | Optional Spotify PKCE client ID |
 
-- `VITE_DISCORD_CLIENT_ID` — enables Discord OAuth redirect (callback still completes with a mock demo user until real token exchange exists)
-- `VITE_SPOTIFY_CLIENT_ID` — enables Spotify PKCE login for personal DJ audio
+Redirect URIs (local + production):
 
-Redirect URIs for local alpha:
-
-- `http://localhost:5000/auth/discord/callback`
-- `http://localhost:5000/spotify-callback`
+- `https://YOUR_DOMAIN/auth/discord/callback`
+- `https://YOUR_DOMAIN/spotify-callback`
 
 ## Scripts
 
 | Command | Purpose |
 |---------|---------|
-| `npm run dev` | Local alpha server |
+| `npm run dev` | Local server |
 | `npm run build` | Production bundle |
 | `npm run preview` | Preview built assets |
 | `npm run lint` | ESLint |
-| `npm test` | Unit / smoke tests |
-| `npm run test:ci` | CI test run |
+| `npm run typecheck` | TypeScript `--noEmit` |
+| `npm test` / `npm run test:ci` | Vitest |
 
-## Intended purpose
+## Deploy
 
-A unified command surface for routing, monitoring, and managing live session presence across Telegram and Discord, with OBS integration, RTMP streaming, session management, and real-time diagnostics.
+### Vercel
+
+Connect the repo. `vercel.json` already configures SPA rewrites and security headers. Set env vars in the Vercel project settings.
+
+### Netlify / static
+
+`public/_redirects` maps OAuth callback paths and SPA fallback to `index.html`.
+
+### GitHub Spark
+
+Still supported for design-time Spark tooling, but runtime state no longer depends on `/_spark/kv`.
 
 ## Related repos
 
-stixmagic-bot and stixmagic-web (both under the FriskyDevelopments organization).
+stixmagic-bot and stixmagic-web (FriskyDevelopments). Wire a session-control API to `VITE_API_BASE_URL` for live operator mode.

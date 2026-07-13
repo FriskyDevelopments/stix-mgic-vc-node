@@ -7,6 +7,7 @@
         "dev": "vite",
         "kill": "fuser -k 5000/tcp",
         "build": "tsc -b --noCheck && vite build",
+        "typecheck": "tsc --noEmit",
         "lint": "eslint .",
         "optimize": "vite optimize",
         "preview": "vite preview",
@@ -92,10 +93,5 @@
         "vite": "^7.2.6",
         "vitest": "^3.2.4",
         "jsdom": "^26.1.0"
-    },
-    "workspaces": {
-        "packages": [
-            "packages/*"
-        ]
     }
 }

@@ -110,7 +110,42 @@ export async function initiateSpotifyAuth(): Promise<void> {
   )
 }
 
-export async function handleSpotifyCallback(code: string, state: string): Promise<string | null> {
+export interface SpotifyTokenResult {
+  accessToken: string
+  refreshToken?: string
+  expiresIn?: number
+}
+
+const SPOTIFY_REFRESH_KEY = 'spotify_refresh_token'
+const SPOTIFY_EXPIRES_AT_KEY = 'spotify_expires_at'
+
+export function storeSpotifySession(result: SpotifyTokenResult): void {
+  if (result.refreshToken) {
+    sessionStorage.setItem(SPOTIFY_REFRESH_KEY, result.refreshToken)
+  }
+  if (result.expiresIn) {
+    sessionStorage.setItem(
+      SPOTIFY_EXPIRES_AT_KEY,
+      String(Date.now() + result.expiresIn * 1000 - 60_000)
+    )
+  }
+}
+
+export function clearSpotifySession(): void {
+  sessionStorage.removeItem(SPOTIFY_REFRESH_KEY)
+  sessionStorage.removeItem(SPOTIFY_EXPIRES_AT_KEY)
+}
+
+export function getStoredSpotifyRefreshToken(): string | null {
+  return sessionStorage.getItem(SPOTIFY_REFRESH_KEY)
+}
+
+export function isSpotifyAccessExpiringSoon(): boolean {
+  const expiresAt = Number(sessionStorage.getItem(SPOTIFY_EXPIRES_AT_KEY) || 0)
+  return Boolean(expiresAt) && Date.now() >= expiresAt
+}
+
+export async function handleSpotifyCallback(code: string, state: string): Promise<SpotifyTokenResult | null> {
   const storedState = sessionStorage.getItem('spotify_auth_state')
   const codeVerifier = sessionStorage.getItem('spotify_code_verifier')
 
@@ -142,14 +177,20 @@ export async function handleSpotifyCallback(code: string, state: string): Promis
     }
 
     const data = await response.json()
-    return data.access_token
+    const result: SpotifyTokenResult = {
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token,
+      expiresIn: data.expires_in,
+    }
+    storeSpotifySession(result)
+    return result
   } catch (error) {
     console.error('Error exchanging code for token:', error)
     return null
   }
 }
 
-export async function refreshSpotifyToken(refreshToken: string): Promise<string | null> {
+export async function refreshSpotifyToken(refreshToken: string): Promise<SpotifyTokenResult | null> {
   try {
     const response = await fetch('https://accounts.spotify.com/api/token', {
       method: 'POST',
@@ -168,7 +209,13 @@ export async function refreshSpotifyToken(refreshToken: string): Promise<string 
     }
 
     const data = await response.json()
-    return data.access_token
+    const result: SpotifyTokenResult = {
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token || refreshToken,
+      expiresIn: data.expires_in,
+    }
+    storeSpotifySession(result)
+    return result
   } catch (error) {
     console.error('Error refreshing token:', error)
     return null

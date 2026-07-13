@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { useKV } from "@github/spark/hooks"
+import { usePersistedState } from "@/hooks/use-persisted-state"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Camera, Microphone } from "@phosphor-icons/react"
@@ -24,8 +24,8 @@ export function DeviceSelector({
 }: DeviceSelectorProps) {
   const [videoDevices, setVideoDevices] = useState<DeviceInfo[]>([])
   const [audioDevices, setAudioDevices] = useState<DeviceInfo[]>([])
-  const [selectedVideo, setSelectedVideo] = useKV<string | undefined>("selected-video-device", undefined)
-  const [selectedAudio, setSelectedAudio] = useKV<string | undefined>("selected-audio-device", undefined)
+  const [selectedVideo, setSelectedVideo] = usePersistedState<string | undefined>("selected-video-device", undefined)
+  const [selectedAudio, setSelectedAudio] = usePersistedState<string | undefined>("selected-audio-device", undefined)
   const [hasPermission, setHasPermission] = useState(false)
 
   const enumerateDevices = async () => {

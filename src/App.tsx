@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { useKV } from "@github/spark/hooks"
+import { usePersistedState } from "@/hooks/use-persisted-state"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -58,13 +58,16 @@ import {
   Database
 } from "@phosphor-icons/react"
 import { toast } from "sonner"
-import { initiateSpotifyAuth, getSpotifyUser, formatTrackDisplay } from "@/lib/spotify"
+import { initiateSpotifyAuth, getSpotifyUser, formatTrackDisplay, clearSpotifySession, getStoredSpotifyRefreshToken, isSpotifyAccessExpiringSoon, refreshSpotifyToken } from "@/lib/spotify"
 import type { SpotifyTrack } from "@/lib/spotify"
 import {
-  ALPHA_BANNER,
   generateDemoStreamKey,
   getArchitectureLayers,
+  getRuntimeBanner,
 } from "@/lib/alpha"
+import { getAppEnv } from "@/lib/env"
+import { getSessionApi } from "@/lib/session-api"
+import { log } from "@/lib/log"
 import { 
   initiateTelegramAuth, 
   initiateDiscordAuth,
@@ -99,21 +102,22 @@ interface ProtocolConfig {
 }
 
 function App() {
-  const [platform, setPlatform] = useKV<Platform>("platform", "telegram")
-  const [sessionStatus, setSessionStatus] = useKV<SessionStatus>("session-status", "standby")
-  const [inputProtocol, setInputProtocol] = useKV<InputProtocol>("input-protocol", "dj-mode")
-  const [sessionMark, setSessionMark] = useKV<SessionMark>("session-mark", "stix-default")
-  const [logs, setLogs] = useKV<LogEntryData[]>("diagnostic-logs", [])
-  const [operatorTier] = useState<OperatorTier>('premium')
+  const appEnv = getAppEnv()
+  const [platform, setPlatform] = usePersistedState<Platform>("platform", "telegram")
+  const [sessionStatus, setSessionStatus] = usePersistedState<SessionStatus>("session-status", "standby")
+  const [inputProtocol, setInputProtocol] = usePersistedState<InputProtocol>("input-protocol", "dj-mode")
+  const [sessionMark, setSessionMark] = usePersistedState<SessionMark>("session-mark", "stix-default")
+  const [logs, setLogs] = usePersistedState<LogEntryData[]>("diagnostic-logs", [])
+  const [operatorTier] = useState<OperatorTier>(appEnv.operatorTier)
   const [operatorTimeRemaining, setOperatorTimeRemaining] = useState(120)
   const [operatorTimeElapsed, setOperatorTimeElapsed] = useState(0)
-  const [streamKey] = useState(() => generateDemoStreamKey())
+  const [streamKey, setStreamKey] = useState(() => generateDemoStreamKey())
   const [isTransitioning, setIsTransitioning] = useState(false)
   
-  const [djAudioSource, setDjAudioSource] = useKV<DJAudioSource>("dj-audio-source", "stix-library")
-  const [spotifyStatus, setSpotifyStatus] = useKV<SpotifyConnectionStatus>("spotify-status", "disconnected")
-  const [spotifyTrack, setSpotifyTrack] = useKV<SpotifyTrack | null>("spotify-track", null)
-  const [spotifyUser, setSpotifyUser] = useKV<string | null>("spotify-user", null)
+  const [djAudioSource, setDjAudioSource] = usePersistedState<DJAudioSource>("dj-audio-source", "stix-library")
+  const [spotifyStatus, setSpotifyStatus] = usePersistedState<SpotifyConnectionStatus>("spotify-status", "disconnected")
+  const [spotifyTrack, setSpotifyTrack] = usePersistedState<SpotifyTrack | null>("spotify-track", null)
+  const [spotifyUser, setSpotifyUser] = usePersistedState<string | null>("spotify-user", null)
   const [spotifyAccessToken, setSpotifyAccessToken] = useState<string | null>(null) // in-memory only: do not persist OAuth tokens
   const [showTrackPicker, setShowTrackPicker] = useState(false)
   const [trackPlaybackTime, setTrackPlaybackTime] = useState(0)
@@ -129,12 +133,12 @@ function App() {
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null)
   const [cameraPermissionError, setCameraPermissionError] = useState<string | null>(null)
 
-  const [telegramAuthStatus, setTelegramAuthStatus] = useKV<PlatformAuthStatus>("telegram-auth-status", "disconnected")
-  const [telegramUser, setTelegramUser] = useKV<TelegramUser | null>("telegram-user", null)
+  const [telegramAuthStatus, setTelegramAuthStatus] = usePersistedState<PlatformAuthStatus>("telegram-auth-status", "disconnected")
+  const [telegramUser, setTelegramUser] = usePersistedState<TelegramUser | null>("telegram-user", null)
   const [telegramAuthError, setTelegramAuthError] = useState<string | null>(null)
   
-  const [discordAuthStatus, setDiscordAuthStatus] = useKV<PlatformAuthStatus>("discord-auth-status", "disconnected")
-  const [discordUser, setDiscordUser] = useKV<DiscordUser | null>("discord-user", null)
+  const [discordAuthStatus, setDiscordAuthStatus] = usePersistedState<PlatformAuthStatus>("discord-auth-status", "disconnected")
+  const [discordUser, setDiscordUser] = usePersistedState<DiscordUser | null>("discord-user", null)
   const [discordAuthError, setDiscordAuthError] = useState<string | null>(null)
 
   const protocols: ProtocolConfig[] = [
@@ -375,12 +379,29 @@ function App() {
       addLog('info', 'SESSION', `Initializing ${getPlatformLanguage('uplink')}...`)
       setResolution('480p')
     }
-    
-    setTimeout(() => {
-      setSessionStatus('active')
-      setSignalQuality(92)
-      setLatency(45)
-      setAudioSync('stable')
+
+    try {
+      const snapshot = await getSessionApi().startSession({
+        platform: (platform || 'telegram') as Platform,
+        protocol: (inputProtocol || 'clipsflow') as InputProtocol,
+        mode: 'operator',
+      })
+
+      setSessionStatus(snapshot.status === 'active' ? 'active' : snapshot.status)
+      setSignalQuality(snapshot.signalQuality)
+      setLatency(snapshot.latency)
+      setFrameRate(snapshot.frameRate)
+      setBitrate(snapshot.bitrate)
+      setPacketLoss(snapshot.packetLoss)
+      setAudioSync(snapshot.audioSync)
+      setResolution(snapshot.resolution)
+      if (snapshot.streamKey) setStreamKey(snapshot.streamKey)
+
+      addLog(
+        'info',
+        'SESSION',
+        snapshot.source === 'live-api' ? 'Session started via live API' : 'Demo session started (simulated)'
+      )
       
       if (operatorTier === 'premium') {
         addLog('success', 'SESSION', `Operator session active — ${Math.floor(operatorTimeRemaining / 60)}:${String(operatorTimeRemaining % 60).padStart(2, '0')} available`)
@@ -403,18 +424,15 @@ function App() {
         addLog('info', 'PREVIEW', 'Optimized preview feed active')
         toast.success('Preflight active — ClipsFlow media routed')
       } else if (inputProtocol === 'virtual-camera') {
-        setFrameRate(30)
         addLog('success', 'SESSION', getPlatformLanguage('injecting'))
         addLog('success', 'PREVIEW', 'Frame sync stable')
         addLog('info', 'AUDIO', 'External audio routing active')
         addLog('success', 'SYNC', 'Frame alignment stable')
         toast.success('Preflight active — Camera feed ready')
       } else if (inputProtocol === 'rtmp') {
-        setBitrate(2500)
-        setPacketLoss(0.2)
         addLog('success', 'SESSION', getPlatformLanguage('bound'))
         addLog('success', 'PREVIEW', 'Frame sync stable')
-        addLog('success', 'STREAM', 'Bitrate stabilized at 2.5 Mbps')
+        addLog('success', 'STREAM', 'Bitrate stabilized')
         addLog('success', 'HEALTH', 'Packet loss within threshold')
         toast.success('Preflight active — RTMP stream ready')
       } else {
@@ -423,10 +441,16 @@ function App() {
         addLog('info', 'SOURCE', `Activated ${inputProtocol} media source`)
         toast.success(`Preflight active — ${getPlatformLanguage('session')} ready`)
       }
-    }, 1500)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      log.error('session', 'Preflight failed', errorMessage)
+      setSessionStatus('error')
+      addLog('error', 'SESSION', `Preflight failed: ${errorMessage}`)
+      toast.error('Preflight failed')
+    }
   }
 
-  const handleStartDJMode = () => {
+  const handleStartDJMode = async () => {
     setSessionStatus('connecting')
     addLog('info', 'DJ', 'DJ Mode initiating')
     addLog('info', 'SESSION', 'Autonomous session mode selected')
@@ -436,25 +460,37 @@ function App() {
     } else if (sessionMark === 'client-sticker') {
       addLog('info', 'BRAND', 'Client session sticker received')
     }
-    
-    setTimeout(() => {
+
+    try {
+      const snapshot = await getSessionApi().startSession({
+        platform: (platform || 'telegram') as Platform,
+        protocol: 'dj-mode',
+        mode: 'dj',
+      })
+
       setSessionStatus('dj-mode')
-      setSignalQuality(88)
-      setLatency(35)
-      setAudioSync('stable')
-      setResolution('720p')
+      setSignalQuality(snapshot.signalQuality)
+      setLatency(snapshot.latency)
+      setAudioSync(snapshot.audioSync)
+      setResolution(snapshot.resolution)
       
       addLog('success', 'DJ', 'DJ Mode active')
       addLog('success', 'LOOP', 'Visual cycle running')
       addLog('success', 'AUDIO', 'Ambient track active')
-      addLog('info', 'SESSION', 'Autonomous mode live')
+      addLog('info', 'SESSION', snapshot.source === 'live-api' ? 'Autonomous mode via live API' : 'Autonomous mode live (demo)')
       
       if (sessionMark !== 'off') {
         addLog('success', 'BRAND', 'Session mark applied')
       }
       
       toast.success('DJ Mode active — autonomous session running')
-    }, 1200)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      log.error('session', 'DJ Mode failed', errorMessage)
+      setSessionStatus('error')
+      addLog('error', 'DJ', `DJ Mode failed: ${errorMessage}`)
+      toast.error('DJ Mode failed')
+    }
   }
 
   const handleStopDJMode = () => {
@@ -528,20 +564,32 @@ function App() {
     }
   }
 
-  const handleStopPreflight = () => {
+  const handleStopPreflight = async () => {
     if (cameraStream) {
       cameraStream.getTracks().forEach(track => track.stop())
       setCameraStream(null)
       addLog('info', 'SOURCE', 'Camera stream stopped')
     }
-    
-    setSessionStatus('standby')
-    setSignalQuality(0)
-    setLatency(0)
-    setFrameRate(0)
-    setBitrate(0)
-    setPacketLoss(0)
-    setAudioSync('muted')
+
+    try {
+      const snapshot = await getSessionApi().stopSession()
+      setSessionStatus(snapshot.status)
+      setSignalQuality(snapshot.signalQuality)
+      setLatency(snapshot.latency)
+      setFrameRate(snapshot.frameRate)
+      setBitrate(snapshot.bitrate)
+      setPacketLoss(snapshot.packetLoss)
+      setAudioSync(snapshot.audioSync)
+    } catch (error) {
+      log.warn('session', 'Stop session API failed; forcing standby', error)
+      setSessionStatus('standby')
+      setSignalQuality(0)
+      setLatency(0)
+      setFrameRate(0)
+      setBitrate(0)
+      setPacketLoss(0)
+      setAudioSync('muted')
+    }
     
     addLog('info', 'TEST', 'Preflight stopped')
     
@@ -685,8 +733,10 @@ function App() {
   }
 
   const handleResetKey = () => {
-    addLog('warning', 'SECURITY', 'Stream key reset requested')
-    toast('Stream key would be regenerated (demo mode)')
+    const nextKey = generateDemoStreamKey()
+    setStreamKey(nextKey)
+    addLog('warning', 'SECURITY', 'Stream key regenerated (demo)')
+    toast.success('Demo stream key regenerated')
   }
 
   const handleSpotifyLogin = async () => {
@@ -734,6 +784,7 @@ function App() {
     setSpotifyUser(null)
     setSpotifyTrack(null)
     setSpotifyAccessToken(null)
+    clearSpotifySession()
     if (djAudioSource === 'spotify') {
       setDjAudioSource('stix-library')
     }
@@ -821,6 +872,7 @@ function App() {
 
   useEffect(() => {
     if (sessionStatus === 'active' || sessionStatus === 'dj-mode') {
+      if (!appEnv.demoMode) return
       const interval = setInterval(() => {
         setSignalQuality((prev) => {
           const baseVariation = sessionStatus === 'dj-mode' ? 2 : 3
@@ -847,7 +899,28 @@ function App() {
       }, 3000)
       return () => clearInterval(interval)
     }
-  }, [sessionStatus, inputProtocol])
+  }, [sessionStatus, inputProtocol, appEnv.demoMode])
+
+  useEffect(() => {
+    if (!spotifyAccessToken) return
+
+    const interval = setInterval(async () => {
+      if (!isSpotifyAccessExpiringSoon()) return
+      const refreshToken = getStoredSpotifyRefreshToken()
+      if (!refreshToken) return
+
+      const refreshed = await refreshSpotifyToken(refreshToken)
+      if (refreshed?.accessToken) {
+        setSpotifyAccessToken(refreshed.accessToken)
+        log.info('spotify', 'Access token refreshed')
+      } else {
+        log.warn('spotify', 'Token refresh failed')
+        handleSpotifyDisconnect()
+      }
+    }, 30_000)
+
+    return () => clearInterval(interval)
+  }, [spotifyAccessToken])
 
   const getStatusIndicator = (): { status: 'active' | 'standby' | 'warning' | 'error' | 'connecting', label: string, pulse: boolean } => {
     switch (sessionStatus) {
@@ -901,7 +974,7 @@ function App() {
           </p>
           <div className="mx-auto max-w-2xl rounded-lg border border-accent/30 bg-accent/5 px-4 py-2">
             <p className="text-xs text-accent font-mono leading-relaxed">
-              {ALPHA_BANNER}
+              {getRuntimeBanner()}
             </p>
           </div>
         </header>

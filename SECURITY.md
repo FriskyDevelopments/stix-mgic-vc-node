@@ -2,21 +2,22 @@
 
 ## Scope
 
-`stix-mgic-vc-node` is an **alpha local demo**. It does not currently connect to production Telegram, Discord, or RTMP infrastructure. Platform auth in this repo is mock/demo and must not gate real systems.
+`stix-mgic-vc-node` is a production-deployable operator **shell**. Default deploys run in **demo mode** (simulated sessions). Live session control requires a configured `VITE_API_BASE_URL`. Platform Telegram/Discord auth remains mock until a server-side OAuth exchange is provided.
 
 ## Reporting
 
-If you believe you have found a security vulnerability in this repository, please report it privately to the maintainers at **Frisky Developments** (`aroo@pupfrisky.com`). Do not open a public GitHub issue for sensitive findings.
+Report vulnerabilities privately to **Frisky Developments** (`aroo@pupfrisky.com`). Do not open a public GitHub issue for sensitive findings.
 
-Please include:
+Include:
 
-- Description of the issue and impact
+- Description and impact
 - Steps to reproduce
 - Affected file paths / commit if known
 - Whether secrets or user data are exposed
 
-## Secrets
+## Secrets & tokens
 
 - Do not commit `.env` files or OAuth tokens
-- Client IDs (`VITE_*`) are public by design; never put client secrets in this frontend
-- Spotify access tokens must remain in-memory only (not persisted to `localStorage` / Spark KV)
+- `VITE_*` client IDs are public by design — never put client secrets in this frontend
+- Spotify access tokens stay in memory; refresh tokens stay in `sessionStorage` only
+- Session diagnostic logs stay client-side unless a live API is configured

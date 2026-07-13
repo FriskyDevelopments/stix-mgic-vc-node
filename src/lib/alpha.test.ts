@@ -4,6 +4,7 @@ import {
   generateDemoStreamKey,
   getArchitectureLayers,
   getPlatformDestinationLabel,
+  getRuntimeBanner,
 } from './alpha'
 import { isDiscordConfigured } from './auth'
 import { isSpotifyConfigured } from './spotify'
@@ -13,6 +14,10 @@ describe('alpha value helpers', () => {
     expect(ALPHA_BANNER).toMatch(/Alpha/i)
     expect(ALPHA_BANNER).toMatch(/local demo/i)
     expect(ALPHA_BANNER).toMatch(/no production/i)
+  })
+
+  it('returns a runtime banner for current mode', () => {
+    expect(getRuntimeBanner()).toMatch(/demo|Production mode/i)
   })
 
   it('maps platform destinations for architecture', () => {
