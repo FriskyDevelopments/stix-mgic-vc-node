@@ -60,6 +60,11 @@ import {
 import { toast } from "sonner"
 import { initiateSpotifyAuth, getSpotifyUser, formatTrackDisplay } from "@/lib/spotify"
 import type { SpotifyTrack } from "@/lib/spotify"
+import {
+  ALPHA_BANNER,
+  generateDemoStreamKey,
+  getArchitectureLayers,
+} from "@/lib/alpha"
 import { 
   initiateTelegramAuth, 
   initiateDiscordAuth,
@@ -102,7 +107,7 @@ function App() {
   const [operatorTier] = useState<OperatorTier>('premium')
   const [operatorTimeRemaining, setOperatorTimeRemaining] = useState(120)
   const [operatorTimeElapsed, setOperatorTimeElapsed] = useState(0)
-  const [streamKey] = useState("sk_live_" + Math.random().toString(36).substring(2, 15))
+  const [streamKey] = useState(() => generateDemoStreamKey())
   const [isTransitioning, setIsTransitioning] = useState(false)
   
   const [djAudioSource, setDjAudioSource] = useKV<DJAudioSource>("dj-audio-source", "stix-library")
@@ -658,8 +663,8 @@ function App() {
   }
 
   const handleGoLive = () => {
-    addLog('success', 'LIVE', 'Session transitioned to live')
-    toast.success('Now live')
+    addLog('success', 'LIVE', 'Demo: session marked live (no production uplink)')
+    toast.success('Marked live (demo)')
   }
 
   const handleEmergencyStop = () => {
@@ -694,7 +699,7 @@ function App() {
       console.error('Spotify auth failed:', error)
       setSpotifyStatus('disconnected')
       addLog('error', 'SPOTIFY', 'OAuth initiation failed')
-      toast.error('Failed to start Spotify login')
+      toast.error(error instanceof Error ? error.message : 'Failed to start Spotify login')
     }
   }
   
@@ -894,6 +899,11 @@ function App() {
           <p className="text-sm text-muted-foreground">
             Multi-Platform Session Control
           </p>
+          <div className="mx-auto max-w-2xl rounded-lg border border-accent/30 bg-accent/5 px-4 py-2">
+            <p className="text-xs text-accent font-mono leading-relaxed">
+              {ALPHA_BANNER}
+            </p>
+          </div>
         </header>
 
         <div className="glass-panel rounded-xl p-4">
@@ -1156,7 +1166,7 @@ function App() {
                       className="gap-2 bg-success hover:bg-success/90"
                     >
                       <Broadcast size={18} weight="fill" />
-                      Go Live
+                      Mark Live (Demo)
                     </Button>
 
                     {operatorTier === 'premium' && operatorTimeRemaining > 0 && operatorTimeRemaining < 300 && (
@@ -1322,7 +1332,7 @@ function App() {
                           <div>
                             <h4 className="text-sm font-semibold">Spotify</h4>
                             <p className="text-xs text-muted-foreground mt-1">
-                              Optional personal music source
+                              Optional — requires <span className="font-mono">VITE_SPOTIFY_CLIENT_ID</span>
                             </p>
                           </div>
                           <Button
@@ -1457,7 +1467,11 @@ function App() {
           {sessionStatus !== 'standby' && (
             <CollapsibleSection
               title="Source Details"
-              description="Protocol-specific metrics and status"
+              description={
+                inputProtocol === 'virtual-camera' && sessionStatus === 'active'
+                  ? 'Live camera metrics where available; other values may be simulated'
+                  : 'Simulated telemetry for alpha demo'
+              }
             >
               {inputProtocol === 'virtual-camera' && (
                 <>
@@ -1717,11 +1731,9 @@ function App() {
             description="Infrastructure routing visualization"
           >
             <div className="flex flex-col md:flex-row items-center justify-center gap-4 py-4">
-              {(inputProtocol === 'clipsflow' 
-                ? ['ClipsFlow', 'VC NODE', 'Telegram VC']
-                : inputProtocol === 'virtual-camera' || inputProtocol === 'rtmp'
-                ? ['OBS', 'VC NODE', inputProtocol === 'rtmp' ? 'Telegram RTMP' : 'Telegram VC']
-                : ['Source', 'VC NODE', 'Telegram VC']
+              {getArchitectureLayers(
+                inputProtocol || 'dj-mode',
+                platform || 'telegram'
               ).map((layer, index, arr) => (
                 <div key={layer} className="flex items-center gap-4">
                   <div className={`glass-panel px-5 py-3 rounded-lg text-center min-w-[120px] transition-all duration-300 ${
@@ -1759,7 +1771,7 @@ function App() {
             <Broadcast size={12} />
             <span className="font-mono">FRISKY DEVELOPMENTS</span>
           </div>
-          <p>Multi-platform session control • Telegram + Discord</p>
+          <p>Alpha local demo • Multi-platform session control • Telegram + Discord</p>
         </footer>
       </div>
       

@@ -47,13 +47,13 @@ export function PlatformAccess({
   onDiscordAuth,
   onDiscordDisconnect,
 }: PlatformAccessProps) {
-  const getStatusBadge = (status: PlatformAuthStatus, error: string | null) => {
+  const getStatusBadge = (status: PlatformAuthStatus, _error: string | null) => {
     switch (status) {
       case 'connected':
         return (
-          <Badge variant="outline" className="gap-1.5 border-success text-success text-[10px] font-mono">
+          <Badge variant="outline" className="gap-1.5 border-accent text-accent text-[10px] font-mono">
             <CheckCircle size={10} weight="fill" />
-            AUTHORIZED
+            DEMO IDENTITY
           </Badge>
         )
       case 'connecting':
@@ -88,7 +88,7 @@ export function PlatformAccess({
           <h2 className="text-lg font-semibold">Platform Access</h2>
         </div>
         <p className="text-xs text-muted-foreground">
-          Authorize operator identity for live session binding
+          Demo operator identity only — mock auth, not verified against Telegram or Discord
         </p>
       </div>
 
@@ -134,14 +134,14 @@ export function PlatformAccess({
                     </div>
                   </div>
                 </div>
-                <div className="text-xs text-success space-y-1">
+                <div className="text-xs text-accent space-y-1">
                   <div className="flex items-center gap-1.5">
                     <CheckCircle size={12} weight="fill" />
-                    <span>Operator identity synced</span>
+                    <span>Mock operator identity loaded</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <CheckCircle size={12} weight="fill" />
-                    <span>VC session binding ready</span>
+                    <span>Demo VC binding only — not production</span>
                   </div>
                 </div>
                 <Button
@@ -239,14 +239,14 @@ export function PlatformAccess({
                     </div>
                   </div>
                 </div>
-                <div className="text-xs text-success space-y-1">
+                <div className="text-xs text-accent space-y-1">
                   <div className="flex items-center gap-1.5">
                     <CheckCircle size={12} weight="fill" />
-                    <span>Operator identity synced</span>
+                    <span>Mock operator identity loaded</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <CheckCircle size={12} weight="fill" />
-                    <span>Channel binding ready</span>
+                    <span>Demo channel binding only — not production</span>
                   </div>
                 </div>
                 <Button
@@ -298,14 +298,12 @@ export function PlatformAccess({
         </div>
       </div>
 
-      {(telegramStatus === 'disconnected' && discordStatus === 'disconnected') && (
-        <div className="glass-panel p-4 rounded-lg bg-muted/20 border border-muted/30">
-          <p className="text-xs text-muted-foreground text-center">
-            <span className="text-warning font-medium">No active platform authorization</span> — 
-            Demo mode active. Authorize a platform for live session binding.
-          </p>
-        </div>
-      )}
+      <div className="glass-panel p-4 rounded-lg bg-muted/20 border border-accent/20">
+        <p className="text-xs text-muted-foreground text-center">
+          <span className="text-accent font-medium">Mock platform auth</span>
+          {' '}— Telegram and Discord identity here is simulated for local alpha. It does not authorize real infrastructure.
+        </p>
+      </div>
     </div>
   )
 }
