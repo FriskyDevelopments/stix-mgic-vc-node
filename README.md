@@ -2,15 +2,49 @@
 
 STIX MΛGIC VC NODE — a browser-based operator console for managing live voice and media sessions across Telegram and Discord. Built with React 19, Vite, and Tailwind CSS (generated with GitHub Spark).
 
-## Status
+## Alpha status
 
-Active scaffold with a working UI. The interface (session controls, audio visualizer, device selector, live preview, Spotify track picker, RTMP stream config) is implemented and runnable.
+**Alpha — local demo only.** This build demonstrates the operator control surface end-to-end in the browser. Session metrics, RTMP uplink, ClipsFlow intake, and most “connected to Telegram/Discord infrastructure” signals are **simulated**. Do not treat this as production session control.
 
-**Note:** the platform authentication in `src/lib/auth.ts` is currently a MOCK. Telegram and Discord login returns hardcoded demo users and does not verify identity or perform a real OAuth token exchange. Do not use the connected state to gate access to real infrastructure until a real server-side auth flow is added.
+| Layer | Status |
+|-------|--------|
+| Operator UI loop (platform → protocol → start/stop → diagnostics) | Working (client-side) |
+| Virtual camera preview | Real browser `getUserMedia` |
+| Telegram / Discord auth | **Mock** — demo identity only |
+| Spotify personal source | Optional real PKCE when `VITE_SPOTIFY_CLIENT_ID` is set |
+| Telegram / Discord / RTMP infrastructure | Not connected |
 
-## Configuration
+## Run (alpha)
 
-Set these environment variables (e.g. in a gitignored `.env` file): `VITE_DISCORD_CLIENT_ID` (Discord OAuth client ID) and `VITE_SPOTIFY_CLIENT_ID` (Spotify client ID, public, PKCE flow).
+```bash
+npm install
+npm run dev
+```
+
+Open the URL Vite prints (default port **5000**). No env vars are required for the core demo loop.
+
+### Optional env
+
+Copy `.env.example` to `.env` and set:
+
+- `VITE_DISCORD_CLIENT_ID` — enables Discord OAuth redirect (callback still completes with a mock demo user until real token exchange exists)
+- `VITE_SPOTIFY_CLIENT_ID` — enables Spotify PKCE login for personal DJ audio
+
+Redirect URIs for local alpha:
+
+- `http://localhost:5000/auth/discord/callback`
+- `http://localhost:5000/spotify-callback`
+
+## Scripts
+
+| Command | Purpose |
+|---------|---------|
+| `npm run dev` | Local alpha server |
+| `npm run build` | Production bundle |
+| `npm run preview` | Preview built assets |
+| `npm run lint` | ESLint |
+| `npm test` | Unit / smoke tests |
+| `npm run test:ci` | CI test run |
 
 ## Intended purpose
 

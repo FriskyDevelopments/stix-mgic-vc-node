@@ -64,7 +64,7 @@ export function DiscordCallback({ onAuthComplete, onAuthError }: DiscordCallback
           STIX M<span className="text-accent">Λ</span>GIC
         </div>
         <div className="text-sm text-muted-foreground">
-          Completing Discord authorization...
+          Completing Discord demo authorization...
         </div>
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
       </div>

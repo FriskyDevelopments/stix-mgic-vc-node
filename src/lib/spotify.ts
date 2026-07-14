@@ -1,5 +1,9 @@
-const SPOTIFY_CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID || ''
+const SPOTIFY_CLIENT_ID = (import.meta.env.VITE_SPOTIFY_CLIENT_ID as string | undefined)?.trim() || ''
 const SPOTIFY_REDIRECT_URI = window.location.origin + '/spotify-callback'
+
+export function isSpotifyConfigured(): boolean {
+  return SPOTIFY_CLIENT_ID.length > 0
+}
 const SPOTIFY_SCOPES = [
   'user-read-private',
   'user-read-email',
@@ -70,6 +74,10 @@ function base64urlencode(buffer: ArrayBuffer): string {
 }
 
 export async function initiateSpotifyAuth(): Promise<void> {
+  if (!isSpotifyConfigured()) {
+    throw new Error('Spotify is not configured. Set VITE_SPOTIFY_CLIENT_ID in your .env file.')
+  }
+
   const codeVerifier = generateRandomString(64)
   const hashed = await sha256(codeVerifier)
   const codeChallenge = base64urlencode(hashed)
