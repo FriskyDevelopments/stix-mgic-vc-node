@@ -9,6 +9,7 @@ const envSchema = z.object({
   }),
   VITE_DISCORD_CLIENT_ID: z.string().optional().transform((value) => value?.trim() || undefined),
   VITE_SPOTIFY_CLIENT_ID: z.string().optional().transform((value) => value?.trim() || undefined),
+  VITE_TELEGRAM_BOT_USERNAME: z.string().optional().transform((value) => value?.trim() || undefined),
   VITE_OPERATOR_TIER: z.enum(['free', 'premium']).optional().default('premium'),
   VITE_AUTH_REQUIRED: z.enum(['true', 'false']).optional(),
 })
@@ -18,6 +19,7 @@ export type AppEnv = {
   apiBaseUrl: string
   discordClientId?: string
   spotifyClientId?: string
+  telegramBotUsername?: string
   operatorTier: 'free' | 'premium'
   isLiveApiConfigured: boolean
   authRequired: boolean
@@ -29,6 +31,7 @@ function readRawEnv() {
     VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL as string | undefined,
     VITE_DISCORD_CLIENT_ID: import.meta.env.VITE_DISCORD_CLIENT_ID as string | undefined,
     VITE_SPOTIFY_CLIENT_ID: import.meta.env.VITE_SPOTIFY_CLIENT_ID as string | undefined,
+    VITE_TELEGRAM_BOT_USERNAME: import.meta.env.VITE_TELEGRAM_BOT_USERNAME as string | undefined,
     VITE_OPERATOR_TIER: import.meta.env.VITE_OPERATOR_TIER as string | undefined,
     VITE_AUTH_REQUIRED: import.meta.env.VITE_AUTH_REQUIRED as string | undefined,
   }
@@ -61,6 +64,7 @@ export function getAppEnv(): AppEnv {
     apiBaseUrl: parsed.data.VITE_API_BASE_URL || '',
     discordClientId: parsed.data.VITE_DISCORD_CLIENT_ID,
     spotifyClientId: parsed.data.VITE_SPOTIFY_CLIENT_ID,
+    telegramBotUsername: parsed.data.VITE_TELEGRAM_BOT_USERNAME,
     operatorTier: parsed.data.VITE_OPERATOR_TIER,
     isLiveApiConfigured: !demoMode,
     authRequired: parsed.data.VITE_AUTH_REQUIRED === 'true',

@@ -13,7 +13,7 @@
         { "key": "X-Frame-Options", "value": "DENY" },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https://accounts.spotify.com https://api.spotify.com https://discord.com https://cdn.discordapp.com; frame-src https://discord.com https://accounts.spotify.com; worker-src 'self' blob:;"
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https://accounts.spotify.com https://api.spotify.com https://discord.com https://cdn.discordapp.com https://oauth.telegram.org; frame-src https://discord.com https://accounts.spotify.com https://oauth.telegram.org https://telegram.org; worker-src 'self' blob:;"
         }
       ]
     }

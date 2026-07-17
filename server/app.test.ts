@@ -1,10 +1,13 @@
 import { describe, expect, it, beforeEach } from 'vitest'
 import { createApp } from './app'
 import { resetServerEnvCache } from './env'
+import { configureAccountStore, resetAccountStore } from './account-store'
 
 describe('control plane API', () => {
   beforeEach(() => {
     resetServerEnvCache()
+    configureAccountStore({ persist: false })
+    resetAccountStore()
     process.env.NODE_ENV = 'test'
     process.env.OPERATOR_TOKEN_SECRET = 'test-operator-token-secret'
     process.env.AUTH_REQUIRED = 'false'
@@ -21,6 +24,7 @@ describe('control plane API', () => {
     const body = await res.json()
     expect(body.ok).toBe(true)
     expect(body.mediaPlaneEnabled).toBe(false)
+    expect(body.friskydevAccounts).toBe(true)
   })
 
   it('starts and stops a session without auth when AUTH_REQUIRED=false', async () => {
@@ -59,5 +63,40 @@ describe('control plane API', () => {
     const body = await res.json()
     expect(typeof body.token).toBe('string')
     expect(body.token.includes('.')).toBe(true)
+  })
+
+  it('registers and logs into a FriskyDev account', async () => {
+    const app = createApp()
+    const register = await app.request('/v1/account/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: 'operator@frisky.dev',
+        password: 'securepass1',
+        displayName: 'Operator',
+      }),
+    })
+    expect(register.status).toBe(200)
+    const created = await register.json()
+    expect(created.account.email).toBe('operator@frisky.dev')
+    expect(typeof created.sessionToken).toBe('string')
+
+    const me = await app.request('/v1/account/me', {
+      headers: { Authorization: `Bearer ${created.sessionToken}` },
+    })
+    expect(me.status).toBe(200)
+    const profile = await me.json()
+    expect(profile.account.id).toBe(created.account.id)
+    expect(profile.linked).toEqual([])
+  })
+
+  it('requires FriskyDev session to link platforms', async () => {
+    const app = createApp()
+    const res = await app.request('/v1/account/link/telegram', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 1, first_name: 'A', auth_date: 1, hash: 'x' }),
+    })
+    expect(res.status).toBe(401)
   })
 })

@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { handleDiscordCallback } from '@/lib/auth'
+import { getFriskyDevSessionToken, linkDiscordToFriskyDev } from '@/lib/friskydev'
 
 interface DiscordCallbackProps {
   onAuthComplete: (user: unknown) => void
@@ -14,6 +15,7 @@ export function DiscordCallback({ onAuthComplete, onAuthError }: DiscordCallback
     const error = params.get('error')
 
     const storedState = sessionStorage.getItem('discord_auth_state')
+    const linkMode = sessionStorage.getItem('discord_link_mode') === '1'
 
     if (error) {
       onAuthError()
@@ -29,33 +31,56 @@ export function DiscordCallback({ onAuthComplete, onAuthError }: DiscordCallback
 
     if (code && state && state === storedState) {
       sessionStorage.removeItem('discord_auth_state')
+      sessionStorage.removeItem('discord_link_mode')
 
-      handleDiscordCallback(code)
-        .then((result) => {
+      const redirectUri = `${window.location.origin}/auth/discord/callback`
+
+      const run = async () => {
+        if (linkMode && getFriskyDevSessionToken()) {
+          const result = await linkDiscordToFriskyDev(code, redirectUri)
           if (window.opener) {
             window.opener.postMessage(
-              { type: 'discord-auth', user: result.user, token: result.token },
+              {
+                type: 'discord-auth',
+                user: result.user,
+                linked: true,
+                identity: result.identity,
+              },
               window.location.origin
             )
             window.close()
           } else {
             onAuthComplete(result.user)
           }
-        })
-        .catch((err) => {
-          console.error('Discord auth error:', err)
-          onAuthError()
-          if (window.opener) {
-            window.opener.postMessage(
-              {
-                type: 'discord-auth-error',
-                error: err instanceof Error ? err.message : 'auth failed',
-              },
-              window.location.origin
-            )
-            window.close()
-          }
-        })
+          return
+        }
+
+        const result = await handleDiscordCallback(code)
+        if (window.opener) {
+          window.opener.postMessage(
+            { type: 'discord-auth', user: result.user, token: result.token },
+            window.location.origin
+          )
+          window.close()
+        } else {
+          onAuthComplete(result.user)
+        }
+      }
+
+      run().catch((err) => {
+        console.error('Discord auth error:', err)
+        onAuthError()
+        if (window.opener) {
+          window.opener.postMessage(
+            {
+              type: 'discord-auth-error',
+              error: err instanceof Error ? err.message : 'auth failed',
+            },
+            window.location.origin
+          )
+          window.close()
+        }
+      })
     }
   }, [onAuthComplete, onAuthError])
 

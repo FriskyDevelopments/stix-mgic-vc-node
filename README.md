@@ -80,6 +80,13 @@ docker run --rm -p 10000:10000 -e PORT=10000 -e OPERATOR_TOKEN_SECRET=... stix-m
 | `npm run test:ci` | Vitest (UI + API) |
 | `npm run lint` | ESLint |
 
-## Related
+## Identity layers
 
-stixmagic-bot / stixmagic-web — future media-plane adapters attach behind `/v1/media/*`.
+1. **FriskyDev account (primary)** — register/sign in via `/v1/account/*`
+2. **Telegram / Discord (layer 2)** — verified login, then linked to FriskyDev:
+   - Telegram Login Widget → `POST /v1/account/link/telegram`
+   - Discord OAuth → `POST /v1/account/link/discord`
+
+Required secrets for real platform login:
+- `DISCORD_CLIENT_ID` + `DISCORD_CLIENT_SECRET` (+ matching `VITE_DISCORD_CLIENT_ID`)
+- `TELEGRAM_BOT_TOKEN` + `TELEGRAM_BOT_USERNAME` (+ `VITE_TELEGRAM_BOT_USERNAME`)
