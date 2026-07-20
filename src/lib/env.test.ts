@@ -23,6 +23,12 @@ describe('getAppEnv', () => {
     expect(env.demoMode).toBe(false)
     expect(env.isLiveApiConfigured).toBe(true)
   })
+
+  it('defaults PostHog host and leaves token unset', () => {
+    const env = getAppEnv()
+    expect(env.posthogProjectToken).toBeUndefined()
+    expect(env.posthogHost).toBe('https://us.i.posthog.com')
+  })
 })
 
 describe('getSessionApi', () => {

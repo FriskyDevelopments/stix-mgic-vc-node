@@ -20,6 +20,11 @@ import {
   type FriskyDevAccount,
   type LinkedPlatformIdentity,
 } from '@/lib/friskydev'
+import {
+  identifyFriskyDevUser,
+  resetAnalytics,
+  track,
+} from '@/lib/analytics'
 
 type FriskyDevAccountPanelProps = {
   onAccountChange?: (account: FriskyDevAccount | null, linked: LinkedPlatformIdentity[]) => void
@@ -45,6 +50,7 @@ export function FriskyDevAccountPanel({ onAccountChange }: FriskyDevAccountPanel
       if (me) {
         setAccount(me.account)
         setLinked(me.linked)
+        identifyFriskyDevUser(me.account)
         onAccountChangeRef.current?.(me.account, me.linked)
       }
       setBootstrapping(false)
@@ -57,6 +63,7 @@ export function FriskyDevAccountPanel({ onAccountChange }: FriskyDevAccountPanel
   const applySession = (nextAccount: FriskyDevAccount, nextLinked: LinkedPlatformIdentity[]) => {
     setAccount(nextAccount)
     setLinked(nextLinked)
+    identifyFriskyDevUser(nextAccount)
     onAccountChange?.(nextAccount, nextLinked)
   }
 
@@ -68,6 +75,9 @@ export function FriskyDevAccountPanel({ onAccountChange }: FriskyDevAccountPanel
           ? await loginFriskyDevAccount({ email, password })
           : await registerFriskyDevAccount({ email, password, displayName })
       applySession(result.account, result.linked)
+      track(mode === 'login' ? 'friskydev_login' : 'friskydev_register', {
+        account_id: result.account.id,
+      })
       toast.success(mode === 'login' ? 'FriskyDev signed in' : 'FriskyDev account created')
       setPassword('')
     } catch (error) {
@@ -81,6 +91,8 @@ export function FriskyDevAccountPanel({ onAccountChange }: FriskyDevAccountPanel
     logoutFriskyDevAccount()
     setAccount(null)
     setLinked([])
+    track('friskydev_logout')
+    resetAnalytics()
     onAccountChange?.(null, [])
     toast('FriskyDev signed out')
   }
@@ -90,6 +102,7 @@ export function FriskyDevAccountPanel({ onAccountChange }: FriskyDevAccountPanel
       await unlinkPlatformFromFriskyDev(platform)
       const next = linked.filter((i) => i.platform !== platform)
       setLinked(next)
+      track('friskydev_unlink_platform', { platform })
       onAccountChange?.(account, next)
       toast.success(`Unlinked ${platform}`)
     } catch (error) {

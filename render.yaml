@@ -33,3 +33,7 @@ services:
         sync: false
       - key: VITE_SPOTIFY_CLIENT_ID
         sync: false
+      - key: VITE_POSTHOG_PROJECT_TOKEN
+        sync: false
+      - key: VITE_POSTHOG_HOST
+        value: https://us.i.posthog.com

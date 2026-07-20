@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import { ErrorBoundary } from "react-error-boundary";
+import { PostHogProvider } from '@posthog/react'
 import { Toaster } from 'sonner'
 import "@github/spark/spark"
 
@@ -7,10 +8,17 @@ import App from './App.tsx'
 import { DiscordCallback } from './components/DiscordCallback.tsx'
 import { SpotifyCallback } from './components/SpotifyCallback.tsx'
 import { ErrorFallback } from './ErrorFallback.tsx'
+import {
+  getAnalyticsClient,
+  initAnalytics,
+  isAnalyticsEnabled,
+} from './lib/analytics'
 
 import "./main.css"
 import "./styles/theme.css"
 import "./index.css"
+
+initAnalytics()
 
 function Root() {
   const path = window.location.pathname
@@ -44,9 +52,24 @@ function Root() {
   return <App />
 }
 
+function AppTree() {
+  const analyticsClient = getAnalyticsClient()
+  const tree = (
+    <>
+      <Root />
+      <Toaster theme="dark" position="bottom-right" richColors closeButton />
+    </>
+  )
+
+  if (isAnalyticsEnabled() && analyticsClient) {
+    return <PostHogProvider client={analyticsClient}>{tree}</PostHogProvider>
+  }
+
+  return tree
+}
+
 createRoot(document.getElementById('root')!).render(
   <ErrorBoundary FallbackComponent={ErrorFallback}>
-    <Root />
-    <Toaster theme="dark" position="bottom-right" richColors closeButton />
+    <AppTree />
   </ErrorBoundary>
 )
