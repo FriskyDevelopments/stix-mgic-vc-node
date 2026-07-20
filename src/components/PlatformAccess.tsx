@@ -51,9 +51,9 @@ export function PlatformAccess({
     switch (status) {
       case 'connected':
         return (
-          <Badge variant="outline" className="gap-1.5 border-accent text-accent text-[10px] font-mono">
+          <Badge variant="outline" className="gap-1.5 border-success text-success text-[10px] font-mono">
             <CheckCircle size={10} weight="fill" />
-            DEMO IDENTITY
+            CONNECTED
           </Badge>
         )
       case 'connecting':
@@ -88,7 +88,7 @@ export function PlatformAccess({
           <h2 className="text-lg font-semibold">Platform Access</h2>
         </div>
         <p className="text-xs text-muted-foreground">
-          Demo operator identity only — mock auth, not verified against Telegram or Discord
+          Platform identity for operator session binding. Real Discord/Telegram verification runs through the control-plane API when secrets are configured.
         </p>
       </div>
 
@@ -300,8 +300,8 @@ export function PlatformAccess({
 
       <div className="glass-panel p-4 rounded-lg bg-muted/20 border border-accent/20">
         <p className="text-xs text-muted-foreground text-center">
-          <span className="text-accent font-medium">Mock platform auth</span>
-          {' '}— Telegram and Discord identity here is simulated for local alpha. It does not authorize real infrastructure.
+          <span className="text-accent font-medium">Control-plane auth</span>
+          {' '}— Discord OAuth and Telegram Login Widget verify through the API when secrets are set; otherwise demo identity is used for local UX.
         </p>
       </div>
     </div>

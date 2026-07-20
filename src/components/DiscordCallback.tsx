@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { handleDiscordCallback } from '@/lib/auth'
 
 interface DiscordCallbackProps {
-  onAuthComplete: (user: any) => void
+  onAuthComplete: (user: unknown) => void
   onAuthError: () => void
 }
 
@@ -12,7 +12,7 @@ export function DiscordCallback({ onAuthComplete, onAuthError }: DiscordCallback
     const code = params.get('code')
     const state = params.get('state')
     const error = params.get('error')
-    
+
     const storedState = sessionStorage.getItem('discord_auth_state')
 
     if (error) {
@@ -29,31 +29,33 @@ export function DiscordCallback({ onAuthComplete, onAuthError }: DiscordCallback
 
     if (code && state && state === storedState) {
       sessionStorage.removeItem('discord_auth_state')
-      
-      handleDiscordCallback(code).then((user) => {
-        if (user) {
+
+      handleDiscordCallback(code)
+        .then((result) => {
           if (window.opener) {
             window.opener.postMessage(
-              { type: 'discord-auth', user },
+              { type: 'discord-auth', user: result.user, token: result.token },
               window.location.origin
             )
             window.close()
           } else {
-            onAuthComplete(user)
+            onAuthComplete(result.user)
           }
-        } else {
+        })
+        .catch((err) => {
+          console.error('Discord auth error:', err)
           onAuthError()
           if (window.opener) {
+            window.opener.postMessage(
+              {
+                type: 'discord-auth-error',
+                error: err instanceof Error ? err.message : 'auth failed',
+              },
+              window.location.origin
+            )
             window.close()
           }
-        }
-      }).catch((err) => {
-        console.error('Discord auth error:', err)
-        onAuthError()
-        if (window.opener) {
-          window.close()
-        }
-      })
+        })
     }
   }, [onAuthComplete, onAuthError])
 
@@ -64,7 +66,7 @@ export function DiscordCallback({ onAuthComplete, onAuthError }: DiscordCallback
           STIX M<span className="text-accent">Λ</span>GIC
         </div>
         <div className="text-sm text-muted-foreground">
-          Completing Discord demo authorization...
+          Completing Discord authorization...
         </div>
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
       </div>

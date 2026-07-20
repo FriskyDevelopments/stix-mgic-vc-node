@@ -22,16 +22,16 @@ export function SpotifyCallback({ onAuthComplete, onAuthError }: SpotifyCallback
     }
 
     if (code && state) {
-      handleSpotifyCallback(code, state).then((accessToken) => {
-        if (accessToken) {
+      handleSpotifyCallback(code, state).then((result) => {
+        if (result?.accessToken) {
           if (window.opener) {
             window.opener.postMessage(
-              { type: 'spotify-auth', accessToken },
+              { type: 'spotify-auth', accessToken: result.accessToken },
               window.location.origin
             )
             window.close()
           } else {
-            onAuthComplete(accessToken)
+            onAuthComplete(result.accessToken)
           }
         } else {
           onAuthError()

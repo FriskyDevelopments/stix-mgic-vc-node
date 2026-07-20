@@ -1,55 +1,85 @@
 # stix-mgic-vc-node
 
-STIX MΛGIC VC NODE — a browser-based operator console for managing live voice and media sessions across Telegram and Discord. Built with React 19, Vite, and Tailwind CSS (generated with GitHub Spark).
+STIX MΛGIC VC NODE — production control-plane for multi-platform session operations (Telegram + Discord). React 19 + Vite UI served by a Hono Node API.
 
-## Alpha status
-
-**Alpha — local demo only.** This build demonstrates the operator control surface end-to-end in the browser. Session metrics, RTMP uplink, ClipsFlow intake, and most “connected to Telegram/Discord infrastructure” signals are **simulated**. Do not treat this as production session control.
+## Production readiness
 
 | Layer | Status |
 |-------|--------|
-| Operator UI loop (platform → protocol → start/stop → diagnostics) | Working (client-side) |
-| Virtual camera preview | Real browser `getUserMedia` |
-| Telegram / Discord auth | **Mock** — demo identity only |
-| Spotify personal source | Optional real PKCE when `VITE_SPOTIFY_CLIENT_ID` is set |
-| Telegram / Discord / RTMP infrastructure | Not connected |
+| Control-plane API (`/v1/sessions`, `/v1/auth/*`, `/healthz`) | **Ready** |
+| Production server (`npm start` → `0.0.0.0:$PORT`, serves `dist` + API) | **Ready** |
+| Discord OAuth code exchange (server secret) | **Ready** when `DISCORD_CLIENT_*` set |
+| Telegram Login Widget HMAC verify | **Ready** when `TELEGRAM_BOT_TOKEN` set |
+| Operator session tokens (HMAC) | **Ready** |
+| Static deploy (Vercel) / Render blueprint / Docker | **Ready** |
+| Media plane (live VC join / RTMP ingest adapters) | **Deferred** — API returns `mediaPlane.ready=false` |
 
-## Run (alpha)
+Default production mode uses the **live control plane**. Media adapters remain explicitly deferred (not faked as live).
+
+## Local development
 
 ```bash
+cp .env.example .env
 npm install
 npm run dev
 ```
 
-Open the URL Vite prints (default port **5000**). No env vars are required for the core demo loop.
+This runs:
+- API on `127.0.0.1:8787`
+- Vite UI on `http://localhost:5000` (proxies `/v1` + `/healthz`)
 
-### Optional env
+## Production
 
-Copy `.env.example` to `.env` and set:
+```bash
+npm run build
+OPERATOR_TOKEN_SECRET=... NODE_ENV=production npm start
+```
 
-- `VITE_DISCORD_CLIENT_ID` — enables Discord OAuth redirect (callback still completes with a mock demo user until real token exchange exists)
-- `VITE_SPOTIFY_CLIENT_ID` — enables Spotify PKCE login for personal DJ audio
+Binds `0.0.0.0:$PORT` (Render/Fly/Docker compatible).
 
-Redirect URIs for local alpha:
+### Render
 
-- `http://localhost:5000/auth/discord/callback`
-- `http://localhost:5000/spotify-callback`
+`render.yaml` included. Set Discord/Telegram secrets in the dashboard.
+
+### Docker
+
+```bash
+docker build -t stix-mgic-vc-node .
+docker run --rm -p 10000:10000 -e PORT=10000 -e OPERATOR_TOKEN_SECRET=... stix-mgic-vc-node
+```
+
+## Environment
+
+### Client (`VITE_*`)
+| Var | Purpose |
+|-----|---------|
+| `VITE_DEMO_MODE` | `true` forces client-side simulation; unset/`false` uses API |
+| `VITE_API_BASE_URL` | Optional absolute API origin (blank = same-origin) |
+| `VITE_DISCORD_CLIENT_ID` | Public Discord OAuth client id |
+| `VITE_SPOTIFY_CLIENT_ID` | Optional Spotify PKCE |
+| `VITE_OPERATOR_TIER` | `free` \| `premium` |
+| `VITE_AUTH_REQUIRED` | UI hint when anonymous operators are disabled |
+
+### Server (secrets — never prefix with `VITE_`)
+| Var | Purpose |
+|-----|---------|
+| `OPERATOR_TOKEN_SECRET` | Required in production |
+| `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` / `DISCORD_REDIRECT_URI` | Real Discord exchange |
+| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_BOT_USERNAME` | Telegram Login Widget verify |
+| `AUTH_REQUIRED` | Require operator bearer token for sessions |
+| `MEDIA_PLANE_ENABLED` | Feature flag only; adapters not wired yet |
 
 ## Scripts
 
 | Command | Purpose |
 |---------|---------|
-| `npm run dev` | Local alpha server |
-| `npm run build` | Production bundle |
-| `npm run preview` | Preview built assets |
+| `npm run dev` | API + Vite concurrently |
+| `npm run build` | Build SPA |
+| `npm start` | Production control plane |
+| `npm run typecheck` | Client + server types |
+| `npm run test:ci` | Vitest (UI + API) |
 | `npm run lint` | ESLint |
-| `npm test` | Unit / smoke tests |
-| `npm run test:ci` | CI test run |
 
-## Intended purpose
+## Related
 
-A unified command surface for routing, monitoring, and managing live session presence across Telegram and Discord, with OBS integration, RTMP streaming, session management, and real-time diagnostics.
-
-## Related repos
-
-stixmagic-bot and stixmagic-web (both under the FriskyDevelopments organization).
+stixmagic-bot / stixmagic-web — future media-plane adapters attach behind `/v1/media/*`.

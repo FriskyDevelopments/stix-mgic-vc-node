@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import { ErrorBoundary } from "react-error-boundary";
+import { Toaster } from 'sonner'
 import "@github/spark/spark"
 
 import App from './App.tsx'
@@ -46,5 +47,6 @@ function Root() {
 createRoot(document.getElementById('root')!).render(
   <ErrorBoundary FallbackComponent={ErrorFallback}>
     <Root />
-   </ErrorBoundary>
+    <Toaster theme="dark" position="bottom-right" richColors closeButton />
+  </ErrorBoundary>
 )

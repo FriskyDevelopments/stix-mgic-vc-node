@@ -22,4 +22,11 @@ export default defineConfig({
       '@': resolve(projectRoot, 'src')
     }
   },
+  server: {
+    port: 5000,
+    proxy: {
+      '/v1': 'http://127.0.0.1:8787',
+      '/healthz': 'http://127.0.0.1:8787',
+    },
+  },
 });

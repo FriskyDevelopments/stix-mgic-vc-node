@@ -1,15 +1,14 @@
 /**
- * ⚠️ MOCK AUTHENTICATION — NOT REAL AUTH.
+ * Platform authentication helpers.
  *
- * The Telegram and Discord auth flows below are DEMO STUBS. They do NOT
- * verify any identity: initiateTelegramAuth() returns a hardcoded fake user
- * after a timeout, and handleDiscordCallback() ignores the OAuth `code` and
- * returns a hardcoded fake Discord user without exchanging it for a token.
- *
- * The "connected" state is trivially spoofable and must NOT be used to gate
- * access to real infrastructure. Replace with a real server-side OAuth token
- * exchange before relying on this for authorization.
+ * Discord: real OAuth code exchange via control-plane `/v1/auth/discord/exchange`
+ * when the server has DISCORD_CLIENT_* configured.
+ * Telegram: Login Widget payload verified via `/v1/auth/telegram/verify` when
+ * TELEGRAM_BOT_TOKEN is configured; otherwise a clearly-labeled demo popup.
  */
+import { getAppEnv } from '@/lib/env'
+import { setOperatorToken } from '@/lib/operator-token'
+
 export type PlatformAuthStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
 
 export interface TelegramUser {
@@ -41,11 +40,16 @@ export interface AuthState {
   }
 }
 
-const DISCORD_CLIENT_ID = (import.meta.env.VITE_DISCORD_CLIENT_ID as string | undefined)?.trim() || ''
-const DISCORD_REDIRECT_URI = `${window.location.origin}/auth/discord/callback`
+function discordClientId(): string {
+  return getAppEnv().discordClientId || ''
+}
+
+function discordRedirectUri(): string {
+  return `${window.location.origin}/auth/discord/callback`
+}
 
 export function isDiscordConfigured(): boolean {
-  return DISCORD_CLIENT_ID.length > 0
+  return discordClientId().length > 0
 }
 
 function openMockAuthPopup(title: string, messageType: 'telegram-auth' | 'discord-auth', userJson: string): void {
@@ -81,21 +85,9 @@ function openMockAuthPopup(title: string, messageType: 'telegram-auth' | 'discor
             justify-content: center;
             min-height: 100vh;
           }
-          .container {
-            text-align: center;
-            max-width: 400px;
-          }
-          h1 {
-            font-size: 24px;
-            margin-bottom: 16px;
-            font-weight: 600;
-          }
-          p {
-            font-size: 14px;
-            line-height: 1.6;
-            color: oklch(0.65 0.01 260);
-            margin-bottom: 32px;
-          }
+          .container { text-align: center; max-width: 400px; }
+          h1 { font-size: 24px; margin-bottom: 16px; font-weight: 600; }
+          p { font-size: 14px; line-height: 1.6; color: oklch(0.65 0.01 260); margin-bottom: 32px; }
           .badge {
             display: inline-block;
             font-size: 11px;
@@ -116,9 +108,7 @@ function openMockAuthPopup(title: string, messageType: 'telegram-auth' | 'discor
             animation: spin 0.8s linear infinite;
             margin: 0 auto 24px;
           }
-          @keyframes spin {
-            to { transform: rotate(360deg); }
-          }
+          @keyframes spin { to { transform: rotate(360deg); } }
         </style>
       </head>
       <body>
@@ -126,16 +116,17 @@ function openMockAuthPopup(title: string, messageType: 'telegram-auth' | 'discor
           <div class="loader"></div>
           <div class="badge">DEMO AUTH</div>
           <h1>${title}</h1>
-          <p>Simulating secure platform access for local alpha. No real identity is verified.</p>
+          <p>Simulating platform access. Configure server secrets for real identity verification.</p>
         </div>
         <script>
           setTimeout(() => {
             window.opener.postMessage({
               type: '${messageType}',
-              user: ${userJson}
+              user: ${userJson},
+              demo: true
             }, window.location.origin);
             window.close();
-          }, 2000);
+          }, 1200);
         </script>
       </body>
     </html>
@@ -163,6 +154,26 @@ export function initiateTelegramAuth(): Promise<void> {
   })
 }
 
+export async function verifyTelegramLoginPayload(payload: Record<string, unknown>): Promise<{
+  user: TelegramUser
+  token: string
+}> {
+  const response = await fetch(`${getAppEnv().apiBaseUrl}/v1/auth/telegram/verify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+
+  if (!response.ok) {
+    const body = await response.text()
+    throw new Error(body || 'Telegram verification failed')
+  }
+
+  const data = (await response.json()) as { token: string; user: TelegramUser }
+  setOperatorToken(data.token)
+  return data
+}
+
 export function initiateDiscordAuth(): void {
   if (!isDiscordConfigured()) {
     openMockAuthPopup(
@@ -183,11 +194,11 @@ export function initiateDiscordAuth(): void {
   sessionStorage.setItem('discord_auth_state', state)
 
   const params = new URLSearchParams({
-    client_id: DISCORD_CLIENT_ID,
-    redirect_uri: DISCORD_REDIRECT_URI,
+    client_id: discordClientId(),
+    redirect_uri: discordRedirectUri(),
     response_type: 'code',
-    scope: 'identify guilds guilds.members.read',
-    state: state
+    scope: 'identify',
+    state,
   })
 
   const width = 500
@@ -206,17 +217,28 @@ export function initiateDiscordAuth(): void {
   }
 }
 
-export async function handleDiscordCallback(_code: string): Promise<DiscordUser> {
-  // MOCK: code is intentionally unused until a real server-side token exchange exists.
-  await new Promise(resolve => setTimeout(resolve, 1500))
+export async function handleDiscordCallback(code: string): Promise<{
+  user: DiscordUser
+  token: string
+  demo?: boolean
+}> {
+  const response = await fetch(`${getAppEnv().apiBaseUrl}/v1/auth/discord/exchange`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      code,
+      redirectUri: discordRedirectUri(),
+    }),
+  })
 
-  return {
-    id: Date.now().toString(),
-    username: 'operator',
-    discriminator: '0001',
-    global_name: 'STIX Operator',
-    avatar: undefined
+  if (!response.ok) {
+    const body = await response.text()
+    throw new Error(body || 'Discord exchange failed')
   }
+
+  const data = (await response.json()) as { token: string; user: DiscordUser }
+  setOperatorToken(data.token)
+  return data
 }
 
 export function getDiscordAvatarUrl(user: DiscordUser): string | undefined {

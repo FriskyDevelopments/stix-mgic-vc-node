@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: stix-mgic-vc-node
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: VITE_DEMO_MODE
+        value: "false"
+      - key: AUTH_REQUIRED
+        value: "false"
+      - key: MEDIA_PLANE_ENABLED
+        value: "false"
+      - key: OPERATOR_TOKEN_SECRET
+        generateValue: true
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_CLIENT_SECRET
+        sync: false
+      - key: DISCORD_REDIRECT_URI
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_BOT_USERNAME
+        sync: false
+      - key: VITE_DISCORD_CLIENT_ID
+        sync: false
+      - key: VITE_SPOTIFY_CLIENT_ID
+        sync: false
