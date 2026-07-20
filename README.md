@@ -59,6 +59,8 @@ docker run --rm -p 10000:10000 -e PORT=10000 -e OPERATOR_TOKEN_SECRET=... stix-m
 | `VITE_SPOTIFY_CLIENT_ID` | Optional Spotify PKCE |
 | `VITE_OPERATOR_TIER` | `free` \| `premium` |
 | `VITE_AUTH_REQUIRED` | UI hint when anonymous operators are disabled |
+| `VITE_POSTHOG_PROJECT_TOKEN` | Optional PostHog project token (blank = analytics off) |
+| `VITE_POSTHOG_HOST` | PostHog API host (default `https://us.i.posthog.com`) |
 
 ### Server (secrets — never prefix with `VITE_`)
 | Var | Purpose |
