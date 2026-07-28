@@ -1,3 +1,21 @@
+import { buildMediaPlaneStatus } from './media-plane'
+import { currentTelemetry, findRoomForOperator } from './rooms'
+
+/**
+ * Whether the signaling plane is attached in this process. index.ts flips it once the
+ * upgrade handler is installed; a test importing the app alone leaves it false, and the
+ * snapshot then honestly says no transport is available.
+ */
+let signalingReady = false
+
+export function setSignalingReady(ready: boolean): void {
+  signalingReady = ready
+}
+
+export function isSignalingReady(): boolean {
+  return signalingReady
+}
+
 export type SessionProtocol =
   | 'dj-mode'
   | 'clipsflow'
@@ -21,6 +39,17 @@ export type SessionSnapshot = {
   resolution: string
   streamKey?: string
   source: 'live-api' | 'demo'
+  /**
+   * Where the numbers above came from. `measured` means a participant reported them from
+   * its own RTCPeerConnection stats; `unavailable` means nothing is measuring and the
+   * numbers are zeros. They are never estimated — an invented bitrate reads exactly like a
+   * real one on the operator's screen, and that is how a broken session looks healthy.
+   */
+  telemetrySource: 'measured' | 'unavailable'
+  /** Age of the measurement in milliseconds, when there is one. */
+  telemetryAgeMs?: number
+  roomId?: string
+  participantCount?: number
   operatorId?: string
   platform?: SessionPlatform
   protocol?: SessionProtocol
@@ -39,16 +68,28 @@ type ActiveSession = {
 
 const sessions = new Map<string, ActiveSession>()
 
+/**
+ * Condensed view of the media plane for a session snapshot. The full per-adapter report,
+ * with the reason each unavailable transport is unavailable, is on `/v1/media/status`.
+ */
 function mediaPlaneMeta(enabled: boolean) {
+  const status = buildMediaPlaneStatus({ signalingReady: isSignalingReady() })
   return {
     enabled,
-    ready: false,
-    reason: enabled
-      ? 'Media plane flag enabled but Telegram/Discord media adapters are not wired yet'
-      : 'control-plane-only',
+    ready: status.ready,
+    reason: status.reason,
   }
 }
 
+/**
+ * Build a snapshot. Telemetry is taken from the operator's room when a participant has
+ * reported a measurement, and is otherwise zeroed and marked `unavailable`.
+ *
+ * This used to return hardcoded numbers — 92% signal, 42 ms latency, 2500 kbps for RTMP —
+ * regardless of whether anything was connected, while also reporting `source: 'live-api'`.
+ * The README's promise that adapters are "not faked as live" was true of the adapters and
+ * false of the metrics beside them.
+ */
 function buildSnapshot(
   status: SessionStatus,
   protocol: SessionProtocol,
@@ -56,20 +97,26 @@ function buildSnapshot(
   extras?: Partial<SessionSnapshot>
 ): SessionSnapshot {
   const isRtmp = protocol === 'rtmp'
-  const isCamera = protocol === 'virtual-camera'
-  const isDj = status === 'dj-mode' || protocol === 'dj-mode'
+  const operatorId = extras?.operatorId
+  const membership = operatorId ? findRoomForOperator(operatorId) : null
+  const measurement = membership ? currentTelemetry(membership.room) : null
 
   return {
     status,
-    signalQuality: isDj ? 88 : isCamera ? 92 : isRtmp ? 90 : 85,
-    latency: isCamera ? 42 : isRtmp ? 180 : 120,
-    frameRate: isCamera || isRtmp ? 30 : 24,
-    bitrate: isRtmp ? 2500 : 0,
-    packetLoss: isRtmp ? 0.2 : 0,
-    audioSync: status === 'standby' ? 'muted' : 'stable',
+    signalQuality: measurement?.signalQuality ?? 0,
+    latency: measurement?.latency ?? 0,
+    frameRate: measurement?.frameRate ?? 0,
+    bitrate: measurement?.bitrate ?? 0,
+    packetLoss: measurement?.packetLoss ?? 0,
+    audioSync: status === 'standby' ? 'muted' : measurement ? 'stable' : 'muted',
     resolution: isRtmp ? '1080p' : '720p',
     streamKey: isRtmp ? `sk_node_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}` : undefined,
     source: 'live-api',
+    telemetrySource: measurement ? 'measured' : 'unavailable',
+    ...(measurement ? { telemetryAgeMs: Date.now() - measurement.reportedAt } : {}),
+    ...(membership
+      ? { roomId: membership.room.id, participantCount: membership.room.participants.size }
+      : {}),
     protocol,
     mediaPlane: mediaPlaneMeta(mediaEnabled),
     ...extras,

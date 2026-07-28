@@ -1,22 +1,45 @@
-import { Hono } from 'hono'
+import { Hono, type Context, type Next } from 'hono'
 import { cors } from 'hono/cors'
+import { z } from 'zod'
 import { getServerEnv } from './env'
 import { exchangeDiscordCode, verifyTelegramLogin, type TelegramLoginPayload } from './auth-providers'
 import { mintOperatorToken, verifyOperatorToken } from './tokens'
 import {
   extendSession,
   getSession,
+  isSignalingReady,
   startSession,
   stopSession,
   type SessionPlatform,
   type SessionProtocol,
 } from './sessions'
+import { buildMediaPlaneStatus } from './media-plane'
+import { getIceServers } from './ice'
+import {
+  closeRoom,
+  createRoom,
+  getRoom,
+  listRoomsForOperator,
+  recordTelemetry,
+  toView,
+  MAX_PARTICIPANTS_LIMIT,
+} from './rooms'
+import { SIGNALING_PATH } from './signaling'
 
 type Variables = {
   operatorId: string
   operatorName: string
   operatorPlatform: 'telegram' | 'discord' | 'anonymous'
 }
+
+/** Bounds are sanity checks, not physics: a client reporting 900 fps is a broken client. */
+const telemetrySchema = z.object({
+  signalQuality: z.number().min(0).max(100),
+  latency: z.number().min(0).max(60_000),
+  frameRate: z.number().min(0).max(240),
+  bitrate: z.number().min(0).max(100_000),
+  packetLoss: z.number().min(0).max(100),
+})
 
 export function createApp() {
   const app = new Hono<{ Variables: Variables }>()
@@ -47,13 +70,13 @@ export function createApp() {
     })
   )
 
+  // Per-adapter, because one boolean cannot say "can host a WebRTC room, cannot join a
+  // Telegram group call". Each unavailable adapter carries the reason it is unavailable.
   app.get('/v1/media/status', (c) =>
     c.json({
-      ready: false,
-      enabled: env.MEDIA_PLANE_ENABLED,
-      reason: env.MEDIA_PLANE_ENABLED
-        ? 'Media plane flag enabled but adapters are not wired yet'
-        : 'control-plane-only',
+      ...buildMediaPlaneStatus({ signalingReady: isSignalingReady() }),
+      signalingPath: SIGNALING_PATH,
+      maxParticipants: MAX_PARTICIPANTS_LIMIT,
     })
   )
 
@@ -207,6 +230,100 @@ export function createApp() {
   app.post('/v1/sessions/stop', (c) => {
     const snapshot = stopSession(c.get('operatorId'), env.MEDIA_PLANE_ENABLED)
     return c.json(snapshot)
+  })
+
+  // ---- Rooms -------------------------------------------------------------
+  // A room is where a call actually happens. Everything under /v1/rooms sits behind the
+  // same operator gate as /v1/sessions: the middleware above matches /v1/sessions/*, so
+  // these routes carry their own copy of it via requireOperator.
+
+  const requireOperator = async (c: Context<{ Variables: Variables }>, next: Next) => {
+    const header = c.req.header('authorization') || ''
+    const token = header.startsWith('Bearer ') ? header.slice(7) : ''
+
+    if (!token) {
+      if (env.AUTH_REQUIRED) {
+        return c.json({ error: 'Operator token required' }, 401)
+      }
+      c.set('operatorId', `anonymous:${c.req.header('x-client-id') || 'local'}`)
+      c.set('operatorName', 'Anonymous Operator')
+      c.set('operatorPlatform', 'anonymous')
+      await next()
+      return
+    }
+
+    const claims = verifyOperatorToken(token)
+    if (!claims) {
+      return c.json({ error: 'Invalid or expired operator token' }, 401)
+    }
+
+    c.set('operatorId', claims.sub)
+    c.set('operatorName', claims.name)
+    c.set('operatorPlatform', claims.platform)
+    await next()
+  }
+
+  app.use('/v1/rooms', requireOperator)
+  app.use('/v1/rooms/*', requireOperator)
+
+  app.post('/v1/rooms', async (c) => {
+    type CreateRoomBody = { name?: string; platform?: 'telegram' | 'discord' | 'web'; maxParticipants?: number }
+    const body: CreateRoomBody = await c.req.json<CreateRoomBody>().catch(() => ({}) as CreateRoomBody)
+    const room = createRoom({
+      ownerOperatorId: c.get('operatorId'),
+      ...(body.name !== undefined ? { name: body.name } : {}),
+      ...(body.platform !== undefined ? { platform: body.platform } : {}),
+      ...(body.maxParticipants !== undefined ? { maxParticipants: body.maxParticipants } : {}),
+    })
+
+    return c.json({
+      room: toView(room),
+      // What a client needs to start negotiating, so joining is one round trip.
+      signaling: { path: SIGNALING_PATH, iceServers: getIceServers() },
+    }, 201)
+  })
+
+  // Only the caller's own rooms. There is no route that lists every room on the node —
+  // a room id is a capability, and enumerating them would hand out other operators' calls.
+  app.get('/v1/rooms', (c) =>
+    c.json({ rooms: listRoomsForOperator(c.get('operatorId')).map(toView) })
+  )
+
+  app.get('/v1/rooms/:id', (c) => {
+    const room = getRoom(c.req.param('id'))
+    if (!room) return c.json({ error: 'Room not found' }, 404)
+    return c.json({
+      room: toView(room),
+      signaling: { path: SIGNALING_PATH, iceServers: getIceServers() },
+    })
+  })
+
+  app.delete('/v1/rooms/:id', (c) => {
+    const room = getRoom(c.req.param('id'))
+    if (!room) return c.json({ error: 'Room not found' }, 404)
+    if (!closeRoom(room.id, c.get('operatorId'))) {
+      return c.json({ error: 'Only the room owner can close it' }, 403)
+    }
+    return c.json({ closed: true })
+  })
+
+  // Telemetry flows UP from participants: frame rate, bitrate and packet loss only exist
+  // inside a peer connection, so the client posts what getStats() measured and the node
+  // serves it back. Nothing here estimates a number.
+  app.post('/v1/rooms/:id/telemetry', async (c) => {
+    const room = getRoom(c.req.param('id'))
+    if (!room) return c.json({ error: 'Room not found' }, 404)
+
+    const operatorId = c.get('operatorId')
+    const isParticipant = [...room.participants.values()].some((p) => p.operatorId === operatorId)
+    if (!isParticipant) return c.json({ error: 'Not a participant of this room' }, 403)
+
+    const body = await c.req.json<Record<string, unknown>>().catch(() => null)
+    const parsed = telemetrySchema.safeParse(body)
+    if (!parsed.success) return c.json({ error: 'Invalid telemetry payload' }, 400)
+
+    const recorded = recordTelemetry(room.id, operatorId, parsed.data)
+    return c.json({ telemetry: recorded })
   })
 
   app.post('/v1/sessions/extend', async (c) => {
