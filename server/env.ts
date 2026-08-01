@@ -23,6 +23,12 @@ const serverEnvSchema = z.object({
     .transform((v) => v === 'true'),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
   CORS_ALLOWED_ORIGINS: z.string().optional(),
+  // WebRTC. STUN gets most peers connected; TURN is what gets the rest connected, and it
+  // relays media, so it is optional and reported as a capability rather than assumed.
+  STUN_URLS: z.string().optional().transform((v) => v?.trim() || undefined),
+  TURN_URLS: z.string().optional().transform((v) => v?.trim() || undefined),
+  TURN_USERNAME: z.string().optional().transform((v) => v?.trim() || undefined),
+  TURN_CREDENTIAL: z.string().optional().transform((v) => v?.trim() || undefined),
 })
 
 export type ServerEnv = z.infer<typeof serverEnvSchema> & {
