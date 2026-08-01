@@ -23,6 +23,7 @@
  */
 import { getServerEnv } from './env'
 import { hasTurn } from './ice'
+import { getTelegramVcEnv, getCallInfo } from './telegram-vc'
 
 export type AdapterState = 'ready' | 'degraded' | 'not_implemented' | 'disabled'
 
@@ -58,14 +59,35 @@ export function buildMediaPlaneStatus(input: { signalingReady: boolean }): Media
         }
     : { id: 'webrtc', state: 'disabled', reason: 'signaling not attached to this process' }
 
-  const adapters: AdapterStatus[] = [
-    webrtc,
-    {
+  const telegramVcEnv = getTelegramVcEnv()
+  let telegramVcStatus: AdapterStatus
+  if (telegramVcEnv) {
+    const callInfo = getCallInfo()
+    if (callInfo.state === 'active') {
+      telegramVcStatus = {
+        id: 'telegram-vc',
+        state: 'ready',
+        reason: `joined group call, source: ${callInfo.activeSource ?? 'none'}`,
+      }
+    } else {
+      telegramVcStatus = {
+        id: 'telegram-vc',
+        state: 'degraded',
+        reason: 'configured (MTProto session ready) but not in a call — use POST /v1/telegram-vc/join',
+      }
+    }
+  } else {
+    telegramVcStatus = {
       id: 'telegram-vc',
       state: 'not_implemented',
       reason:
-        'joining a Telegram group call requires MTProto with a user session, not a bot token — owner decision pending',
-    },
+        'joining a Telegram group call requires MTProto with a user session — set TELEGRAM_VC_API_ID, TELEGRAM_VC_API_HASH, TELEGRAM_VC_SESSION_STRING',
+    }
+  }
+
+  const adapters: AdapterStatus[] = [
+    webrtc,
+    telegramVcStatus,
     {
       id: 'discord-voice',
       state: 'not_implemented',
@@ -73,8 +95,10 @@ export function buildMediaPlaneStatus(input: { signalingReady: boolean }): Media
     },
     {
       id: 'rtmp',
-      state: 'not_implemented',
-      reason: 'needs ffmpeg on the host and a stream key that, for Telegram, also comes from MTProto',
+      state: telegramVcEnv ? 'ready' : 'not_implemented',
+      reason: telegramVcEnv
+        ? 'available as a source for the Telegram VC adapter — use POST /v1/telegram-vc/source'
+        : 'needs ffmpeg on the host and a stream key that, for Telegram, also comes from MTProto',
     },
   ]
 

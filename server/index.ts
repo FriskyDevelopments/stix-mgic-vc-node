@@ -8,6 +8,7 @@ import { getServerEnv } from './env'
 import { attachSignaling, SIGNALING_PATH } from './signaling'
 import { setSignalingReady } from './sessions'
 import { sweepEmptyRooms } from './rooms'
+import { disconnectTgClient } from './telegram-vc'
 
 const env = getServerEnv()
 const app = createApp()
@@ -81,6 +82,8 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
     })
   )
   clearInterval(sweeper)
+  // Disconnect Telegram VC client gracefully.
+  await disconnectTgClient()
   // Close signalling first so participants are told, rather than discovering it by timeout.
   await signaling.close()
   server.close(() => process.exit(0))

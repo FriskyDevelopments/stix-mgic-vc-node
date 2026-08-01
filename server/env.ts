@@ -29,12 +29,19 @@ const serverEnvSchema = z.object({
   TURN_URLS: z.string().optional().transform((v) => v?.trim() || undefined),
   TURN_USERNAME: z.string().optional().transform((v) => v?.trim() || undefined),
   TURN_CREDENTIAL: z.string().optional().transform((v) => v?.trim() || undefined),
+  // Telegram VC adapter (MTProto user session). These are SECRETS — never log them.
+  TELEGRAM_VC_API_ID: z.string().optional().transform((v) => v?.trim() || undefined),
+  TELEGRAM_VC_API_HASH: z.string().optional().transform((v) => v?.trim() || undefined),
+  TELEGRAM_VC_SESSION_STRING: z.string().optional().transform((v) => v?.trim() || undefined),
+  TELEGRAM_VC_DEFAULT_CHAT_ID: z.string().optional().transform((v) => v?.trim() || undefined),
+  TELEGRAM_VC_FFMPEG_TIMEOUT_SECONDS: z.coerce.number().int().positive().default(300),
 })
 
 export type ServerEnv = z.infer<typeof serverEnvSchema> & {
   operatorTokenSecret: string
   discordConfigured: boolean
   telegramConfigured: boolean
+  telegramVcConfigured: boolean
 }
 
 let cached: ServerEnv | null = null
@@ -63,6 +70,9 @@ export function getServerEnv(): ServerEnv {
     operatorTokenSecret,
     discordConfigured: Boolean(data.DISCORD_CLIENT_ID && data.DISCORD_CLIENT_SECRET),
     telegramConfigured: Boolean(data.TELEGRAM_BOT_TOKEN),
+    telegramVcConfigured: Boolean(
+      data.TELEGRAM_VC_API_ID && data.TELEGRAM_VC_API_HASH && data.TELEGRAM_VC_SESSION_STRING
+    ),
   }
 
   return cached

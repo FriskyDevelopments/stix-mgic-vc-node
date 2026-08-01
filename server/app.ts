@@ -25,6 +25,7 @@ import {
   MAX_PARTICIPANTS_LIMIT,
 } from './rooms'
 import { SIGNALING_PATH } from './signaling'
+import { createTelegramVcRoutes } from './telegram-vc'
 
 type Variables = {
   operatorId: string
@@ -66,6 +67,7 @@ export function createApp() {
       authRequired: env.AUTH_REQUIRED,
       discordConfigured: env.discordConfigured,
       telegramConfigured: env.telegramConfigured,
+      telegramVcConfigured: env.telegramVcConfigured,
       mediaPlaneEnabled: env.MEDIA_PLANE_ENABLED,
     })
   )
@@ -333,6 +335,11 @@ export function createApp() {
     if (!result) return c.json({ error: 'No active session' }, 404)
     return c.json(result)
   })
+
+  // ---- Telegram VC -------------------------------------------------------
+  // The adapter has its own auth guard (same pattern as rooms) and its own sub-router.
+  app.use('/v1/telegram-vc/*', requireOperator)
+  app.route('/v1/telegram-vc', createTelegramVcRoutes())
 
   return app
 }
