@@ -1,4 +1,5 @@
 import { getAppEnv } from '@/lib/env'
+import { apiHeaders, apiUrl } from '@/lib/api-client'
 import { log } from '@/lib/log'
 import { clearOperatorToken, getOperatorToken, setOperatorToken } from '@/lib/operator-token'
 
@@ -76,21 +77,10 @@ function demoSnapshot(
   }
 }
 
-function apiUrl(path: string): string {
-  const base = getAppEnv().apiBaseUrl
-  return `${base}${path}`
-}
-
 async function liveRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const headers = new Headers(init?.headers || {})
-  headers.set('Content-Type', 'application/json')
-
-  const token = getOperatorToken()
-  if (token) headers.set('Authorization', `Bearer ${token}`)
-
   const response = await fetch(apiUrl(path), {
     ...init,
-    headers,
+    headers: apiHeaders(init?.headers),
   })
 
   if (!response.ok) {

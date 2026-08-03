@@ -1,5 +1,4 @@
-import { getAppEnv } from '@/lib/env'
-import { getOperatorToken } from '@/lib/operator-token'
+import { apiHeaders, apiUrl } from '@/lib/api-client'
 
 /**
  * rooms-api.ts — the REST half of the media plane, from the browser.
@@ -59,16 +58,9 @@ export class RoomsApiError extends Error {
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const env = getAppEnv()
-  const token = getOperatorToken()
-
-  const response = await fetch(`${env.apiBaseUrl}${path}`, {
+  const response = await fetch(apiUrl(path), {
     ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(init.headers ?? {}),
-    },
+    headers: apiHeaders(init.headers),
   })
 
   if (!response.ok) {
