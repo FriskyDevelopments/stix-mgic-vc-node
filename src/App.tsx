@@ -19,6 +19,7 @@ import { DeviceSelector } from "@/components/DeviceSelector"
 import { PlatformAccess } from "@/components/PlatformAccess"
 import { RoomPanel } from "@/components/RoomPanel"
 import { TelegramVcPanel } from "@/components/TelegramVcPanel"
+import { DJModePanel } from "@/components/DJModePanel"
 import { 
   Broadcast, 
   Lightning, 
@@ -1084,6 +1085,7 @@ function App() {
                 <div className="mt-4 space-y-4">
                   <RoomPanel localStream={cameraStream} />
                   <TelegramVcPanel />
+                  <DJModePanel />
                 </div>
               )}
               
