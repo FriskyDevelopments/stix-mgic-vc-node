@@ -151,6 +151,15 @@ export async function joinGroupCall(chatId: bigint): Promise<GroupCallInfo> {
     return getCallInfo()
   }
 
+  // Reset from a previous error so we can retry cleanly.
+  if (state === 'error') {
+    state = 'idle'
+    lastError = null
+    currentCallId = null
+    currentSsrc = null
+    currentTransport = null
+  }
+
   state = 'joining'
   lastError = null
   currentChatId = chatId
@@ -158,29 +167,37 @@ export async function joinGroupCall(chatId: bigint): Promise<GroupCallInfo> {
   try {
     const client = await ensureConnected()
 
-    // 1. Get the group call from the chat
-    const fullChat = await client.invoke(
-      new Api.messages.GetFullChat({ chatId: chatId as any })
-    )
-
-    const call = (fullChat?.fullChat as any)?.call
-    if (!call) {
-      // Try as a channel/supergroup
-      const fullChannel = await client.invoke(
-        new Api.channels.GetFullChannel({
-          channel: new Api.InputChannel({
-            channelId: chatId as any,
-            accessHash: BigInt(0) as any, // Will be resolved by the client
-          }),
-        })
-      ).catch(() => null)
-
-      const channelCall = (fullChannel?.fullChat as any)?.call
-      if (!channelCall) {
-        throw new Error('No active group call in this chat. Start a voice chat first.')
+    // Resolve the entity properly — handles both basic groups, supergroups, and channels.
+    // The chatId can be passed as positive (raw) or negative (with -100 prefix for channels).
+    let entity: any
+    try {
+      entity = await client.getEntity(chatId > 0 ? `-100${chatId}` : chatId.toString())
+    } catch {
+      // Fall back to trying the raw ID
+      try {
+        entity = await client.getEntity(chatId.toString())
+      } catch {
+        throw new Error(`Could not resolve chat ${chatId}. Is @FriskyAudio a member of this group?`)
       }
+    }
 
-      return await doJoin(channelCall)
+    // Get the full chat/channel to find the active group call
+    let call: any = null
+
+    if (entity.className === 'Channel' || entity.className === 'ChannelForbidden') {
+      const fullChannel = await client.invoke(
+        new Api.channels.GetFullChannel({ channel: entity })
+      )
+      call = (fullChannel?.fullChat as any)?.call
+    } else {
+      const fullChat = await client.invoke(
+        new Api.messages.GetFullChat({ chatId: entity.id as any })
+      )
+      call = (fullChat?.fullChat as any)?.call
+    }
+
+    if (!call) {
+      throw new Error('No active group call in this chat. Start a voice chat first.')
     }
 
     return await doJoin(call)
