@@ -1086,7 +1086,13 @@ function App() {
                   Live control plane only — in demo mode there is no node to signal through. */}
               {!appEnv.demoMode && (
                 <div className="mt-4">
-                  <Suspense fallback={null}>
+                  <Suspense
+                    fallback={
+                      <div className="rounded-lg border border-border/50 p-4 text-xs text-muted-foreground" role="status">
+                        Loading room controls...
+                      </div>
+                    }
+                  >
                     <RoomPanel localStream={cameraStream} />
                   </Suspense>
                 </div>
@@ -1877,7 +1883,7 @@ function App() {
       </div>
       
       {spotifyAccessToken && (
-        <Suspense fallback={null}>
+        <Suspense fallback={<div className="sr-only" role="status">Loading track picker</div>}>
           <SpotifyTrackPicker
             open={showTrackPicker}
             onOpenChange={setShowTrackPicker}
