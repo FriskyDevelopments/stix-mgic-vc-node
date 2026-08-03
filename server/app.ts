@@ -1,9 +1,10 @@
-import { Hono, type Context, type Next } from 'hono'
+import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { z } from 'zod'
 import { getServerEnv } from './env'
 import { exchangeDiscordCode, verifyTelegramLogin, type TelegramLoginPayload } from './auth-providers'
-import { mintOperatorToken, verifyOperatorToken } from './tokens'
+import { mintOperatorToken } from './tokens'
+import { createOperatorMiddleware, type OperatorVariables } from './operator-auth'
 import {
   extendSession,
   getSession,
@@ -19,18 +20,13 @@ import {
   closeRoom,
   createRoom,
   getRoom,
+  isOperatorInRoom,
   listRoomsForOperator,
   recordTelemetry,
   toView,
   MAX_PARTICIPANTS_LIMIT,
 } from './rooms'
 import { SIGNALING_PATH } from './signaling'
-
-type Variables = {
-  operatorId: string
-  operatorName: string
-  operatorPlatform: 'telegram' | 'discord' | 'anonymous'
-}
 
 /** Bounds are sanity checks, not physics: a client reporting 900 fps is a broken client. */
 const telemetrySchema = z.object({
@@ -42,7 +38,7 @@ const telemetrySchema = z.object({
 })
 
 export function createApp() {
-  const app = new Hono<{ Variables: Variables }>()
+  const app = new Hono<{ Variables: OperatorVariables }>()
   const env = getServerEnv()
 
   const allowedOrigins = env.CORS_ALLOWED_ORIGINS
@@ -173,31 +169,8 @@ export function createApp() {
     return c.json({ token })
   })
 
-  app.use('/v1/sessions/*', async (c, next) => {
-    const header = c.req.header('authorization') || ''
-    const token = header.startsWith('Bearer ') ? header.slice(7) : ''
-
-    if (!token) {
-      if (env.AUTH_REQUIRED) {
-        return c.json({ error: 'Operator token required' }, 401)
-      }
-      c.set('operatorId', `anonymous:${c.req.header('x-client-id') || 'local'}`)
-      c.set('operatorName', 'Anonymous Operator')
-      c.set('operatorPlatform', 'anonymous')
-      await next()
-      return
-    }
-
-    const claims = verifyOperatorToken(token)
-    if (!claims) {
-      return c.json({ error: 'Invalid or expired operator token' }, 401)
-    }
-
-    c.set('operatorId', claims.sub)
-    c.set('operatorName', claims.name)
-    c.set('operatorPlatform', claims.platform)
-    await next()
-  })
+  const requireOperator = createOperatorMiddleware(env.AUTH_REQUIRED)
+  app.use('/v1/sessions/*', requireOperator)
 
   app.get('/v1/sessions/current', (c) => {
     const snapshot = getSession(c.get('operatorId'))
@@ -234,35 +207,6 @@ export function createApp() {
 
   // ---- Rooms -------------------------------------------------------------
   // A room is where a call actually happens. Everything under /v1/rooms sits behind the
-  // same operator gate as /v1/sessions: the middleware above matches /v1/sessions/*, so
-  // these routes carry their own copy of it via requireOperator.
-
-  const requireOperator = async (c: Context<{ Variables: Variables }>, next: Next) => {
-    const header = c.req.header('authorization') || ''
-    const token = header.startsWith('Bearer ') ? header.slice(7) : ''
-
-    if (!token) {
-      if (env.AUTH_REQUIRED) {
-        return c.json({ error: 'Operator token required' }, 401)
-      }
-      c.set('operatorId', `anonymous:${c.req.header('x-client-id') || 'local'}`)
-      c.set('operatorName', 'Anonymous Operator')
-      c.set('operatorPlatform', 'anonymous')
-      await next()
-      return
-    }
-
-    const claims = verifyOperatorToken(token)
-    if (!claims) {
-      return c.json({ error: 'Invalid or expired operator token' }, 401)
-    }
-
-    c.set('operatorId', claims.sub)
-    c.set('operatorName', claims.name)
-    c.set('operatorPlatform', claims.platform)
-    await next()
-  }
-
   app.use('/v1/rooms', requireOperator)
   app.use('/v1/rooms/*', requireOperator)
 
@@ -315,8 +259,9 @@ export function createApp() {
     if (!room) return c.json({ error: 'Room not found' }, 404)
 
     const operatorId = c.get('operatorId')
-    const isParticipant = [...room.participants.values()].some((p) => p.operatorId === operatorId)
-    if (!isParticipant) return c.json({ error: 'Not a participant of this room' }, 403)
+    if (!isOperatorInRoom(room.id, operatorId)) {
+      return c.json({ error: 'Not a participant of this room' }, 403)
+    }
 
     const body = await c.req.json<Record<string, unknown>>().catch(() => null)
     const parsed = telemetrySchema.safeParse(body)

@@ -9,8 +9,6 @@ import { SpotifyCallback } from './components/SpotifyCallback.tsx'
 import { ErrorFallback } from './ErrorFallback.tsx'
 
 import "./main.css"
-import "./styles/theme.css"
-import "./index.css"
 
 function Root() {
   const path = window.location.pathname

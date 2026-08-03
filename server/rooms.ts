@@ -74,6 +74,16 @@ export const EMPTY_ROOM_TTL_MS = 10 * 60 * 1000
 export const TELEMETRY_MAX_AGE_MS = 15 * 1000
 
 const rooms = new Map<string, Room>()
+const roomIdsByOwner = new Map<string, Set<string>>()
+const participantIdsByRoomAndOperator = new Map<string, Map<string, string>>()
+
+function removeRoomIndexes(room: Room): void {
+  roomIdsByOwner.get(room.ownerOperatorId)?.delete(room.id)
+  if (roomIdsByOwner.get(room.ownerOperatorId)?.size === 0) {
+    roomIdsByOwner.delete(room.ownerOperatorId)
+  }
+  participantIdsByRoomAndOperator.delete(room.id)
+}
 
 function clampParticipants(requested: number | undefined): number {
   if (requested === undefined || !Number.isFinite(requested)) return DEFAULT_MAX_PARTICIPANTS
@@ -107,6 +117,9 @@ export function createRoom(input: {
     telemetry: null,
   }
   rooms.set(id, room)
+  const ownedRoomIds = roomIdsByOwner.get(room.ownerOperatorId) ?? new Set<string>()
+  ownedRoomIds.add(id)
+  roomIdsByOwner.set(room.ownerOperatorId, ownedRoomIds)
   return room
 }
 
@@ -116,7 +129,12 @@ export function getRoom(roomId: string): Room | null {
 
 /** Rooms owned by one operator. There is no unscoped listing — see the route in app.ts. */
 export function listRoomsForOperator(operatorId: string): Room[] {
-  return [...rooms.values()].filter((room) => room.ownerOperatorId === operatorId)
+  const roomIds = roomIdsByOwner.get(operatorId)
+  if (!roomIds) return []
+  return [...roomIds].flatMap((roomId) => {
+    const room = rooms.get(roomId)
+    return room ? [room] : []
+  })
 }
 
 /**
@@ -132,9 +150,8 @@ export function joinRoom(
   if (!room) return { ok: false, error: 'room_not_found' }
   if (room.participants.size >= room.maxParticipants) return { ok: false, error: 'room_full' }
 
-  for (const existing of room.participants.values()) {
-    if (existing.operatorId === input.operatorId) return { ok: false, error: 'already_joined' }
-  }
+  const participantIds = participantIdsByRoomAndOperator.get(roomId) ?? new Map<string, string>()
+  if (participantIds.has(input.operatorId)) return { ok: false, error: 'already_joined' }
 
   const participant: Participant = {
     id: randomUUID(),
@@ -144,6 +161,8 @@ export function joinRoom(
     joinedAt: Date.now(),
   }
   room.participants.set(participant.id, participant)
+  participantIds.set(input.operatorId, participant.id)
+  participantIdsByRoomAndOperator.set(roomId, participantIds)
   return { ok: true, participant }
 }
 
@@ -153,7 +172,14 @@ export function leaveRoom(roomId: string, participantId: string): Participant | 
   const participant = room.participants.get(participantId)
   if (!participant) return null
   room.participants.delete(participantId)
+  const participantIds = participantIdsByRoomAndOperator.get(roomId)
+  participantIds?.delete(participant.operatorId)
+  if (participantIds?.size === 0) participantIdsByRoomAndOperator.delete(roomId)
   return participant
+}
+
+export function isOperatorInRoom(roomId: string, operatorId: string): boolean {
+  return participantIdsByRoomAndOperator.get(roomId)?.has(operatorId) ?? false
 }
 
 /** Close a room. Only its owner may; everyone else gets `false` and the room stands. */
@@ -162,6 +188,7 @@ export function closeRoom(roomId: string, byOperatorId: string): boolean {
   if (!room) return false
   if (room.ownerOperatorId !== byOperatorId) return false
   rooms.delete(roomId)
+  removeRoomIndexes(room)
   return true
 }
 
@@ -185,9 +212,10 @@ export function currentTelemetry(room: Room, now = Date.now()): RoomTelemetry | 
 /** The room this operator is currently in, if any. One live room per operator. */
 export function findRoomForOperator(operatorId: string): { room: Room; participant: Participant } | null {
   for (const room of rooms.values()) {
-    for (const participant of room.participants.values()) {
-      if (participant.operatorId === operatorId) return { room, participant }
-    }
+    const participantId = participantIdsByRoomAndOperator.get(room.id)?.get(operatorId)
+    if (!participantId) continue
+    const participant = room.participants.get(participantId)
+    if (participant) return { room, participant }
   }
   return null
 }
@@ -198,6 +226,7 @@ export function sweepEmptyRooms(now = Date.now(), ttlMs = EMPTY_ROOM_TTL_MS): nu
   for (const [id, room] of rooms) {
     if (room.participants.size === 0 && now - room.createdAt > ttlMs) {
       rooms.delete(id)
+      removeRoomIndexes(room)
       removed++
     }
   }
@@ -207,6 +236,8 @@ export function sweepEmptyRooms(now = Date.now(), ttlMs = EMPTY_ROOM_TTL_MS): nu
 /** Test seam only — the process never resets its registry at runtime. */
 export function resetRooms(): void {
   rooms.clear()
+  roomIdsByOwner.clear()
+  participantIdsByRoomAndOperator.clear()
 }
 
 export function roomCount(): number {

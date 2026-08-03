@@ -5,6 +5,7 @@ import {
   currentTelemetry,
   findRoomForOperator,
   getRoom,
+  isOperatorInRoom,
   joinRoom,
   leaveRoom,
   listRoomsForOperator,
@@ -106,13 +107,26 @@ describe('leaveRoom', () => {
     expect(leaveRoom('nope', 'x')).toBeNull()
     expect(leaveRoom(room.id, 'x')).toBeNull()
   })
+
+  it('removes the participant from the membership index', () => {
+    const room = createRoom({ ownerOperatorId: OWNER })
+    const joined = joinRoom(room.id, { operatorId: OWNER, name: 'Owner' })
+    if (!joined.ok) throw new Error('setup failed')
+
+    expect(isOperatorInRoom(room.id, OWNER)).toBe(true)
+    leaveRoom(room.id, joined.participant.id)
+    expect(isOperatorInRoom(room.id, OWNER)).toBe(false)
+  })
 })
 
 describe('closeRoom — a room id is a capability', () => {
   it('lets the owner close it', () => {
     const room = createRoom({ ownerOperatorId: OWNER })
+    const joined = joinRoom(room.id, { operatorId: OWNER, name: 'Owner' })
+    if (!joined.ok) throw new Error('setup failed')
     expect(closeRoom(room.id, OWNER)).toBe(true)
     expect(getRoom(room.id)).toBeNull()
+    expect(isOperatorInRoom(room.id, OWNER)).toBe(false)
   })
 
   it('refuses anyone else, and the room stands', () => {

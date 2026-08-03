@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { lazy, Suspense, useState, useEffect } from "react"
 import { usePersistedState } from "@/hooks/use-persisted-state"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
@@ -14,10 +14,8 @@ import { MetricDisplay } from "@/components/MetricDisplay"
 import { LogEntry } from "@/components/LogEntry"
 import { PreviewPanel } from "@/components/PreviewPanel"
 import { BrandControl } from "@/components/BrandControl"
-import { SpotifyTrackPicker } from "@/components/SpotifyTrackPicker"
 import { DeviceSelector } from "@/components/DeviceSelector"
 import { PlatformAccess } from "@/components/PlatformAccess"
-import { RoomPanel } from "@/components/RoomPanel"
 import { 
   Broadcast, 
   Lightning, 
@@ -77,6 +75,13 @@ import {
   type TelegramUser,
   type DiscordUser
 } from "@/lib/auth"
+
+const RoomPanel = lazy(async () => ({
+  default: (await import("@/components/RoomPanel")).RoomPanel,
+}))
+const SpotifyTrackPicker = lazy(async () => ({
+  default: (await import("@/components/SpotifyTrackPicker")).SpotifyTrackPicker,
+}))
 
 type Platform = 'telegram' | 'discord'
 type SessionStatus = 'standby' | 'active' | 'connecting' | 'error' | 'dj-mode'
@@ -1081,7 +1086,9 @@ function App() {
                   Live control plane only — in demo mode there is no node to signal through. */}
               {!appEnv.demoMode && (
                 <div className="mt-4">
-                  <RoomPanel localStream={cameraStream} />
+                  <Suspense fallback={null}>
+                    <RoomPanel localStream={cameraStream} />
+                  </Suspense>
                 </div>
               )}
               
@@ -1870,12 +1877,14 @@ function App() {
       </div>
       
       {spotifyAccessToken && (
-        <SpotifyTrackPicker
-          open={showTrackPicker}
-          onOpenChange={setShowTrackPicker}
-          accessToken={spotifyAccessToken}
-          onTrackSelect={handleSelectSpotifyTrack}
-        />
+        <Suspense fallback={null}>
+          <SpotifyTrackPicker
+            open={showTrackPicker}
+            onOpenChange={setShowTrackPicker}
+            accessToken={spotifyAccessToken}
+            onTrackSelect={handleSelectSpotifyTrack}
+          />
+        </Suspense>
       )}
     </div>
   )

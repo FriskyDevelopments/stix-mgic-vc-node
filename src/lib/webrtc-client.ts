@@ -1,4 +1,5 @@
 import { getAppEnv } from '@/lib/env'
+import { apiHeaders, apiUrl } from '@/lib/api-client'
 import { log } from '@/lib/log'
 import { getOperatorToken } from '@/lib/operator-token'
 
@@ -448,14 +449,9 @@ export class CallClient {
       const measurement = summarizeStats(stats)
       if (!measurement) return
 
-      const env = getAppEnv()
-      const token = getOperatorToken()
-      await fetch(`${env.apiBaseUrl}/v1/rooms/${this.options.roomId}/telemetry`, {
+      await fetch(apiUrl(`/v1/rooms/${this.options.roomId}/telemetry`), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: apiHeaders(),
         body: JSON.stringify(measurement),
       })
     } catch {
