@@ -16,7 +16,7 @@ services:
       - key: AUTH_REQUIRED
         value: "false"
       - key: MEDIA_PLANE_ENABLED
-        value: "false"
+        value: "true"
       - key: OPERATOR_TOKEN_SECRET
         generateValue: true
       - key: DISCORD_CLIENT_ID
@@ -32,4 +32,10 @@ services:
       - key: VITE_DISCORD_CLIENT_ID
         sync: false
       - key: VITE_SPOTIFY_CLIENT_ID
+        value: "cad4d11caecc4418babaf3c39ab9cb7c"
+      - key: TELEGRAM_VC_API_ID
+        sync: false
+      - key: TELEGRAM_VC_API_HASH
+        sync: false
+      - key: TELEGRAM_VC_SESSION_STRING
         sync: false
