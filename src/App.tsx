@@ -20,6 +20,9 @@ import { PlatformAccess } from "@/components/PlatformAccess"
 import { RoomPanel } from "@/components/RoomPanel"
 import { TelegramVcPanel } from "@/components/TelegramVcPanel"
 import { DJModePanel } from "@/components/DJModePanel"
+import { HudFrame } from "@/components/wow/HudFrame"
+import { ParticleField } from "@/components/wow/ParticleField"
+import { AnimatedGradient } from "@/components/wow/AnimatedGradient"
 import { 
   Broadcast, 
   Lightning, 
@@ -976,25 +979,34 @@ function App() {
   }) : []
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="mx-auto max-w-6xl px-4 py-8 space-y-8">
+    <div className="min-h-screen bg-black relative overflow-hidden">
+      {/* Atmospheric background effects */}
+      <AnimatedGradient className="fixed inset-0" opacity={0.08} />
+      <ParticleField className="fixed inset-0" particleCount={80} color="6, 182, 212" speed={0.15} />
+      <ParticleField className="fixed inset-0" particleCount={40} color="139, 92, 246" speed={0.1} maxRadius={1.5} />
+
+      <div className="relative z-10 mx-auto max-w-6xl px-4 py-8 space-y-8">
         
-        <header className="text-center space-y-3">
-          <h1 className="font-mono font-bold text-4xl md:text-5xl tracking-tight">
-            STIX M<span className="text-accent">Λ</span>GIC
+        <header className="text-center space-y-3 relative">
+          <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/5 via-transparent to-transparent pointer-events-none" />
+          <h1 className="font-mono font-bold text-4xl md:text-5xl tracking-tight relative">
+            <span className="absolute -inset-4 bg-gradient-to-r from-cyan-500/20 via-blue-500/10 to-purple-500/20 blur-2xl rounded-full" />
+            <span className="relative">STIX M<span className="text-accent animate-pulse">Λ</span>GIC</span>
           </h1>
-          <div className="h-px w-24 mx-auto bg-gradient-to-r from-transparent via-accent to-transparent" />
-          <p className="text-sm text-muted-foreground">
+          <div className="h-px w-32 mx-auto bg-gradient-to-r from-transparent via-accent to-transparent relative">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400 to-transparent blur-sm animate-pulse" />
+          </div>
+          <p className="text-sm text-cyan-400/60 font-mono tracking-[0.3em] uppercase">
             Multi-Platform Session Control
           </p>
-          <div className="mx-auto max-w-2xl rounded-lg border border-accent/30 bg-accent/5 px-4 py-2">
-            <p className="text-xs text-accent font-mono leading-relaxed">
+          <div className="mx-auto max-w-2xl rounded-lg border border-cyan-500/20 bg-cyan-500/5 backdrop-blur-sm px-4 py-2">
+            <p className="text-xs text-cyan-300/80 font-mono leading-relaxed">
               {getRuntimeBanner()}
             </p>
           </div>
         </header>
 
-        <div className="glass-panel rounded-xl p-4">
+        <HudFrame label="PLATFORM" variant="idle">
           <div className="space-y-3">
             <div className="text-center">
               <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
@@ -1024,7 +1036,7 @@ function App() {
               {platform === 'discord' && 'Target: Discord Voice Channel infrastructure'}
             </div>
           </div>
-        </div>
+        </HudFrame>
 
         <PlatformAccess
           telegramStatus={telegramAuthStatus || 'disconnected'}
