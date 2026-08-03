@@ -12,8 +12,9 @@
  */
 import { Hono } from 'hono'
 import { z } from 'zod'
+import { Api } from 'teleproto'
 import { getTelegramVcEnv } from './env'
-import { getClientStatus } from './client'
+import { getClientStatus, ensureConnected } from './client'
 import {
   joinGroupCall,
   leaveGroupCall,
@@ -154,6 +155,89 @@ export function createTelegramVcRoutes() {
     }
 
     return c.json({ accepted: true, bytes: body.byteLength })
+  })
+
+  /**
+   * List participants in the current group call.
+   */
+  app.get('/participants', async (c) => {
+    const callInfo = getCallInfo()
+    if (callInfo.state !== 'active' || !callInfo.callId) {
+      return c.json({ participants: [], count: 0 })
+    }
+
+    try {
+      const client = await ensureConnected()
+      const result = await client.invoke(
+        new Api.phone.GetGroupCall({
+          call: new Api.InputGroupCall({
+            id: callInfo.callId as any,
+            accessHash: BigInt(0) as any,
+          }),
+          limit: 50,
+        })
+      )
+
+      const participants = ((result as any)?.participants || []).map((p: any) => ({
+        id: p.peer?.userId?.toString() || p.peer?.channelId?.toString() || 'unknown',
+        name: '',
+        muted: Boolean(p.muted),
+        volume: p.volume ?? 10000,
+        date: p.date ?? 0,
+      }))
+
+      // Try to resolve names from the users list in the response
+      const users = (result as any)?.users || []
+      for (const participant of participants) {
+        const user = users.find((u: any) => u.id?.toString() === participant.id)
+        if (user) {
+          participant.name = user.firstName
+            ? `${user.firstName}${user.lastName ? ' ' + user.lastName : ''}`
+            : user.username || `User ${participant.id}`
+        }
+      }
+
+      return c.json({ participants, count: participants.length })
+    } catch (err) {
+      return c.json({ participants: [], count: 0, error: err instanceof Error ? err.message : 'Failed to get participants' })
+    }
+  })
+
+  /**
+   * Mute a participant in the current group call.
+   * Requires admin permissions in the chat.
+   */
+  app.post('/mute', async (c) => {
+    const callInfo = getCallInfo()
+    if (callInfo.state !== 'active' || !callInfo.callId) {
+      return c.json({ error: 'No active call' }, 409)
+    }
+
+    const body = await c.req.json().catch(() => ({}))
+    const participantId = (body as any)?.participantId
+    if (!participantId) {
+      return c.json({ error: 'participantId is required' }, 400)
+    }
+
+    try {
+      const client = await ensureConnected()
+      await client.invoke(
+        new Api.phone.EditGroupCallParticipant({
+          call: new Api.InputGroupCall({
+            id: callInfo.callId as any,
+            accessHash: BigInt(0) as any,
+          }),
+          participant: new Api.InputPeerUser({
+            userId: BigInt(participantId) as any,
+            accessHash: BigInt(0) as any,
+          }),
+          muted: true,
+        })
+      )
+      return c.json({ ok: true })
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : 'Failed to mute participant' }, 500)
+    }
   })
 
   return app
