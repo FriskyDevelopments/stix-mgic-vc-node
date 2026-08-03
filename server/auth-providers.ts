@@ -81,5 +81,6 @@ export function verifyTelegramLogin(payload: TelegramLoginPayload): boolean {
 
   const maxAgeSeconds = 86400
   const now = Math.floor(Date.now() / 1000)
-  return now - payload.auth_date <= maxAgeSeconds
+  const age = now - payload.auth_date
+  return age >= 0 && age <= maxAgeSeconds
 }
