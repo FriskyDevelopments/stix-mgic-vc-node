@@ -8,6 +8,8 @@ import { Slider } from '@/components/ui/slider'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { MediaCompositor, AudioMixer, combineStreams } from '@/lib/compositor'
 import type { VideoSource, OverlayConfig } from '@/lib/compositor'
+import { getWebrtcRelay, type RelayState } from '@/lib/webrtc-relay'
+import { joinCall, leaveCall, switchSource as switchVcSource } from '@/lib/telegram-vc-api'
 
 type VideoSourceType = 'camera' | 'file' | 'none'
 type AudioSourceType = 'mic' | 'file' | 'spotify' | 'none'
@@ -57,6 +59,13 @@ export function DJModePanel({
   // Output
   const [isLive, setIsLive] = useState(false)
   const canvasContainerRef = useRef<HTMLDivElement | null>(null)
+
+  // Telegram VC connection
+  const [chatId, setChatId] = useState('')
+  const [relayState, setRelayState] = useState<RelayState>('idle')
+  const [relayChunksSent, setRelayChunksSent] = useState(0)
+  const relayRef = useRef(getWebrtcRelay())
+  const outputStreamRef = useRef<MediaStream | null>(null)
 
   // Initialize compositor & mixer
   useEffect(() => {
@@ -162,37 +171,109 @@ export function DJModePanel({
     mixerRef.current?.setGain('file', fileGain / 100)
   }, [fileGain])
 
-  // Go live — start the compositor and output the combined stream
+  // Subscribe to relay state changes
+  useEffect(() => {
+    const relay = relayRef.current
+    relay.onStateChange = (state) => {
+      setRelayState(state)
+      if (state === 'streaming') {
+        toast.success('Audio relay active — streaming to Telegram VC')
+      } else if (state === 'error') {
+        toast.error('Audio relay error')
+      } else if (state === 'stopped') {
+        setRelayChunksSent(0)
+      }
+    }
+    relay.onStats = (stats) => {
+      setRelayChunksSent(stats.chunksSent)
+    }
+  }, [])
+
+  // Go live — start compositor, join Telegram VC, begin audio relay
   const goLive = async () => {
     if (!compositorRef.current || !mixerRef.current) return
 
-    await mixerRef.current.resume()
-    const videoStream = compositorRef.current.start()
-    const audioStream = mixerRef.current.getOutputStream()
-    const combined = combineStreams(videoStream, audioStream)
+    try {
+      // 1. Join the Telegram VC call if chatId is provided
+      if (chatId.trim()) {
+        toast.info('Joining Telegram VC...')
+        const joinResult = await joinCall(chatId.trim())
+        if (joinResult.call.state !== 'active') {
+          toast.error('Failed to join VC', {
+            description: joinResult.call.error ?? 'Unknown error',
+          })
+          return
+        }
+        toast.success('Joined Telegram VC')
 
-    onOutputStream?.(combined)
-    setIsLive(true)
+        // 2. Switch source to webrtc-relay
+        await switchVcSource('webrtc-relay', {})
+        toast.success('Relay source activated')
+      }
 
-    // Attach canvas to preview
-    if (canvasContainerRef.current) {
-      const canvas = compositorRef.current.getCanvas()
-      canvas.style.width = '100%'
-      canvas.style.borderRadius = '8px'
-      canvasContainerRef.current.innerHTML = ''
-      canvasContainerRef.current.appendChild(canvas)
+      // 3. Start compositor
+      await mixerRef.current.resume()
+      const videoStream = compositorRef.current.start()
+      const audioStream = mixerRef.current.getOutputStream()
+      const combined = combineStreams(videoStream, audioStream)
+      outputStreamRef.current = combined
+
+      onOutputStream?.(combined)
+      setIsLive(true)
+
+      // 4. Start audio relay if VC is connected
+      if (chatId.trim()) {
+        try {
+          await relayRef.current.start(combined)
+        } catch (relayErr) {
+          console.warn('Relay start failed (VC may not be active):', relayErr)
+        }
+      }
+
+      // Attach canvas to preview
+      if (canvasContainerRef.current) {
+        const canvas = compositorRef.current.getCanvas()
+        canvas.style.width = '100%'
+        canvas.style.borderRadius = '8px'
+        canvasContainerRef.current.innerHTML = ''
+        canvasContainerRef.current.appendChild(canvas)
+      }
+
+      toast.success(chatId.trim() ? 'DJ Mode LIVE → Telegram VC' : 'DJ Mode LIVE (local only)')
+    } catch (err) {
+      toast.error('Go Live failed', {
+        description: err instanceof Error ? err.message : 'Unknown error',
+      })
     }
-
-    toast.success('DJ Mode LIVE')
   }
 
-  const stopLive = () => {
+  const stopLive = async () => {
+    // 1. Stop audio relay
+    if (relayRef.current.state === 'streaming') {
+      await relayRef.current.stop()
+    }
+
+    // 2. Leave Telegram VC
+    if (chatId.trim()) {
+      try {
+        await leaveCall()
+        toast.info('Left Telegram VC')
+      } catch (err) {
+        console.warn('Leave call failed (may already be disconnected):', err)
+      }
+    }
+
+    // 3. Stop compositor
     compositorRef.current?.stop()
     onOutputStream?.(null)
     setIsLive(false)
+
     if (canvasContainerRef.current) {
       canvasContainerRef.current.innerHTML = ''
     }
+
+    outputStreamRef.current = null
+    setRelayState('idle')
     toast.success('DJ Mode stopped')
   }
 
@@ -337,8 +418,28 @@ export function DJModePanel({
           </div>
         </div>
 
+        {/* Telegram VC Chat ID */}
+        <div className="space-y-2 mb-4">
+          <Label className="text-xs font-mono uppercase text-muted-foreground">
+            Telegram Chat ID (optional)
+          </Label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={chatId}
+              onChange={(e) => setChatId(e.target.value)}
+              placeholder="-1001234567890"
+              disabled={isLive}
+              className="flex-1 h-8 rounded-md border border-border bg-black/40 px-3 font-mono text-[11px] text-white placeholder:text-white/20 focus:outline-none focus:border-cyan-500/50"
+            />
+          </div>
+          <p className="text-[9px] text-muted-foreground">
+            Leave empty to run locally without Telegram VC
+          </p>
+        </div>
+
         {/* Go Live / Stop */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 mb-3">
           {!isLive ? (
             <Button
               size="sm"
@@ -359,6 +460,26 @@ export function DJModePanel({
             </Button>
           )}
         </div>
+
+        {/* Relay status */}
+        {chatId.trim() && relayState !== 'idle' && (
+          <div className="flex items-center gap-2 text-[10px] font-mono">
+            <span className={`w-2 h-2 rounded-full ${
+              relayState === 'streaming' ? 'bg-green-400 animate-pulse' :
+              relayState === 'starting' ? 'bg-yellow-400 animate-pulse' :
+              relayState === 'error' ? 'bg-red-400' :
+              'bg-muted-foreground'
+            }`} />
+            <span className="text-muted-foreground uppercase">
+              Relay: {relayState}
+            </span>
+            {relayState === 'streaming' && (
+              <span className="text-green-400/60 ml-auto">
+                {relayChunksSent} chunks sent
+              </span>
+            )}
+          </div>
+        )}
       </GlassCard>
 
       {/* Live Preview */}
