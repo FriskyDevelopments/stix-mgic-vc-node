@@ -18,6 +18,7 @@ import { SpotifyTrackPicker } from "@/components/SpotifyTrackPicker"
 import { DeviceSelector } from "@/components/DeviceSelector"
 import { PlatformAccess } from "@/components/PlatformAccess"
 import { RoomPanel } from "@/components/RoomPanel"
+import { TelegramVcPanel } from "@/components/TelegramVcPanel"
 import { 
   Broadcast, 
   Lightning, 
@@ -1080,8 +1081,9 @@ function App() {
               {/* The preview shows the operator their own camera; this is the actual call.
                   Live control plane only — in demo mode there is no node to signal through. */}
               {!appEnv.demoMode && (
-                <div className="mt-4">
+                <div className="mt-4 space-y-4">
                   <RoomPanel localStream={cameraStream} />
+                  <TelegramVcPanel />
                 </div>
               )}
               
