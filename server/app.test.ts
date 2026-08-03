@@ -162,6 +162,29 @@ describe('rooms API', () => {
     expect((await app.request('/v1/rooms/does-not-exist')).status).toBe(404)
   })
 
+  it('refuses room details to anyone other than the owner', async () => {
+    const app = createApp()
+    const { body } = await createRoomViaApi(app, { name: 'private room' })
+
+    const stranger = await app.request(`/v1/rooms/${body.room.id}`, {
+      headers: { 'x-client-id': 'someone-else' },
+    })
+    expect(stranger.status).toBe(403)
+
+    const owner = await app.request(`/v1/rooms/${body.room.id}`)
+    expect(owner.status).toBe(200)
+  })
+
+  it('rejects a malformed room payload instead of passing it to the registry', async () => {
+    const app = createApp()
+    const res = await app.request('/v1/rooms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: { unexpected: 'object' }, platform: 'unknown' }),
+    })
+    expect(res.status).toBe(400)
+  })
+
   it('lets the owner close a room and refuses everyone else', async () => {
     const app = createApp()
     const { body } = await createRoomViaApi(app)

@@ -100,11 +100,16 @@ function send(socket: WebSocket, payload: unknown): void {
 }
 
 describe('signaling — connection and identity', () => {
-  it('welcomes an anonymous socket with ICE servers when auth is not required', async () => {
+  it('welcomes an anonymous socket without exposing ICE credentials before room admission', async () => {
+    setEnv({
+      TURN_URLS: 'turn:turn.example.net:3478',
+      TURN_USERNAME: 'operator',
+      TURN_CREDENTIAL: 'test-turn-credential',
+    })
     const socket = await connect('?clientId=alice')
     const welcome = await nextMessage(socket, 'welcome')
     expect(welcome.operatorId).toBe('anonymous:alice')
-    expect(Array.isArray(welcome.iceServers)).toBe(true)
+    expect(welcome.iceServers).toBeUndefined()
   })
 
   it('accepts a valid operator token and adopts its identity', async () => {

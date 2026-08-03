@@ -41,6 +41,12 @@ const telemetrySchema = z.object({
   packetLoss: z.number().min(0).max(100),
 })
 
+const createRoomSchema = z.object({
+  name: z.string().max(120).optional(),
+  platform: z.enum(['telegram', 'discord', 'web']).optional(),
+  maxParticipants: z.number().int().optional(),
+})
+
 export function createApp() {
   const app = new Hono<{ Variables: Variables }>()
   const env = getServerEnv()
@@ -267,13 +273,13 @@ export function createApp() {
   app.use('/v1/rooms/*', requireOperator)
 
   app.post('/v1/rooms', async (c) => {
-    type CreateRoomBody = { name?: string; platform?: 'telegram' | 'discord' | 'web'; maxParticipants?: number }
-    const body: CreateRoomBody = await c.req.json<CreateRoomBody>().catch(() => ({}) as CreateRoomBody)
+    const body = await c.req.json<unknown>().catch(() => ({}))
+    const parsed = createRoomSchema.safeParse(body)
+    if (!parsed.success) return c.json({ error: 'Invalid room payload' }, 400)
+
     const room = createRoom({
       ownerOperatorId: c.get('operatorId'),
-      ...(body.name !== undefined ? { name: body.name } : {}),
-      ...(body.platform !== undefined ? { platform: body.platform } : {}),
-      ...(body.maxParticipants !== undefined ? { maxParticipants: body.maxParticipants } : {}),
+      ...parsed.data,
     })
 
     return c.json({
@@ -292,6 +298,9 @@ export function createApp() {
   app.get('/v1/rooms/:id', (c) => {
     const room = getRoom(c.req.param('id'))
     if (!room) return c.json({ error: 'Room not found' }, 404)
+    if (room.ownerOperatorId !== c.get('operatorId')) {
+      return c.json({ error: 'Only the room owner can read its details' }, 403)
+    }
     return c.json({
       room: toView(room),
       signaling: { path: SIGNALING_PATH, iceServers: getIceServers() },

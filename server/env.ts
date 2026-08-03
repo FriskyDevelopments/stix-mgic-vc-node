@@ -57,6 +57,9 @@ export function getServerEnv(): ServerEnv {
   if (data.NODE_ENV === 'production' && !data.OPERATOR_TOKEN_SECRET) {
     throw new Error('OPERATOR_TOKEN_SECRET is required in production')
   }
+  if (data.NODE_ENV === 'production' && !data.AUTH_REQUIRED) {
+    throw new Error('AUTH_REQUIRED must be true in production')
+  }
 
   cached = {
     ...data,

@@ -248,7 +248,9 @@ export function attachSignaling(server: Server): SignalingHub {
     }
     states.set(socket, state)
 
-    send(socket, { type: 'welcome', operatorId: state.operatorId, iceServers: getIceServers() })
+    // Credentials are only needed after a room admission; do not disclose them to a socket
+    // that has not yet proved it can join a room.
+    send(socket, { type: 'welcome', operatorId: state.operatorId })
 
     socket.on('pong', () => {
       state.alive = true
