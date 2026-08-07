@@ -14,7 +14,7 @@ services:
       - key: VITE_DEMO_MODE
         value: "false"
       - key: AUTH_REQUIRED
-        value: "false"
+        value: "true"
       - key: MEDIA_PLANE_ENABLED
         value: "false"
       - key: OPERATOR_TOKEN_SECRET

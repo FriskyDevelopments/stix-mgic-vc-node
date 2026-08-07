@@ -12,9 +12,16 @@ STIX MΛGIC VC NODE — production control-plane for multi-platform session oper
 | Telegram Login Widget HMAC verify | **Ready** when `TELEGRAM_BOT_TOKEN` set |
 | Operator session tokens (HMAC) | **Ready** |
 | Static deploy (Vercel) / Render blueprint / Docker | **Ready** |
-| Media plane (live VC join / RTMP ingest adapters) | **Deferred** — API returns `mediaPlane.ready=false` |
+| Media plane — WebRTC rooms + signalling (`/v1/rooms`, `ws /v1/signal`) | **Ready** (`degraded` without a TURN relay) |
+| Media plane — Telegram VC join / Discord voice / RTMP ingest | **Deferred**, per adapter, with the reason on `/v1/media/status` — see [MEDIA-PLANE.md](MEDIA-PLANE.md) |
 
-Default production mode uses the **live control plane**. Media adapters remain explicitly deferred (not faked as live).
+Default production mode uses the **live control plane**. A browser-to-browser call works
+today: open a room, share the id, and the node relays the negotiation while audio and video
+travel peer to peer. Joining a *Telegram* group call does not, and cannot without MTProto —
+`/v1/media/status` reports that per adapter rather than implying otherwise.
+
+Session telemetry is measured by the participants and reported upward; with nothing
+connected it reads zero and `telemetrySource: "unavailable"`, never an invented bitrate.
 
 ## Local development
 

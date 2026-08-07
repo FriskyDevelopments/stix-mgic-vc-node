@@ -23,6 +23,12 @@ const serverEnvSchema = z.object({
     .transform((v) => v === 'true'),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
   CORS_ALLOWED_ORIGINS: z.string().optional(),
+  // WebRTC. STUN gets most peers connected; TURN is what gets the rest connected, and it
+  // relays media, so it is optional and reported as a capability rather than assumed.
+  STUN_URLS: z.string().optional().transform((v) => v?.trim() || undefined),
+  TURN_URLS: z.string().optional().transform((v) => v?.trim() || undefined),
+  TURN_USERNAME: z.string().optional().transform((v) => v?.trim() || undefined),
+  TURN_CREDENTIAL: z.string().optional().transform((v) => v?.trim() || undefined),
 })
 
 export type ServerEnv = z.infer<typeof serverEnvSchema> & {
@@ -50,6 +56,9 @@ export function getServerEnv(): ServerEnv {
 
   if (data.NODE_ENV === 'production' && !data.OPERATOR_TOKEN_SECRET) {
     throw new Error('OPERATOR_TOKEN_SECRET is required in production')
+  }
+  if (data.NODE_ENV === 'production' && !data.AUTH_REQUIRED) {
+    throw new Error('AUTH_REQUIRED must be true in production')
   }
 
   cached = {

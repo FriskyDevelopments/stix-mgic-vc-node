@@ -8,6 +8,7 @@
  */
 import { getAppEnv } from '@/lib/env'
 import { setOperatorToken } from '@/lib/operator-token'
+import { apiHeaders, apiUrl } from '@/lib/api-client'
 
 export type PlatformAuthStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
 
@@ -158,9 +159,9 @@ export async function verifyTelegramLoginPayload(payload: Record<string, unknown
   user: TelegramUser
   token: string
 }> {
-  const response = await fetch(`${getAppEnv().apiBaseUrl}/v1/auth/telegram/verify`, {
+  const response = await fetch(apiUrl('/v1/auth/telegram/verify'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: apiHeaders(undefined, false),
     body: JSON.stringify(payload),
   })
 
@@ -222,9 +223,9 @@ export async function handleDiscordCallback(code: string): Promise<{
   token: string
   demo?: boolean
 }> {
-  const response = await fetch(`${getAppEnv().apiBaseUrl}/v1/auth/discord/exchange`, {
+  const response = await fetch(apiUrl('/v1/auth/discord/exchange'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: apiHeaders(undefined, false),
     body: JSON.stringify({
       code,
       redirectUri: discordRedirectUri(),
