@@ -66,6 +66,7 @@ export function PlatformAccess({
     switch (status) {
       case 'connected':
         return (
+<<<<<<< HEAD
           <Badge
             variant="outline"
             className={`gap-1.5 text-[10px] font-mono ${
@@ -76,6 +77,11 @@ export function PlatformAccess({
           >
             <CheckCircle size={10} weight="fill" />
             {linked ? 'LINKED' : 'CONNECTED'}
+=======
+          <Badge variant="outline" className="gap-1.5 border-success text-success text-[10px] font-mono">
+            <CheckCircle size={10} weight="fill" />
+            CONNECTED
+>>>>>>> origin/main
           </Badge>
         )
       case 'connecting':
@@ -113,9 +119,13 @@ export function PlatformAccess({
           </Badge>
         </div>
         <p className="text-xs text-muted-foreground">
+<<<<<<< HEAD
           {friskyDevSignedIn
             ? 'Link verified Telegram / Discord identities to your FriskyDev account.'
             : 'Sign in to FriskyDev above first, then link real Telegram and Discord logins.'}
+=======
+          Platform identity for operator session binding. Real Discord/Telegram verification runs through the control-plane API when secrets are configured.
+>>>>>>> origin/main
         </p>
       </div>
 
@@ -305,6 +315,16 @@ export function PlatformAccess({
           </div>
         </div>
       </div>
+<<<<<<< HEAD
+=======
+
+      <div className="glass-panel p-4 rounded-lg bg-muted/20 border border-accent/20">
+        <p className="text-xs text-muted-foreground text-center">
+          <span className="text-accent font-medium">Control-plane auth</span>
+          {' '}— Discord OAuth and Telegram Login Widget verify through the API when secrets are set; otherwise demo identity is used for local UX.
+        </p>
+      </div>
+>>>>>>> origin/main
     </div>
   )
 }

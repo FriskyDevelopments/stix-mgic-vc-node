@@ -92,3 +92,7 @@ docker run --rm -p 10000:10000 -e PORT=10000 -e OPERATOR_TOKEN_SECRET=... stix-m
 Required secrets for real platform login:
 - `DISCORD_CLIENT_ID` + `DISCORD_CLIENT_SECRET` (+ matching `VITE_DISCORD_CLIENT_ID`)
 - `TELEGRAM_BOT_TOKEN` + `TELEGRAM_BOT_USERNAME` (+ `VITE_TELEGRAM_BOT_USERNAME`)
+
+## Related
+
+stixmagic-bot / stixmagic-web — future media-plane adapters attach behind `/v1/media/*`.

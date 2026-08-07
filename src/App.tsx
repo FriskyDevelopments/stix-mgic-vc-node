@@ -398,6 +398,7 @@ function App() {
         }
         setDiscordAuthStatus('connected')
         setDiscordUser(user)
+<<<<<<< HEAD
         if (event.data.linked && event.data.identity) {
           setLinkedIdentities((prev) => {
             const others = prev.filter((i) => i.platform !== 'discord')
@@ -414,6 +415,15 @@ function App() {
           toast.success(event.data.demo ? 'Discord demo authorized' : 'Discord authorized')
         }
         addLog('success', 'AUTH', 'Session authorization ready')
+=======
+        addLog(
+          'success',
+          'AUTH',
+          event.data.demo ? 'Discord demo identity linked' : 'Discord platform identity verified'
+        )
+        addLog('success', 'AUTH', 'Session authorization ready')
+        toast.success(event.data.demo ? 'Discord demo authorized' : 'Discord authorized')
+>>>>>>> origin/main
       }
       
       if (event.data.type === 'discord-auth-error') {
