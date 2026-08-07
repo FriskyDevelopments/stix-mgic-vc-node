@@ -16,6 +16,7 @@ import { PreviewPanel } from "@/components/PreviewPanel"
 import { BrandControl } from "@/components/BrandControl"
 import { DeviceSelector } from "@/components/DeviceSelector"
 import { PlatformAccess } from "@/components/PlatformAccess"
+import { FriskyDevAccountPanel } from "@/components/FriskyDevAccount"
 import { 
   Broadcast, 
   Lightning, 
@@ -71,10 +72,17 @@ import { log } from "@/lib/log"
 import { 
   initiateTelegramAuth, 
   initiateDiscordAuth,
+  verifyTelegramLoginPayload,
   type PlatformAuthStatus,
   type TelegramUser,
   type DiscordUser
 } from "@/lib/auth"
+import {
+  linkTelegramToFriskyDev,
+  unlinkPlatformFromFriskyDev,
+  type FriskyDevAccount,
+  type LinkedPlatformIdentity,
+} from "@/lib/friskydev"
 
 const RoomPanel = lazy(async () => ({
   default: (await import("@/components/RoomPanel")).RoomPanel,
@@ -147,6 +155,22 @@ function App() {
   const [discordAuthStatus, setDiscordAuthStatus] = usePersistedState<PlatformAuthStatus>("discord-auth-status", "disconnected")
   const [discordUser, setDiscordUser] = usePersistedState<DiscordUser | null>("discord-user", null)
   const [discordAuthError, setDiscordAuthError] = useState<string | null>(null)
+  const [friskyDevAccount, setFriskyDevAccount] = useState<FriskyDevAccount | null>(null)
+  const [linkedIdentities, setLinkedIdentities] = useState<LinkedPlatformIdentity[]>([])
+  const [telegramBotUsername, setTelegramBotUsername] = useState<string | null>(
+    (import.meta.env.VITE_TELEGRAM_BOT_USERNAME as string | undefined)?.trim() || null
+  )
+
+  useEffect(() => {
+    fetch(`${appEnv.apiBaseUrl}/v1/config/public`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((cfg) => {
+        if (cfg?.telegramBotUsername) setTelegramBotUsername(cfg.telegramBotUsername)
+      })
+      .catch(() => {
+        // offline / demo — keep env username if any
+      })
+  }, [appEnv.apiBaseUrl])
 
   const protocols: ProtocolConfig[] = [
     { 
@@ -240,6 +264,10 @@ function App() {
   }
 
   const handleTelegramAuth = async () => {
+    if (!friskyDevAccount) {
+      toast.error('Sign in to FriskyDev before linking Telegram')
+      return
+    }
     setTelegramAuthStatus('connecting')
     setTelegramAuthError(null)
     addLog('info', 'AUTH', 'Telegram authorization initiated')
@@ -255,7 +283,58 @@ function App() {
     }
   }
 
-  const handleTelegramDisconnect = () => {
+  const handleTelegramWidgetAuth = async (payload: Record<string, unknown>) => {
+    if (!friskyDevAccount) {
+      toast.error('Sign in to FriskyDev before linking Telegram')
+      return
+    }
+    setTelegramAuthStatus('connecting')
+    setTelegramAuthError(null)
+    addLog('info', 'AUTH', 'Telegram Login Widget payload received')
+    try {
+      const linked = await linkTelegramToFriskyDev(payload)
+      const user: TelegramUser = {
+        id: Number(payload.id),
+        first_name: String(payload.first_name || 'Operator'),
+        last_name: payload.last_name ? String(payload.last_name) : undefined,
+        username: payload.username ? String(payload.username) : undefined,
+        photo_url: payload.photo_url ? String(payload.photo_url) : undefined,
+      }
+      setTelegramUser(user)
+      setTelegramAuthStatus('connected')
+      setLinkedIdentities((prev) => {
+        const others = prev.filter((i) => i.platform !== 'telegram')
+        return [...others, linked.identity]
+      })
+      addLog('success', 'AUTH', 'Telegram linked to FriskyDev account')
+      toast.success('Telegram linked to FriskyDev')
+    } catch (error) {
+      // Fallback: verify without link (operator-only) if link fails due to missing session
+      try {
+        const verified = await verifyTelegramLoginPayload(payload)
+        setTelegramUser(verified.user)
+        setTelegramAuthStatus('connected')
+        addLog('success', 'AUTH', 'Telegram identity verified (not linked)')
+        toast.success('Telegram verified')
+      } catch {
+        const errorMessage = error instanceof Error ? error.message : 'Telegram link failed'
+        setTelegramAuthStatus('error')
+        setTelegramAuthError(errorMessage)
+        addLog('error', 'AUTH', errorMessage)
+        toast.error(errorMessage)
+      }
+    }
+  }
+
+  const handleTelegramDisconnect = async () => {
+    if (linkedIdentities.some((i) => i.platform === 'telegram')) {
+      try {
+        await unlinkPlatformFromFriskyDev('telegram')
+        setLinkedIdentities((prev) => prev.filter((i) => i.platform !== 'telegram'))
+      } catch {
+        // still clear local UI state
+      }
+    }
     setTelegramAuthStatus('disconnected')
     setTelegramUser(null)
     setTelegramAuthError(null)
@@ -264,13 +343,19 @@ function App() {
   }
 
   const handleDiscordAuth = async () => {
+    if (!friskyDevAccount) {
+      toast.error('Sign in to FriskyDev before linking Discord')
+      return
+    }
     setDiscordAuthStatus('connecting')
     setDiscordAuthError(null)
     addLog('info', 'AUTH', 'Discord authorization initiated')
+    sessionStorage.setItem('discord_link_mode', '1')
     
     try {
       initiateDiscordAuth()
     } catch (error) {
+      sessionStorage.removeItem('discord_link_mode')
       const errorMessage = error instanceof Error ? error.message : 'Authorization failed'
       setDiscordAuthStatus('error')
       setDiscordAuthError(errorMessage)
@@ -279,7 +364,15 @@ function App() {
     }
   }
 
-  const handleDiscordDisconnect = () => {
+  const handleDiscordDisconnect = async () => {
+    if (linkedIdentities.some((i) => i.platform === 'discord')) {
+      try {
+        await unlinkPlatformFromFriskyDev('discord')
+        setLinkedIdentities((prev) => prev.filter((i) => i.platform !== 'discord'))
+      } catch {
+        // still clear local UI state
+      }
+    }
     setDiscordAuthStatus('disconnected')
     setDiscordUser(null)
     setDiscordAuthError(null)
@@ -311,6 +404,24 @@ function App() {
         }
         setDiscordAuthStatus('connected')
         setDiscordUser(user)
+<<<<<<< HEAD
+        if (event.data.linked && event.data.identity) {
+          setLinkedIdentities((prev) => {
+            const others = prev.filter((i) => i.platform !== 'discord')
+            return [...others, event.data.identity as LinkedPlatformIdentity]
+          })
+          addLog('success', 'AUTH', 'Discord linked to FriskyDev account')
+          toast.success('Discord linked to FriskyDev')
+        } else {
+          addLog(
+            'success',
+            'AUTH',
+            event.data.demo ? 'Discord demo identity linked' : 'Discord platform identity verified'
+          )
+          toast.success(event.data.demo ? 'Discord demo authorized' : 'Discord authorized')
+        }
+        addLog('success', 'AUTH', 'Session authorization ready')
+=======
         addLog(
           'success',
           'AUTH',
@@ -318,6 +429,7 @@ function App() {
         )
         addLog('success', 'AUTH', 'Session authorization ready')
         toast.success(event.data.demo ? 'Discord demo authorized' : 'Discord authorized')
+>>>>>>> origin/main
       }
       
       if (event.data.type === 'discord-auth-error') {
@@ -1029,6 +1141,35 @@ function App() {
           </div>
         </div>
 
+        <FriskyDevAccountPanel
+          onAccountChange={(account, linked) => {
+            setFriskyDevAccount(account)
+            setLinkedIdentities(linked)
+            if (account) {
+              addLog('success', 'AUTH', `FriskyDev signed in as ${account.email}`)
+            }
+            const tg = linked.find((i) => i.platform === 'telegram')
+            const dc = linked.find((i) => i.platform === 'discord')
+            if (tg) {
+              setTelegramAuthStatus('connected')
+              setTelegramUser({
+                id: Number(tg.externalSubject),
+                first_name: tg.displayName.replace(/^@/, ''),
+                username: tg.displayName.startsWith('@') ? tg.displayName.slice(1) : undefined,
+              })
+            }
+            if (dc) {
+              setDiscordAuthStatus('connected')
+              setDiscordUser({
+                id: dc.externalSubject,
+                username: dc.displayName,
+                discriminator: '0',
+                global_name: dc.displayName,
+              })
+            }
+          }}
+        />
+
         <PlatformAccess
           telegramStatus={telegramAuthStatus || 'disconnected'}
           telegramUser={telegramUser === undefined ? null : telegramUser}
@@ -1036,7 +1177,12 @@ function App() {
           discordStatus={discordAuthStatus || 'disconnected'}
           discordUser={discordUser === undefined ? null : discordUser}
           discordError={discordAuthError}
-          onTelegramAuth={handleTelegramAuth}
+          friskyDevSignedIn={Boolean(friskyDevAccount)}
+          telegramBotUsername={telegramBotUsername}
+          telegramLinked={linkedIdentities.some((i) => i.platform === 'telegram')}
+          discordLinked={linkedIdentities.some((i) => i.platform === 'discord')}
+          onTelegramWidgetAuth={handleTelegramWidgetAuth}
+          onTelegramDemoAuth={handleTelegramAuth}
           onTelegramDisconnect={handleTelegramDisconnect}
           onDiscordAuth={handleDiscordAuth}
           onDiscordDisconnect={handleDiscordDisconnect}

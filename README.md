@@ -66,6 +66,8 @@ docker run --rm -p 10000:10000 -e PORT=10000 -e OPERATOR_TOKEN_SECRET=... stix-m
 | `VITE_SPOTIFY_CLIENT_ID` | Optional Spotify PKCE |
 | `VITE_OPERATOR_TIER` | `free` \| `premium` |
 | `VITE_AUTH_REQUIRED` | UI hint when anonymous operators are disabled |
+| `VITE_POSTHOG_PROJECT_TOKEN` | Optional PostHog project token (blank = analytics off) |
+| `VITE_POSTHOG_HOST` | PostHog API host (default `https://us.i.posthog.com`) |
 
 ### Server (secrets — never prefix with `VITE_`)
 | Var | Purpose |
@@ -86,6 +88,17 @@ docker run --rm -p 10000:10000 -e PORT=10000 -e OPERATOR_TOKEN_SECRET=... stix-m
 | `npm run typecheck` | Client + server types |
 | `npm run test:ci` | Vitest (UI + API) |
 | `npm run lint` | ESLint |
+
+## Identity layers
+
+1. **FriskyDev account (primary)** — register/sign in via `/v1/account/*`
+2. **Telegram / Discord (layer 2)** — verified login, then linked to FriskyDev:
+   - Telegram Login Widget → `POST /v1/account/link/telegram`
+   - Discord OAuth → `POST /v1/account/link/discord`
+
+Required secrets for real platform login:
+- `DISCORD_CLIENT_ID` + `DISCORD_CLIENT_SECRET` (+ matching `VITE_DISCORD_CLIENT_ID`)
+- `TELEGRAM_BOT_TOKEN` + `TELEGRAM_BOT_USERNAME` (+ `VITE_TELEGRAM_BOT_USERNAME`)
 
 ## Related
 

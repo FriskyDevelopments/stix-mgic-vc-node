@@ -9,6 +9,7 @@ import {
   WarningCircle,
   Broadcast,
   User,
+  LinkSimple,
 } from "@phosphor-icons/react"
 import type {
   PlatformAuthStatus,
@@ -21,6 +22,7 @@ import {
   getTelegramPhotoUrl,
   getDiscordAvatarUrl,
 } from "@/lib/auth"
+import { TelegramLoginWidget } from "@/components/TelegramLoginWidget"
 
 interface PlatformAccessProps {
   telegramStatus: PlatformAuthStatus
@@ -29,7 +31,12 @@ interface PlatformAccessProps {
   discordStatus: PlatformAuthStatus
   discordUser: DiscordUser | null
   discordError: string | null
-  onTelegramAuth: () => void
+  friskyDevSignedIn: boolean
+  telegramBotUsername?: string | null
+  telegramLinked?: boolean
+  discordLinked?: boolean
+  onTelegramWidgetAuth: (payload: Record<string, unknown>) => void
+  onTelegramDemoAuth: () => void
   onTelegramDisconnect: () => void
   onDiscordAuth: () => void
   onDiscordDisconnect: () => void
@@ -42,18 +49,39 @@ export function PlatformAccess({
   discordStatus,
   discordUser,
   discordError,
-  onTelegramAuth,
+  friskyDevSignedIn,
+  telegramBotUsername,
+  telegramLinked,
+  discordLinked,
+  onTelegramWidgetAuth,
+  onTelegramDemoAuth,
   onTelegramDisconnect,
   onDiscordAuth,
   onDiscordDisconnect,
 }: PlatformAccessProps) {
-  const getStatusBadge = (status: PlatformAuthStatus, _error: string | null) => {
+  const getStatusBadge = (
+    status: PlatformAuthStatus,
+    linked?: boolean
+  ) => {
     switch (status) {
       case 'connected':
         return (
+<<<<<<< HEAD
+          <Badge
+            variant="outline"
+            className={`gap-1.5 text-[10px] font-mono ${
+              linked
+                ? 'border-success text-success'
+                : 'border-accent text-accent'
+            }`}
+          >
+            <CheckCircle size={10} weight="fill" />
+            {linked ? 'LINKED' : 'CONNECTED'}
+=======
           <Badge variant="outline" className="gap-1.5 border-success text-success text-[10px] font-mono">
             <CheckCircle size={10} weight="fill" />
             CONNECTED
+>>>>>>> origin/main
           </Badge>
         )
       case 'connecting':
@@ -84,13 +112,31 @@ export function PlatformAccess({
     <div className="glass-panel rounded-xl p-6 space-y-4">
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <ShieldCheck size={20} className="text-primary" />
+          <LinkSimple size={20} className="text-primary" />
           <h2 className="text-lg font-semibold">Platform Access</h2>
+          <Badge variant="outline" className="text-[10px] font-mono">
+            LAYER 2
+          </Badge>
         </div>
         <p className="text-xs text-muted-foreground">
+<<<<<<< HEAD
+          {friskyDevSignedIn
+            ? 'Link verified Telegram / Discord identities to your FriskyDev account.'
+            : 'Sign in to FriskyDev above first, then link real Telegram and Discord logins.'}
+=======
           Platform identity for operator session binding. Real Discord/Telegram verification runs through the control-plane API when secrets are configured.
+>>>>>>> origin/main
         </p>
       </div>
+
+      {!friskyDevSignedIn && (
+        <div className="rounded-lg border border-warning/30 bg-warning/5 p-3">
+          <p className="text-xs text-warning flex items-center gap-1.5">
+            <WarningCircle size={12} />
+            FriskyDev session required before platform identities can be linked.
+          </p>
+        </div>
+      )}
 
       <div className="grid md:grid-cols-2 gap-4">
         <div className={`glass-panel p-4 rounded-lg transition-all ${
@@ -110,10 +156,10 @@ export function PlatformAccess({
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold">Telegram</h3>
-                  <p className="text-xs text-muted-foreground">VC session eligible</p>
+                  <p className="text-xs text-muted-foreground">Login Widget verify</p>
                 </div>
               </div>
-              {getStatusBadge(telegramStatus, telegramError)}
+              {getStatusBadge(telegramStatus, telegramLinked)}
             </div>
 
             {telegramStatus === 'connected' && telegramUser && (
@@ -134,16 +180,6 @@ export function PlatformAccess({
                     </div>
                   </div>
                 </div>
-                <div className="text-xs text-accent space-y-1">
-                  <div className="flex items-center gap-1.5">
-                    <CheckCircle size={12} weight="fill" />
-                    <span>Mock operator identity loaded</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <CheckCircle size={12} weight="fill" />
-                    <span>Demo VC binding only — not production</span>
-                  </div>
-                </div>
                 <Button
                   onClick={onTelegramDisconnect}
                   variant="ghost"
@@ -151,7 +187,7 @@ export function PlatformAccess({
                   className="w-full gap-2 text-xs"
                 >
                   <SignOut size={14} />
-                  Disconnect Platform
+                  {telegramLinked ? 'Unlink Telegram' : 'Disconnect'}
                 </Button>
               </div>
             )}
@@ -162,31 +198,31 @@ export function PlatformAccess({
               </div>
             )}
 
-            {telegramStatus === 'disconnected' && (
+            {telegramStatus !== 'connected' && (
               <div className="space-y-3">
-                <div className="text-xs text-muted-foreground space-y-1">
-                  <div>• Telegram account binding</div>
-                  <div>• VC session authorization</div>
-                  <div>• Operator identity verification</div>
-                </div>
-                <Button
-                  onClick={onTelegramAuth}
-                  variant="default"
-                  size="sm"
-                  className="w-full gap-2"
-                >
-                  <SignIn size={16} />
-                  Authorize Telegram
-                </Button>
-              </div>
-            )}
-
-            {telegramStatus === 'connecting' && (
-              <div className="py-6 flex items-center justify-center">
-                <div className="flex flex-col items-center gap-3">
-                  <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                  <p className="text-xs text-muted-foreground">Authorizing platform access...</p>
-                </div>
+                {telegramBotUsername ? (
+                  <TelegramLoginWidget
+                    botUsername={telegramBotUsername}
+                    onAuth={onTelegramWidgetAuth}
+                    disabled={!friskyDevSignedIn}
+                  />
+                ) : (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      Real Telegram Login Widget needs bot username + server token.
+                    </p>
+                    <Button
+                      onClick={onTelegramDemoAuth}
+                      variant="outline"
+                      size="sm"
+                      className="w-full gap-2"
+                      disabled={!friskyDevSignedIn}
+                    >
+                      <SignIn size={16} />
+                      Demo Telegram (no bot configured)
+                    </Button>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -215,10 +251,10 @@ export function PlatformAccess({
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold">Discord</h3>
-                  <p className="text-xs text-muted-foreground">Channel relay available</p>
+                  <p className="text-xs text-muted-foreground">OAuth code exchange</p>
                 </div>
               </div>
-              {getStatusBadge(discordStatus, discordError)}
+              {getStatusBadge(discordStatus, discordLinked)}
             </div>
 
             {discordStatus === 'connected' && discordUser && (
@@ -239,16 +275,6 @@ export function PlatformAccess({
                     </div>
                   </div>
                 </div>
-                <div className="text-xs text-accent space-y-1">
-                  <div className="flex items-center gap-1.5">
-                    <CheckCircle size={12} weight="fill" />
-                    <span>Mock operator identity loaded</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <CheckCircle size={12} weight="fill" />
-                    <span>Demo channel binding only — not production</span>
-                  </div>
-                </div>
                 <Button
                   onClick={onDiscordDisconnect}
                   variant="ghost"
@@ -256,7 +282,7 @@ export function PlatformAccess({
                   className="w-full gap-2 text-xs"
                 >
                   <SignOut size={14} />
-                  Disconnect Platform
+                  {discordLinked ? 'Unlink Discord' : 'Disconnect'}
                 </Button>
               </div>
             )}
@@ -267,36 +293,30 @@ export function PlatformAccess({
               </div>
             )}
 
-            {discordStatus === 'disconnected' && (
+            {(discordStatus === 'disconnected' || discordStatus === 'connecting') && (
               <div className="space-y-3">
                 <div className="text-xs text-muted-foreground space-y-1">
-                  <div>• Discord account binding</div>
-                  <div>• Voice channel authorization</div>
-                  <div>• Operator identity verification</div>
+                  <div>• Real Discord OAuth authorize</div>
+                  <div>• Server-side code → token exchange</div>
+                  <div>• Link to FriskyDev account</div>
                 </div>
                 <Button
                   onClick={onDiscordAuth}
                   variant="default"
                   size="sm"
                   className="w-full gap-2"
+                  disabled={!friskyDevSignedIn || discordStatus === 'connecting'}
                 >
                   <SignIn size={16} />
-                  Authorize Discord
+                  {discordStatus === 'connecting' ? 'Connecting…' : 'Link Discord'}
                 </Button>
-              </div>
-            )}
-
-            {discordStatus === 'connecting' && (
-              <div className="py-6 flex items-center justify-center">
-                <div className="flex flex-col items-center gap-3">
-                  <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                  <p className="text-xs text-muted-foreground">Authorizing platform access...</p>
-                </div>
               </div>
             )}
           </div>
         </div>
       </div>
+<<<<<<< HEAD
+=======
 
       <div className="glass-panel p-4 rounded-lg bg-muted/20 border border-accent/20">
         <p className="text-xs text-muted-foreground text-center">
@@ -304,6 +324,7 @@ export function PlatformAccess({
           {' '}— Discord OAuth and Telegram Login Widget verify through the API when secrets are set; otherwise demo identity is used for local UX.
         </p>
       </div>
+>>>>>>> origin/main
     </div>
   )
 }

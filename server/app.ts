@@ -1,50 +1,47 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import { z } from 'zod'
 import { getServerEnv } from './env'
 import { exchangeDiscordCode, verifyTelegramLogin, type TelegramLoginPayload } from './auth-providers'
-import { mintOperatorToken } from './tokens'
-import { createOperatorMiddleware, type OperatorVariables } from './operator-auth'
+import { mintOperatorToken, verifyOperatorToken } from './tokens'
+import { extractBearer, mintFriskyDevToken, verifyFriskyDevToken } from './friskydev-tokens'
+import {
+  authenticateAccount,
+  configureAccountStore,
+  createAccount,
+  getAccountById,
+  linkIdentity,
+  listLinkedIdentities,
+  publicAccount,
+  unlinkIdentity,
+} from './account-store'
 import {
   extendSession,
   getSession,
-  isSignalingReady,
   startSession,
   stopSession,
   type SessionPlatform,
   type SessionProtocol,
 } from './sessions'
-import { buildMediaPlaneStatus } from './media-plane'
-import { getIceServers } from './ice'
-import {
-  closeRoom,
-  createRoom,
-  getRoom,
-  isOperatorInRoom,
-  listRoomsForOperator,
-  recordTelemetry,
-  toView,
-  MAX_PARTICIPANTS_LIMIT,
-} from './rooms'
-import { SIGNALING_PATH } from './signaling'
 
-/** Bounds are sanity checks, not physics: a client reporting 900 fps is a broken client. */
-const telemetrySchema = z.object({
-  signalQuality: z.number().min(0).max(100),
-  latency: z.number().min(0).max(60_000),
-  frameRate: z.number().min(0).max(240),
-  bitrate: z.number().min(0).max(100_000),
-  packetLoss: z.number().min(0).max(100),
-})
+type Variables = {
+  operatorId: string
+  operatorName: string
+  operatorPlatform: 'telegram' | 'discord' | 'anonymous' | 'friskydev'
+  friskyAccountId?: string
+}
 
-const createRoomSchema = z.object({
-  name: z.string().max(120).optional(),
-  platform: z.enum(['telegram', 'discord', 'web']).optional(),
-  maxParticipants: z.number().int().optional(),
-})
+function requireFriskyDev(c: { req: { header: (name: string) => string | undefined } }) {
+  const token = extractBearer(c.req.header('authorization'))
+  if (!token) return null
+  return verifyFriskyDevToken(token)
+}
 
 export function createApp() {
-  const app = new Hono<{ Variables: OperatorVariables }>()
+  configureAccountStore({
+    persist: process.env.NODE_ENV !== 'test',
+  })
+
+  const app = new Hono<{ Variables: Variables }>()
   const env = getServerEnv()
 
   const allowedOrigins = env.CORS_ALLOWED_ORIGINS
@@ -56,7 +53,7 @@ export function createApp() {
     cors({
       origin: allowedOrigins.includes('*') ? '*' : allowedOrigins,
       allowHeaders: ['Content-Type', 'Authorization'],
-      allowMethods: ['GET', 'POST', 'OPTIONS'],
+      allowMethods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
     })
   )
 
@@ -69,16 +66,17 @@ export function createApp() {
       discordConfigured: env.discordConfigured,
       telegramConfigured: env.telegramConfigured,
       mediaPlaneEnabled: env.MEDIA_PLANE_ENABLED,
+      friskydevAccounts: true,
     })
   )
 
-  // Per-adapter, because one boolean cannot say "can host a WebRTC room, cannot join a
-  // Telegram group call". Each unavailable adapter carries the reason it is unavailable.
   app.get('/v1/media/status', (c) =>
     c.json({
-      ...buildMediaPlaneStatus({ signalingReady: isSignalingReady() }),
-      signalingPath: SIGNALING_PATH,
-      maxParticipants: MAX_PARTICIPANTS_LIMIT,
+      ready: false,
+      enabled: env.MEDIA_PLANE_ENABLED,
+      reason: env.MEDIA_PLANE_ENABLED
+        ? 'Media plane flag enabled but adapters are not wired yet'
+        : 'control-plane-only',
     })
   )
 
@@ -88,8 +86,190 @@ export function createApp() {
       telegramBotUsername: env.TELEGRAM_BOT_USERNAME || null,
       authRequired: env.AUTH_REQUIRED,
       mediaPlaneEnabled: env.MEDIA_PLANE_ENABLED,
+      friskydevEnabled: true,
     })
   )
+
+  app.post('/v1/account/register', async (c) => {
+    const body = await c.req.json<{ email?: string; password?: string; displayName?: string }>()
+    try {
+      const account = createAccount({
+        email: body.email || '',
+        password: body.password || '',
+        displayName: body.displayName || '',
+      })
+      const sessionToken = mintFriskyDevToken({
+        id: account.id,
+        email: account.email,
+        name: account.displayName,
+      })
+      const operatorToken = mintOperatorToken({
+        sub: `friskydev:${account.id}`,
+        platform: 'friskydev',
+        name: account.displayName,
+        accountId: account.id,
+      })
+      return c.json({
+        sessionToken,
+        operatorToken,
+        account: publicAccount(account),
+        linked: [],
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Registration failed'
+      return c.json({ error: message }, 400)
+    }
+  })
+
+  app.post('/v1/account/login', async (c) => {
+    const body = await c.req.json<{ email?: string; password?: string }>()
+    const account = authenticateAccount(body.email || '', body.password || '')
+    if (!account) return c.json({ error: 'Invalid email or password' }, 401)
+
+    const sessionToken = mintFriskyDevToken({
+      id: account.id,
+      email: account.email,
+      name: account.displayName,
+    })
+    const operatorToken = mintOperatorToken({
+      sub: `friskydev:${account.id}`,
+      platform: 'friskydev',
+      name: account.displayName,
+      accountId: account.id,
+    })
+    return c.json({
+      sessionToken,
+      operatorToken,
+      account: publicAccount(account),
+      linked: listLinkedIdentities(account.id).map((i) => ({
+        platform: i.platform,
+        externalSubject: i.externalSubject,
+        displayName: i.displayName,
+        verifiedAt: i.verifiedAt,
+      })),
+    })
+  })
+
+  app.get('/v1/account/me', (c) => {
+    const claims = requireFriskyDev(c)
+    if (!claims) return c.json({ error: 'FriskyDev session required' }, 401)
+    const account = getAccountById(claims.sub)
+    if (!account) return c.json({ error: 'Account not found' }, 404)
+    return c.json({
+      account: publicAccount(account),
+      linked: listLinkedIdentities(account.id).map((i) => ({
+        platform: i.platform,
+        externalSubject: i.externalSubject,
+        displayName: i.displayName,
+        verifiedAt: i.verifiedAt,
+        meta: i.meta,
+      })),
+    })
+  })
+
+  app.post('/v1/account/link/telegram', async (c) => {
+    const claims = requireFriskyDev(c)
+    if (!claims) return c.json({ error: 'FriskyDev session required' }, 401)
+    if (!env.telegramConfigured) {
+      return c.json({ error: 'Telegram auth is not configured' }, 503)
+    }
+
+    const payload = await c.req.json<TelegramLoginPayload>()
+    try {
+      if (!verifyTelegramLogin(payload)) {
+        return c.json({ error: 'Invalid Telegram login payload' }, 401)
+      }
+
+      const linked = linkIdentity({
+        accountId: claims.sub,
+        platform: 'telegram',
+        externalSubject: String(payload.id),
+        displayName: payload.username ? `@${payload.username}` : payload.first_name,
+        meta: {
+          username: payload.username,
+          first_name: payload.first_name,
+          last_name: payload.last_name,
+          photo_url: payload.photo_url,
+        },
+      })
+
+      return c.json({
+        linked: true,
+        identity: {
+          platform: linked.platform,
+          externalSubject: linked.externalSubject,
+          displayName: linked.displayName,
+          verifiedAt: linked.verifiedAt,
+        },
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Telegram link failed'
+      return c.json({ error: message }, 400)
+    }
+  })
+
+  app.post('/v1/account/link/discord', async (c) => {
+    const claims = requireFriskyDev(c)
+    if (!claims) return c.json({ error: 'FriskyDev session required' }, 401)
+    if (!env.discordConfigured) {
+      return c.json({ error: 'Discord OAuth is not configured' }, 503)
+    }
+
+    const body = await c.req.json<{ code?: string; redirectUri?: string }>()
+    if (!body.code) return c.json({ error: 'code is required' }, 400)
+
+    const redirectUri =
+      body.redirectUri ||
+      env.DISCORD_REDIRECT_URI ||
+      `${new URL(c.req.url).origin}/auth/discord/callback`
+
+    try {
+      const user = await exchangeDiscordCode({ code: body.code, redirectUri })
+      const linked = linkIdentity({
+        accountId: claims.sub,
+        platform: 'discord',
+        externalSubject: user.id,
+        displayName: user.global_name || user.username,
+        meta: {
+          username: user.username,
+          discriminator: user.discriminator,
+          avatar: user.avatar,
+          global_name: user.global_name,
+        },
+      })
+
+      return c.json({
+        linked: true,
+        identity: {
+          platform: linked.platform,
+          externalSubject: linked.externalSubject,
+          displayName: linked.displayName,
+          verifiedAt: linked.verifiedAt,
+        },
+        user: {
+          id: user.id,
+          username: user.username,
+          discriminator: user.discriminator,
+          global_name: user.global_name,
+          avatar: user.avatar,
+        },
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Discord link failed'
+      return c.json({ error: message }, 400)
+    }
+  })
+
+  app.delete('/v1/account/link/:platform', (c) => {
+    const claims = requireFriskyDev(c)
+    if (!claims) return c.json({ error: 'FriskyDev session required' }, 401)
+    const platform = c.req.param('platform')
+    if (platform !== 'telegram' && platform !== 'discord') {
+      return c.json({ error: 'platform must be telegram or discord' }, 400)
+    }
+    const unlinked = unlinkIdentity(claims.sub, platform)
+    return c.json({ unlinked })
+  })
 
   app.post('/v1/auth/discord/exchange', async (c) => {
     if (!env.discordConfigured) {
@@ -175,8 +355,42 @@ export function createApp() {
     return c.json({ token })
   })
 
-  const requireOperator = createOperatorMiddleware(env.AUTH_REQUIRED)
-  app.use('/v1/sessions/*', requireOperator)
+  app.use('/v1/sessions/*', async (c, next) => {
+    const header = c.req.header('authorization') || ''
+    const token = header.startsWith('Bearer ') ? header.slice(7) : ''
+
+    if (!token) {
+      if (env.AUTH_REQUIRED) {
+        return c.json({ error: 'Operator token required' }, 401)
+      }
+      c.set('operatorId', `anonymous:${c.req.header('x-client-id') || 'local'}`)
+      c.set('operatorName', 'Anonymous Operator')
+      c.set('operatorPlatform', 'anonymous')
+      await next()
+      return
+    }
+
+    const frisky = verifyFriskyDevToken(token)
+    if (frisky) {
+      c.set('operatorId', `friskydev:${frisky.sub}`)
+      c.set('operatorName', frisky.name)
+      c.set('operatorPlatform', 'friskydev')
+      c.set('friskyAccountId', frisky.sub)
+      await next()
+      return
+    }
+
+    const claims = verifyOperatorToken(token)
+    if (!claims) {
+      return c.json({ error: 'Invalid or expired operator token' }, 401)
+    }
+
+    c.set('operatorId', claims.sub)
+    c.set('operatorName', claims.name)
+    c.set('operatorPlatform', claims.platform)
+    if (claims.accountId) c.set('friskyAccountId', claims.accountId)
+    await next()
+  })
 
   app.get('/v1/sessions/current', (c) => {
     const snapshot = getSession(c.get('operatorId'))
@@ -209,75 +423,6 @@ export function createApp() {
   app.post('/v1/sessions/stop', (c) => {
     const snapshot = stopSession(c.get('operatorId'), env.MEDIA_PLANE_ENABLED)
     return c.json(snapshot)
-  })
-
-  // ---- Rooms -------------------------------------------------------------
-  // A room is where a call actually happens. Everything under /v1/rooms sits behind the
-  app.use('/v1/rooms', requireOperator)
-  app.use('/v1/rooms/*', requireOperator)
-
-  app.post('/v1/rooms', async (c) => {
-    const body = await c.req.json<unknown>().catch(() => ({}))
-    const parsed = createRoomSchema.safeParse(body)
-    if (!parsed.success) return c.json({ error: 'Invalid room payload' }, 400)
-
-    const room = createRoom({
-      ownerOperatorId: c.get('operatorId'),
-      ...parsed.data,
-    })
-
-    return c.json({
-      room: toView(room),
-      // What a client needs to start negotiating, so joining is one round trip.
-      signaling: { path: SIGNALING_PATH, iceServers: getIceServers() },
-    }, 201)
-  })
-
-  // Only the caller's own rooms. There is no route that lists every room on the node —
-  // a room id is a capability, and enumerating them would hand out other operators' calls.
-  app.get('/v1/rooms', (c) =>
-    c.json({ rooms: listRoomsForOperator(c.get('operatorId')).map(toView) })
-  )
-
-  app.get('/v1/rooms/:id', (c) => {
-    const room = getRoom(c.req.param('id'))
-    if (!room) return c.json({ error: 'Room not found' }, 404)
-    if (room.ownerOperatorId !== c.get('operatorId')) {
-      return c.json({ error: 'Only the room owner can read its details' }, 403)
-    }
-    return c.json({
-      room: toView(room),
-      signaling: { path: SIGNALING_PATH, iceServers: getIceServers() },
-    })
-  })
-
-  app.delete('/v1/rooms/:id', (c) => {
-    const room = getRoom(c.req.param('id'))
-    if (!room) return c.json({ error: 'Room not found' }, 404)
-    if (!closeRoom(room.id, c.get('operatorId'))) {
-      return c.json({ error: 'Only the room owner can close it' }, 403)
-    }
-    return c.json({ closed: true })
-  })
-
-  // Telemetry flows UP from participants: frame rate, bitrate and packet loss only exist
-  // inside a peer connection, so the client posts what getStats() measured and the node
-  // serves it back. Nothing here estimates a number.
-  app.post('/v1/rooms/:id/telemetry', async (c) => {
-    const room = getRoom(c.req.param('id'))
-    if (!room) return c.json({ error: 'Room not found' }, 404)
-
-    const operatorId = c.get('operatorId')
-    if (!isOperatorInRoom(room.id, operatorId)) {
-      return c.json({ error: 'Not a participant of this room' }, 403)
-    }
-
-    const body = await c.req.json<Record<string, unknown>>().catch(() => null)
-    const parsed = telemetrySchema.safeParse(body)
-    if (!parsed.success) return c.json({ error: 'Invalid telemetry payload' }, 400)
-
-    const recorded = recordTelemetry(room.id, operatorId, parsed.data)
-    return c.json({ telemetry: recorded })
   })
 
   app.post('/v1/sessions/extend', async (c) => {
