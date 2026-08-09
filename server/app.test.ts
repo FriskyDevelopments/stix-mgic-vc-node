@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach } from 'vitest'
 import { createApp } from './app'
 import { resetServerEnvCache } from './env'
 import { configureAccountStore, resetAccountStore } from './account-store'
+import { setSignalingReady } from './sessions'
 
 describe('control plane API', () => {
   beforeEach(() => {
@@ -12,6 +13,7 @@ describe('control plane API', () => {
     process.env.OPERATOR_TOKEN_SECRET = 'test-operator-token-secret'
     process.env.AUTH_REQUIRED = 'false'
     process.env.MEDIA_PLANE_ENABLED = 'false'
+    setSignalingReady(false)
     delete process.env.DISCORD_CLIENT_ID
     delete process.env.DISCORD_CLIENT_SECRET
     delete process.env.TELEGRAM_BOT_TOKEN
@@ -25,6 +27,22 @@ describe('control plane API', () => {
     expect(body.ok).toBe(true)
     expect(body.mediaPlaneEnabled).toBe(false)
     expect(body.friskydevAccounts).toBe(true)
+  })
+
+  it('reports adapter-level media availability', async () => {
+    setSignalingReady(true)
+    const app = createApp()
+    const res = await app.request('/v1/media/status')
+    expect(res.status).toBe(200)
+
+    const body = await res.json()
+    expect(body.ready).toBe(true)
+    expect(body.adapters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'webrtc', state: 'degraded' }),
+        expect.objectContaining({ id: 'telegram-vc', state: 'not_implemented' }),
+      ])
+    )
   })
 
   it('starts and stops a session without auth when AUTH_REQUIRED=false', async () => {

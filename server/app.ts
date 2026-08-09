@@ -17,11 +17,13 @@ import {
 import {
   extendSession,
   getSession,
+  isSignalingReady,
   startSession,
   stopSession,
   type SessionPlatform,
   type SessionProtocol,
 } from './sessions'
+import { buildMediaPlaneStatus } from './media-plane'
 
 type Variables = {
   operatorId: string
@@ -71,13 +73,7 @@ export function createApp() {
   )
 
   app.get('/v1/media/status', (c) =>
-    c.json({
-      ready: false,
-      enabled: env.MEDIA_PLANE_ENABLED,
-      reason: env.MEDIA_PLANE_ENABLED
-        ? 'Media plane flag enabled but adapters are not wired yet'
-        : 'control-plane-only',
-    })
+    c.json(buildMediaPlaneStatus({ signalingReady: isSignalingReady() }))
   )
 
   app.get('/v1/config/public', (c) =>

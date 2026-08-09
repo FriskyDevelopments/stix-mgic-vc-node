@@ -1,9 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import { ErrorBoundary } from "react-error-boundary";
-<<<<<<< HEAD
 import { PostHogProvider } from '@posthog/react'
-=======
->>>>>>> origin/main
 import { Toaster } from 'sonner'
 import "@github/spark/spark"
 
@@ -71,11 +68,6 @@ function AppTree() {
 
 createRoot(document.getElementById('root')!).render(
   <ErrorBoundary FallbackComponent={ErrorFallback}>
-<<<<<<< HEAD
     <AppTree />
-=======
-    <Root />
-    <Toaster theme="dark" position="bottom-right" richColors closeButton />
->>>>>>> origin/main
   </ErrorBoundary>
 )
