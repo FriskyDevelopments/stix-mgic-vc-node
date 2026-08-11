@@ -33,3 +33,4 @@ pids
 data/
 
 .spark-workbench-id
+.vercel

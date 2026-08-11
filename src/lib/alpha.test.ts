@@ -42,7 +42,7 @@ describe('alpha value helpers', () => {
   })
 
   it('uses demo stream key prefix', () => {
-    expect(generateDemoStreamKey().startsWith('sk_demo_')).toBe(true)
+    expect(generateDemoStreamKey().startsWith('sk_placeholder_')).toBe(true)
   })
 })
 

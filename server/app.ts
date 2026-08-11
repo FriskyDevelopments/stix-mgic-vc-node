@@ -24,6 +24,18 @@ import {
   type SessionProtocol,
 } from './sessions'
 import { buildMediaPlaneStatus } from './media-plane'
+import {
+  closeRoom,
+  createRoom,
+  findRoomForOperator,
+  getRoom,
+  isOperatorInRoom,
+  listRoomsForOperator,
+  recordTelemetry,
+  toView,
+} from './rooms'
+import { getIceServers } from './ice'
+import { SIGNALING_PATH } from './signaling'
 
 type Variables = {
   operatorId: string
@@ -428,6 +440,138 @@ export function createApp() {
     if (!result) return c.json({ error: 'No active session' }, 404)
     return c.json(result)
   })
+
+  // Room CRUD — the REST half of the media plane.
+  // Auth is the same as sessions: anonymous when allowed, token-verified otherwise.
+  app.use('/v1/rooms/*', async (c, next) => {
+    const header = c.req.header('authorization') || ''
+    const token = header.startsWith('Bearer ') ? header.slice(7) : ''
+
+    if (!token) {
+      if (env.AUTH_REQUIRED) {
+        return c.json({ error: 'Operator token required' }, 401)
+      }
+      c.set('operatorId', `anonymous:${c.req.header('x-client-id') || 'local'}`)
+      c.set('operatorName', 'Anonymous Operator')
+      c.set('operatorPlatform', 'anonymous')
+      await next()
+      return
+    }
+
+    const frisky = verifyFriskyDevToken(token)
+    if (frisky) {
+      c.set('operatorId', `friskydev:${frisky.sub}`)
+      c.set('operatorName', frisky.name)
+      c.set('operatorPlatform', 'friskydev')
+      c.set('friskyAccountId', frisky.sub)
+      await next()
+      return
+    }
+
+    const claims = verifyOperatorToken(token)
+    if (!claims) {
+      return c.json({ error: 'Invalid or expired operator token' }, 401)
+    }
+
+    c.set('operatorId', claims.sub)
+    c.set('operatorName', claims.name)
+    c.set('operatorPlatform', claims.platform)
+    if (claims.accountId) c.set('friskyAccountId', claims.accountId)
+    await next()
+  })
+
+  app.post('/v1/rooms', async (c) => {
+    const body = await c.req.json<{
+      name?: string
+      platform?: 'telegram' | 'discord' | 'web'
+      maxParticipants?: number
+    }>()
+    const room = createRoom({
+      ownerOperatorId: c.get('operatorId'),
+      name: body.name,
+      platform: body.platform,
+      maxParticipants: body.maxParticipants,
+    })
+    return c.json({
+      room: toView(room),
+      signaling: {
+        path: SIGNALING_PATH,
+        iceServers: getIceServers(),
+      },
+    })
+  })
+
+  app.get('/v1/rooms', (c) => {
+    const rooms = listRoomsForOperator(c.get('operatorId'))
+    return c.json({ rooms: rooms.map((room) => toView(room)) })
+  })
+
+  app.get('/v1/rooms/:id', (c) => {
+    const room = getRoom(c.req.param('id'))
+    if (!room) return c.json({ error: 'Room not found' }, 404)
+
+    const operatorId = c.get('operatorId')
+    const isOwner = room.ownerOperatorId === operatorId
+    const isParticipant = isOperatorInRoom(room.id, operatorId)
+    if (!isOwner && !isParticipant) {
+      return c.json({ error: 'Only the room owner or a participant may view this room' }, 403)
+    }
+
+    return c.json({
+      room: toView(room),
+      signaling: {
+        path: SIGNALING_PATH,
+        iceServers: getIceServers(),
+      },
+    })
+  })
+
+  app.delete('/v1/rooms/:id', (c) => {
+    const roomId = c.req.param('id')
+    const operatorId = c.get('operatorId')
+    if (!closeRoom(roomId, operatorId)) {
+      return c.json({ error: 'Only the room owner can close it' }, 403)
+    }
+    return c.json({ ok: true })
+  })
+
+  app.post('/v1/rooms/:id/telemetry', async (c) => {
+    const roomId = c.req.param('id')
+    const operatorId = c.get('operatorId')
+
+    const membership = findRoomForOperator(operatorId)
+    if (!membership || membership.room.id !== roomId) {
+      return c.json({ error: 'Not in this room' }, 403)
+    }
+
+    const body = await c.req.json<{
+      signalQuality: number
+      latency: number
+      frameRate: number
+      bitrate: number
+      packetLoss: number
+    }>()
+    const recorded = recordTelemetry(roomId, operatorId, body)
+    if (!recorded) return c.json({ error: 'Room not found' }, 404)
+    return c.json(recorded)
+  })
+
+  // Telegram VC adapter — honestly unavailable until a real MTProto user session exists.
+  // The client polls /v1/telegram-vc/status and shows "not configured" when these
+  // routes return 503; no functional Join/Leave buttons are ever rendered.
+  app.all('/v1/telegram-vc/*', (c) =>
+    c.json(
+      {
+        error:
+          'Telegram VC adapter is not implemented. Joining a group call requires MTProto with a user session.',
+        adapter: 'telegram-vc',
+        available: false,
+        reason:
+          'joining a Telegram group call requires MTProto with a dedicated user session — not a bot token. Owner decision pending.',
+      },
+      503
+    )
+  )
 
   return app
 }

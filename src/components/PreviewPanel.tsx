@@ -14,8 +14,7 @@ import {
   ArrowsClockwise,
   VideoCamera,
   Package,
-  Lightning,
-  ArrowsDownUp
+  Lightning
 } from "@phosphor-icons/react"
 
 import type { SpotifyTrack } from "@/lib/spotify"
@@ -81,13 +80,15 @@ export function PreviewPanel({
   onVideoDeviceChange,
   onAudioDeviceChange
 }: PreviewPanelProps) {
+  void onVideoDeviceChange
+  void onAudioDeviceChange
   const [previewEnabled, setPreviewEnabled] = useState(true)
   const [overlayEnabled, setOverlayEnabled] = useState(true)
   const [safeModeEnabled, setSafeModeEnabled] = useState(false)
   const [visionCondition, setVisionCondition] = useState<VisionCondition>('no-signal')
   const [extractedColors, setExtractedColors] = useState<ExtractedColors | null>(null)
-  const [isExtractingColors, setIsExtractingColors] = useState(false)
-  const [previousTrackId, setPreviousTrackId] = useState<string | null>(null)
+  const isExtractingColorsRef = useRef(false)
+  const previousTrackIdRef = useRef<string | null>(null)
   const [isTransitioning, setIsTransitioning] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
 
@@ -122,19 +123,19 @@ export function PreviewPanel({
         djAudioSource === 'spotify' && 
         spotifyTrack?.album?.images?.[0]?.url &&
         spotifyStatus === 'connected' &&
-        !isExtractingColors
+        !isExtractingColorsRef.current
       ) {
         const currentTrackId = spotifyTrack.id
         
-        if (currentTrackId !== previousTrackId && previousTrackId !== null) {
+        if (currentTrackId !== previousTrackIdRef.current && previousTrackIdRef.current !== null) {
           setIsTransitioning(true)
         }
         
         try {
-          setIsExtractingColors(true)
+          isExtractingColorsRef.current = true
           const colors = await extractColorsFromImage(spotifyTrack.album.images[0].url)
           setExtractedColors(colors)
-          setPreviousTrackId(currentTrackId)
+          previousTrackIdRef.current = currentTrackId
           
           setTimeout(() => {
             setIsTransitioning(false)
@@ -144,11 +145,11 @@ export function PreviewPanel({
           setExtractedColors(null)
           setIsTransitioning(false)
         } finally {
-          setIsExtractingColors(false)
+          isExtractingColorsRef.current = false
         }
       } else if (sessionStatus !== 'dj-mode' || djAudioSource !== 'spotify') {
         setExtractedColors(null)
-        setPreviousTrackId(null)
+        previousTrackIdRef.current = null
         setIsTransitioning(false)
       }
     }
