@@ -82,6 +82,9 @@ export function CallStage({ roomId, localStream, onStateChange }: CallStageProps
     const client = new CallClient({
       roomId,
       localStream,
+      // Survive a transient signaling drop: re-open the socket and re-join the same room
+      // with capped exponential backoff rather than ending the call.
+      reconnect: { enabled: true },
       events: {
         onStateChange: (next) => {
           setState(next)
