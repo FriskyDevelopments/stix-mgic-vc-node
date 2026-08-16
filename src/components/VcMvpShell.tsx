@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { Camera, DotsThree, Microphone, MicrophoneSlash, MonitorArrowUp, SlidersHorizontal, VideoCamera, VideoCameraSlash, X } from '@phosphor-icons/react'
 import type { CallClient } from '@/lib/webrtc-client'
-// Supabase FriskyDev — the Fenrir master identity (auth.users.id), the same project and
-// SSO providers LORE uses. Replaces the Authentik-backed gate so a VC operator is the
-// same principal as that person everywhere else in Fenrir.
-import { FriskyDevIdentityGate } from '@/components/FriskyDevIdentityGate'
+// The node chooses the IdP at runtime (IDENTITY_PROVIDER). Supabase FriskyDev is the
+// Fenrir master identity (auth.users.id) and the intended destination; Authentik remains
+// the default until this origin is on the Supabase redirect allow-list.
+import { IdentityGate } from '@/components/IdentityGate'
 import { RoomPanel } from '@/components/RoomPanel'
 import { CreatorTools } from '@/components/CreatorTools'
 import '@/styles/vc-mvp.css'
@@ -143,9 +143,7 @@ export function VcMvpShell() {
         <a className="vc-brand" href="/" aria-label="VC Node home"><img className="vc-mark" src="/vc-node-icon.png?v=2" alt="" /><span><strong>VC NODE</strong><small>FRISKY DEVELOPMENTS</small></span></a>
         <div className="vc-header-right"><span className="vc-live"><i /> NODE ONLINE</span><button className="vc-studio-trigger" onClick={() => setStudioOpen((open) => !open)}><SlidersHorizontal size={17} /> Studio</button></div>
       </header>
-      <section className="vc-identity">
-        <FriskyDevIdentityGate onChange={(identity) => setAuthenticated(Boolean(identity))} />
-      </section>
+      <section className="vc-identity"><IdentityGate onChange={setAuthenticated} /></section>
       <section className="vc-stage" aria-label="Local video preview">
         <video ref={videoRef} autoPlay muted playsInline />
         {!previewStream && <div className="vc-stage-empty"><div className="vc-camera-orbit"><Camera size={32} weight="light" /></div><p>Ready when you are</p><span>Camera and microphone stay on this device until you join a room.</span><button className="vc-primary" onClick={() => void enableMedia()}>Start camera</button></div>}

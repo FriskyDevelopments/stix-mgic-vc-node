@@ -103,6 +103,11 @@ export function createApp() {
       friskydevEnabled: true,
       friskydevIdConfigured: env.oidcConfigured,
       supabaseIdentityConfigured: env.supabaseConfigured,
+      // Which sign-in surface to render. Falls back to Authentik whenever Supabase is
+      // selected but not actually configured, so a half-set env can never produce a
+      // sign-in screen with nothing behind it.
+      identityProvider:
+        env.IDENTITY_PROVIDER === 'supabase' && env.supabaseConfigured ? 'supabase' : 'authentik',
     })
   )
 

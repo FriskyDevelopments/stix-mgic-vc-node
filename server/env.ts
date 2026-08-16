@@ -38,6 +38,13 @@ const serverEnvSchema = z.object({
   // must never appear in this process.
   SUPABASE_URL: z.string().url().optional().transform((v) => v?.replace(/\/$/, '')),
   SUPABASE_ANON_KEY: z.string().optional().transform((v) => v?.trim() || undefined),
+  /**
+   * Which IdP the sign-in surface actually offers. Runtime, not build-time, so switching
+   * is an env change and a restart rather than a rebuild — and so a misconfigured Supabase
+   * redirect allow-list can be rolled back in seconds without shipping a new image.
+   * Defaults to `authentik` because that is what is proven working in production.
+   */
+  IDENTITY_PROVIDER: z.enum(['authentik', 'supabase']).default('authentik'),
   // WebRTC. STUN gets most peers connected; TURN is what gets the rest connected, and it
   // relays media, so it is optional and reported as a capability rather than assumed.
   STUN_URLS: z.string().optional().transform((v) => v?.trim() || undefined),
