@@ -19,6 +19,11 @@ const envSchema = z.object({
   VITE_AUTH_REQUIRED: z.enum(['true', 'false']).optional(),
   VITE_POSTHOG_PROJECT_TOKEN: optionalTrimmed,
   VITE_POSTHOG_HOST: optionalTrimmed,
+  // Supabase FriskyDev — the Fenrir master identity. Optional here because
+  // `supabase-identity.ts` carries the same public defaults LORE does; these only
+  // override them per-deployment.
+  VITE_SUPABASE_URL: optionalTrimmed,
+  VITE_SUPABASE_ANON_KEY: optionalTrimmed,
 })
 
 export type AppEnv = {
@@ -45,6 +50,8 @@ function readRawEnv() {
     VITE_AUTH_REQUIRED: import.meta.env.VITE_AUTH_REQUIRED as string | undefined,
     VITE_POSTHOG_PROJECT_TOKEN: import.meta.env.VITE_POSTHOG_PROJECT_TOKEN as string | undefined,
     VITE_POSTHOG_HOST: import.meta.env.VITE_POSTHOG_HOST as string | undefined,
+    VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL as string | undefined,
+    VITE_SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined,
   }
 }
 

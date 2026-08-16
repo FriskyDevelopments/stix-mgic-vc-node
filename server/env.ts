@@ -5,6 +5,7 @@ const serverEnvSchema = z.object({
   HOST: z.string().default('0.0.0.0'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   VITE_DIST_DIR: z.string().default('dist'),
+  ROOMS_STATE_PATH: z.string().optional().transform((v) => v?.trim() || undefined),
   DISCORD_CLIENT_ID: z.string().optional().transform((v) => v?.trim() || undefined),
   DISCORD_CLIENT_SECRET: z.string().optional().transform((v) => v?.trim() || undefined),
   DISCORD_REDIRECT_URI: z.string().optional().transform((v) => v?.trim() || undefined),
@@ -17,12 +18,26 @@ const serverEnvSchema = z.object({
     .enum(['true', 'false'])
     .optional()
     .transform((v) => v === 'true'),
+  PUBLIC_ROOMS_ENABLED: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((v) => v === 'true'),
   MEDIA_PLANE_ENABLED: z
     .enum(['true', 'false'])
     .optional()
     .transform((v) => v === 'true'),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
   CORS_ALLOWED_ORIGINS: z.string().optional(),
+  AUTHENTIK_ISSUER: z.string().url().optional().transform((v) => v?.replace(/\/$/, '')),
+  OIDC_CLIENT_ID: z.string().optional().transform((v) => v?.trim() || undefined),
+  OIDC_CLIENT_SECRET: z.string().optional().transform((v) => v?.trim() || undefined),
+  OIDC_REDIRECT_URI: z.string().url().optional(),
+  // Supabase FriskyDev — the Fenrir master identity (auth.users.id). Same project LORE
+  // uses; VC node deliberately does not get its own. The anon/publishable key is public
+  // by design: it ships in the client bundle and is policed by RLS. The service-role key
+  // must never appear in this process.
+  SUPABASE_URL: z.string().url().optional().transform((v) => v?.replace(/\/$/, '')),
+  SUPABASE_ANON_KEY: z.string().optional().transform((v) => v?.trim() || undefined),
   // WebRTC. STUN gets most peers connected; TURN is what gets the rest connected, and it
   // relays media, so it is optional and reported as a capability rather than assumed.
   STUN_URLS: z.string().optional().transform((v) => v?.trim() || undefined),
@@ -35,6 +50,8 @@ export type ServerEnv = z.infer<typeof serverEnvSchema> & {
   operatorTokenSecret: string
   discordConfigured: boolean
   telegramConfigured: boolean
+  oidcConfigured: boolean
+  supabaseConfigured: boolean
 }
 
 let cached: ServerEnv | null = null
@@ -66,6 +83,10 @@ export function getServerEnv(): ServerEnv {
     operatorTokenSecret,
     discordConfigured: Boolean(data.DISCORD_CLIENT_ID && data.DISCORD_CLIENT_SECRET),
     telegramConfigured: Boolean(data.TELEGRAM_BOT_TOKEN),
+    oidcConfigured: Boolean(
+      data.AUTHENTIK_ISSUER && data.OIDC_CLIENT_ID && data.OIDC_CLIENT_SECRET && data.OIDC_REDIRECT_URI
+    ),
+    supabaseConfigured: Boolean(data.SUPABASE_URL && data.SUPABASE_ANON_KEY),
   }
 
   return cached

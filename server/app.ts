@@ -32,15 +32,19 @@ import {
   isOperatorInRoom,
   listRoomsForOperator,
   recordTelemetry,
+  scheduleRoom,
   toView,
 } from './rooms'
 import { getIceServers } from './ice'
 import { SIGNALING_PATH } from './signaling'
+import { beginPairing, confirmPairing, pairingStatus } from './telegram-vc-pair'
+import { oidcCallback, oidcLogout, oidcMe, oidcStart, sessionClaimsFromCookie } from './oidc'
+import { supabaseSession } from './supabase-auth'
 
 type Variables = {
   operatorId: string
   operatorName: string
-  operatorPlatform: 'telegram' | 'discord' | 'anonymous' | 'friskydev'
+  operatorPlatform: 'telegram' | 'discord' | 'anonymous' | 'friskydev' | 'supabase'
   friskyAccountId?: string
 }
 
@@ -66,8 +70,8 @@ export function createApp() {
     '/v1/*',
     cors({
       origin: allowedOrigins.includes('*') ? '*' : allowedOrigins,
-      allowHeaders: ['Content-Type', 'Authorization'],
-      allowMethods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+      allowHeaders: ['Content-Type', 'Authorization', 'X-Client-Id'],
+      allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     })
   )
 
@@ -81,6 +85,8 @@ export function createApp() {
       telegramConfigured: env.telegramConfigured,
       mediaPlaneEnabled: env.MEDIA_PLANE_ENABLED,
       friskydevAccounts: true,
+      friskydevIdConfigured: env.oidcConfigured,
+      supabaseIdentityConfigured: env.supabaseConfigured,
     })
   )
 
@@ -95,8 +101,19 @@ export function createApp() {
       authRequired: env.AUTH_REQUIRED,
       mediaPlaneEnabled: env.MEDIA_PLANE_ENABLED,
       friskydevEnabled: true,
+      friskydevIdConfigured: env.oidcConfigured,
+      supabaseIdentityConfigured: env.supabaseConfigured,
     })
   )
+
+  app.get('/v1/auth/oidc/start', oidcStart)
+  app.get('/v1/auth/oidc/callback', oidcCallback)
+  app.get('/v1/auth/oidc/me', oidcMe)
+  app.post('/v1/auth/oidc/logout', oidcLogout)
+  // Supabase FriskyDev — the Fenrir master identity. Exchanges a Supabase access token
+  // (obtained by the browser via SSO/PKCE) for the same `vc_session` cookie the OIDC path
+  // issues, so rooms and signaling gate on `auth.users.id` with no downstream changes.
+  app.post('/v1/auth/supabase/session', supabaseSession)
 
   app.post('/v1/account/register', async (c) => {
     const body = await c.req.json<{ email?: string; password?: string; displayName?: string }>()
@@ -446,9 +463,18 @@ export function createApp() {
   app.use('/v1/rooms/*', async (c, next) => {
     const header = c.req.header('authorization') || ''
     const token = header.startsWith('Bearer ') ? header.slice(7) : ''
+    const cookieClaims = !token ? sessionClaimsFromCookie(c.req.header('cookie')) : null
+
+    if (cookieClaims) {
+      c.set('operatorId', cookieClaims.sub)
+      c.set('operatorName', cookieClaims.name)
+      c.set('operatorPlatform', cookieClaims.platform)
+      await next()
+      return
+    }
 
     if (!token) {
-      if (env.AUTH_REQUIRED) {
+      if (env.AUTH_REQUIRED && !env.PUBLIC_ROOMS_ENABLED) {
         return c.json({ error: 'Operator token required' }, 401)
       }
       c.set('operatorId', `anonymous:${c.req.header('x-client-id') || 'local'}`)
@@ -485,12 +511,14 @@ export function createApp() {
       name?: string
       platform?: 'telegram' | 'discord' | 'web'
       maxParticipants?: number
+      scheduledFor?: number
     }>()
     const room = createRoom({
       ownerOperatorId: c.get('operatorId'),
       name: body.name,
       platform: body.platform,
       maxParticipants: body.maxParticipants,
+      scheduledFor: body.scheduledFor,
     })
     return c.json({
       room: toView(room),
@@ -499,6 +527,13 @@ export function createApp() {
         iceServers: getIceServers(),
       },
     })
+  })
+
+  app.patch('/v1/rooms/:id/schedule', async (c) => {
+    const body = await c.req.json<{ scheduledFor?: number }>()
+    const room = scheduleRoom(c.req.param('id'), c.get('operatorId'), Number(body.scheduledFor))
+    if (!room) return c.json({ error: 'Invalid schedule or only the room owner may change it' }, 400)
+    return c.json({ room: toView(room) })
   })
 
   app.get('/v1/rooms', (c) => {
@@ -513,7 +548,10 @@ export function createApp() {
     const operatorId = c.get('operatorId')
     const isOwner = room.ownerOperatorId === operatorId
     const isParticipant = isOperatorInRoom(room.id, operatorId)
-    if (!isOwner && !isParticipant) {
+    // In authenticated production the unguessable room UUID is the invitation capability.
+    // Guests must read signaling configuration before their WebSocket can join the room.
+    // Anonymous local mode stays owner/participant-only unless public rooms are explicit.
+    if (!env.AUTH_REQUIRED && !env.PUBLIC_ROOMS_ENABLED && !isOwner && !isParticipant) {
       return c.json({ error: 'Only the room owner or a participant may view this room' }, 403)
     }
 
@@ -554,6 +592,54 @@ export function createApp() {
     const recorded = recordTelemetry(roomId, operatorId, body)
     if (!recorded) return c.json({ error: 'Room not found' }, 404)
     return c.json(recorded)
+  })
+
+  // A Telegram MTProto session can control live call participants. Keep this surface
+  // behind the same operator authentication boundary as rooms before any adapter is
+  // wired; an unauthenticated browser must never be able to probe or operate it.
+  app.use('/v1/telegram-vc/*', async (c, next) => {
+    const header = c.req.header('authorization') || ''
+    const token = header.startsWith('Bearer ') ? header.slice(7) : ''
+
+    if (!token) return c.json({ error: 'Operator token required' }, 401)
+
+    const frisky = verifyFriskyDevToken(token)
+    if (frisky) {
+      c.set('operatorId', `friskydev:${frisky.sub}`)
+      c.set('operatorName', frisky.name)
+      c.set('operatorPlatform', 'friskydev')
+      c.set('friskyAccountId', frisky.sub)
+      await next()
+      return
+    }
+
+    const claims = verifyOperatorToken(token)
+    if (!claims) return c.json({ error: 'Invalid or expired operator token' }, 401)
+
+    c.set('operatorId', claims.sub)
+    c.set('operatorName', claims.name)
+    c.set('operatorPlatform', claims.platform)
+    if (claims.accountId) c.set('friskyAccountId', claims.accountId)
+    await next()
+  })
+
+  app.get('/v1/telegram-vc/pair/status', (c) => c.json(pairingStatus()))
+
+  app.post('/v1/telegram-vc/pair/start', async (c) => {
+    try {
+      return c.json(await beginPairing())
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : 'Could not send Telegram code' }, 503)
+    }
+  })
+
+  app.post('/v1/telegram-vc/pair/confirm', async (c) => {
+    const body = await c.req.json<{ code?: string }>()
+    try {
+      return c.json(await confirmPairing(body.code || ''))
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : 'Could not verify Telegram code' }, 400)
+    }
   })
 
   // Telegram VC adapter — honestly unavailable until a real MTProto user session exists.
