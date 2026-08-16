@@ -67,9 +67,30 @@ If the env changed too, restore `/opt/vc-node.env.bak-<date>` first.
 - `supabase` — Supabase FriskyDev, the Fenrir master identity (`auth.users.id`), the same
   project and SSO providers LORE uses.
 
-Switching is an env edit plus `docker restart vc-node`. No rebuild, because the value is
-served from `/v1/config/public` rather than inlined into the bundle. The server refuses to
-advertise `supabase` unless `SUPABASE_URL` and `SUPABASE_ANON_KEY` are also set.
+No rebuild is needed, because the value is served from `/v1/config/public` rather than
+inlined into the bundle. The server refuses to advertise `supabase` unless `SUPABASE_URL`
+and `SUPABASE_ANON_KEY` are also set.
+
+**`docker restart` is not enough.** `--env-file` is read once, when the container is
+*created*. Restarting reuses the environment baked in at `docker run`, so editing
+`/opt/vc-node.env` and restarting changes nothing — and worse, it leaves the file
+disagreeing with the running container, so the next recreate silently adopts a value
+nobody meant to apply. Switching requires recreating:
+
+```bash
+ssh hermes '
+  sed -i "s/^IDENTITY_PROVIDER=.*/IDENTITY_PROVIDER=supabase/" /opt/vc-node.env
+  docker rm -f vc-node
+  docker run -d --name vc-node --restart unless-stopped \
+    --env-file /opt/vc-node.env -p 127.0.0.1:8797:8797 \
+    -v /opt/vc-node-data:/data vc-node:supabase-identity
+  sleep 8
+  curl -s localhost:8797/v1/config/public | grep -o "\"identityProvider\":\"[a-z]*\""
+'
+```
+
+Always confirm with that last line. If it still prints `authentik`, the change did not
+take — do not assume it did.
 
 ### Before switching to `supabase`
 
