@@ -9,16 +9,18 @@ STIX MΛGIC VC NODE — production control-plane for multi-platform session oper
 | Control-plane API (`/v1/sessions`, `/v1/auth/*`, `/healthz`) | **Ready** |
 | Production server (`npm start` → `0.0.0.0:$PORT`, serves `dist` + API) | **Ready** |
 | Discord OAuth code exchange (server secret) | **Ready** when `DISCORD_CLIENT_*` set |
-| Telegram Login Widget HMAC verify | **Ready** when `TELEGRAM_BOT_TOKEN` set |
+| Telegram Login Widget HMAC verify + signed `/vc` bot webhook | **Ready** when `TELEGRAM_BOT_TOKEN` + `TELEGRAM_WEBHOOK_SECRET` are set |
 | Operator session tokens (HMAC) | **Ready** |
 | Static deploy (Vercel) / Render blueprint / Docker | **Ready** |
 | Media plane — WebRTC rooms + signalling (`/v1/rooms`, `ws /v1/signal`) | **Ready** (`degraded` without a TURN relay) |
-| Media plane — Telegram VC join / Discord voice / RTMP ingest | **Deferred**, per adapter, with the reason on `/v1/media/status` — see [MEDIA-PLANE.md](MEDIA-PLANE.md) |
+| Media plane — Telegram VC join (paired MTProto operator) | **Ready** — operator-only controls at `/v1/telegram-vc/*` |
+| Media plane — authenticated RTMP ingest | **Ready** — MediaMTX sidecar, one protected `vc` path; endpoint is operator-only at `/v1/rtmp/publish` |
+| Media plane — Discord voice | Audio-only platform limitation; deliberately not offered as a video/screen-share transport |
 
 Default production mode uses the **live control plane**. A browser-to-browser call works
 today: open a room, share the id, and the node relays the negotiation while audio and video
-travel peer to peer. Joining a *Telegram* group call does not, and cannot without MTProto —
-`/v1/media/status` reports that per adapter rather than implying otherwise.
+travel peer to peer. Telegram group calls run through the separately paired MTProto operator;
+an RTMP source can be published to the protected VC Node ingest and selected in Studio.
 
 Session telemetry is measured by the participants and reported upward; with nothing
 connected it reads zero and `telemetrySource: "unavailable"`, never an invented bitrate.
@@ -74,9 +76,16 @@ docker run --rm -p 10000:10000 -e PORT=10000 -e OPERATOR_TOKEN_SECRET=... stix-m
 |-----|---------|
 | `OPERATOR_TOKEN_SECRET` | Required in production |
 | `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` / `DISCORD_REDIRECT_URI` | Real Discord exchange |
-| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_BOT_USERNAME` | Telegram Login Widget verify |
+| `DISCORD_APPLICATION_PUBLIC_KEY` | Enables signed Discord Interactions at `POST /v1/discord/interactions` |
+| `DISCORD_APPLICATION_ID` / `DISCORD_BOT_TOKEN` | Enables `npm run discord:register-commands` (an explicit global `/vc`, `/studio`, `/status` registration) |
+| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_BOT_USERNAME` | Telegram Login Widget verify and command replies |
+| `TELEGRAM_WEBHOOK_SECRET` | Required to authenticate Telegram Bot API webhook delivery |
 | `AUTH_REQUIRED` | Require operator bearer token for sessions |
-| `MEDIA_PLANE_ENABLED` | Feature flag only; adapters not wired yet |
+| `MEDIA_PLANE_ENABLED` | Enables the live media-plane controls |
+| `RTMP_INGEST_ENABLED` | Enables the authenticated MediaMTX ingest sidecar |
+| `RTMP_PUBLIC_HOST` | Public host or IP reachable by OBS/ffmpeg publishers |
+| `RTMP_PUBLISH_USER` / `RTMP_PUBLISH_PASSWORD` | Server-side RTMP publisher credential; never expose publicly |
+| `RTMP_PATH` | RTMP path (production uses `vc`) |
 
 ## Scripts
 
@@ -102,4 +111,4 @@ Required secrets for real platform login:
 
 ## Related
 
-stixmagic-bot / stixmagic-web — future media-plane adapters attach behind `/v1/media/*`.
+stixmagic-bot / stixmagic-web — media-plane adapters report through `/v1/media/*`.

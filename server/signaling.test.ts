@@ -124,6 +124,13 @@ describe('signaling — connection and identity', () => {
     await expect(connect('?clientId=alice')).rejects.toBeTruthy()
   })
 
+  it('allows anonymous room signaling when public rooms are explicitly enabled', async () => {
+    setEnv({ AUTH_REQUIRED: 'true', PUBLIC_ROOMS_ENABLED: 'true' })
+    const socket = await connect('?clientId=browser-a')
+    const welcome = await nextMessage(socket, 'welcome')
+    expect(welcome.operatorId).toBe('anonymous:browser-a')
+  })
+
   it('refuses a forged token before the handshake completes', async () => {
     setEnv({ AUTH_REQUIRED: 'true' })
     await expect(connect('?token=not.a.real.token')).rejects.toBeTruthy()

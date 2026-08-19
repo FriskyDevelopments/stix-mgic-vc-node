@@ -22,6 +22,10 @@ export type CallStageProps = {
   /** The operator's own camera/microphone; passed to every peer connection. */
   localStream: MediaStream | null
   onStateChange?: (state: CallState) => void
+  /** Selected audio-output deviceId — routed to every remote tile via setSinkId. */
+  sinkId?: string
+  /** Hands the live CallClient up so the shell can switch camera/mic mid-call. */
+  onClientReady?: (client: CallClient | null) => void
 }
 
 const STATE_LABEL: Record<CallState, string> = {
@@ -32,7 +36,7 @@ const STATE_LABEL: Record<CallState, string> = {
   error: 'Failed',
 }
 
-function RemoteTile({ peer }: { peer: RemotePeer }) {
+function RemoteTile({ peer, sinkId }: { peer: RemotePeer; sinkId?: string }) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
 
   useEffect(() => {
@@ -40,6 +44,15 @@ function RemoteTile({ peer }: { peer: RemotePeer }) {
       videoRef.current.srcObject = peer.stream
     }
   }, [peer.stream])
+
+  // Route this peer's audio to the operator's chosen speaker. setSinkId is Chromium-only
+  // and rejects on an unknown id; either way the call keeps playing on the default device.
+  useEffect(() => {
+    const el = videoRef.current as (HTMLVideoElement & { setSinkId?: (id: string) => Promise<void> }) | null
+    if (el && sinkId && typeof el.setSinkId === 'function') {
+      void el.setSinkId(sinkId).catch(() => {})
+    }
+  }, [sinkId, peer.stream])
 
   const connected = peer.connectionState === 'connected'
 
@@ -70,7 +83,7 @@ function RemoteTile({ peer }: { peer: RemotePeer }) {
   )
 }
 
-export function CallStage({ roomId, localStream, onStateChange }: CallStageProps) {
+export function CallStage({ roomId, localStream, onStateChange, sinkId, onClientReady }: CallStageProps) {
   const clientRef = useRef<CallClient | null>(null)
   const [state, setState] = useState<CallState>('idle')
   const [peers, setPeers] = useState<RemotePeer[]>([])
@@ -95,6 +108,7 @@ export function CallStage({ roomId, localStream, onStateChange }: CallStageProps
       },
     })
     clientRef.current = client
+    onClientReady?.(client)
 
     // A join that never resolves still surfaces through onError/onStateChange.
     void client.join().catch(() => {})
@@ -102,6 +116,7 @@ export function CallStage({ roomId, localStream, onStateChange }: CallStageProps
     return () => {
       client.close()
       clientRef.current = null
+      onClientReady?.(null)
     }
     // Re-joining on a localStream change would drop the call; tracks are attached at join.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -152,7 +167,7 @@ export function CallStage({ roomId, localStream, onStateChange }: CallStageProps
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {peers.map((peer) => (
-            <RemoteTile key={peer.participant.id} peer={peer} />
+            <RemoteTile key={peer.participant.id} peer={peer} sinkId={sinkId} />
           ))}
         </div>
       )}

@@ -7,8 +7,7 @@
  * "signed in" there would be theater. `syncSessionOnLoad()` reconciles the two on mount.
  */
 import { useCallback, useEffect, useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { GlassCard } from '@/components/GlassCard'
+import { ArrowRight, CheckCircle, ShieldCheck, Sparkle } from '@phosphor-icons/react'
 import {
   PROVIDER_LABELS,
   getIdentityConfigState,
@@ -17,6 +16,7 @@ import {
   syncSessionOnLoad,
   type OAuthProvider,
 } from '@/lib/supabase-identity'
+import '@/styles/identity-portal.css'
 
 type Identity = { id: string; name: string }
 
@@ -64,51 +64,55 @@ export function FriskyDevIdentityGate({
   }
 
   return (
-    <GlassCard className="p-4" data-testid="friskydev-identity-gate">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="font-mono text-xs uppercase tracking-wider text-cyan-300">FriskyDev ID</p>
-          <p className="mt-1 text-sm text-muted-foreground" data-testid="identity-status">
-            {loading
-              ? 'Checking secure session…'
-              : user
-                ? `Signed in as ${user.name}`
-                : 'Sign in to create and join VC rooms.'}
-          </p>
-          {user && (
-            <p className="mt-1 font-mono text-[10px] text-muted-foreground/70" data-testid="identity-sub">
-              auth.users.id · {user.id}
-            </p>
-          )}
-        </div>
-
-        {!loading &&
-          (user ? (
-            <Button variant="outline" onClick={() => void handleSignOut()}>
-              Sign out
-            </Button>
-          ) : (
-            <div className="flex flex-wrap gap-2" data-testid="sso-buttons">
-              {PROVIDERS.map((provider) => (
-                <Button
-                  key={provider}
-                  variant="outline"
-                  disabled={!config.configured}
-                  onClick={() => void handleSignIn(provider)}
-                >
-                  Continue with {PROVIDER_LABELS[provider]}
-                </Button>
-              ))}
-            </div>
-          ))}
+    <section className="identity-portal" aria-label="VC Node secure entry" data-testid="friskydev-identity-gate">
+      <div className="identity-portal__aura" aria-hidden="true"><i /><i /><i /></div>
+      <div className="identity-portal__signal" aria-hidden="true"><span>01</span><span>10</span><span>11</span></div>
+      <div className="identity-portal__copy">
+        <p className="identity-portal__eyebrow"><Sparkle weight="fill" /> PRIVATE SIGNAL / 001</p>
+        <h1>{user ? `Welcome in, ${user.name}.` : 'Enter the room\nbefore it opens.'}</h1>
+        <p className="identity-portal__lede" data-testid="identity-status">
+          {loading
+            ? 'Verifying your secure connection…'
+            : user
+              ? 'Your identity is verified. Your room controls are ready below.'
+              : 'A private, peer-to-peer space for the people you invite. Your camera stays local until you choose to join.'}
+        </p>
+        <div className="identity-portal__proof"><ShieldCheck weight="fill" /> End-to-end encrypted media <span /> No account password here</div>
       </div>
 
-      {!config.configured && (
-        <p className="mt-3 text-xs text-amber-300">
-          Identity is not configured. Missing: {config.missing.join(', ')}
-        </p>
-      )}
-      {error && <p className="mt-3 text-xs text-red-300">{error}</p>}
-    </GlassCard>
+      <div className="identity-portal__panel">
+        <div className="identity-portal__panel-head">
+          <span className={user ? 'identity-portal__status is-ready' : 'identity-portal__status'}><i /> {user ? 'IDENTITY VERIFIED' : 'SECURE ENTRY'}</span>
+          {user && <CheckCircle weight="fill" aria-label="Identity verified" />}
+        </div>
+        {loading ? (
+          <div className="identity-portal__loading"><i /><span>Checking your signal</span></div>
+        ) : user ? (
+          <div className="identity-portal__welcome">
+            <div className="identity-portal__avatar">{user.name.slice(0, 1).toUpperCase()}</div>
+            <div><strong>{user.name}</strong><small>FriskyDev ID · connected</small></div>
+            <button className="identity-portal__quiet-action" onClick={() => void handleSignOut()}>Sign out</button>
+          </div>
+        ) : (
+          <div className="identity-portal__actions" data-testid="sso-buttons">
+            {PROVIDERS.map((provider, index) => (
+              <button
+                className={index === 0 ? 'identity-portal__provider is-primary' : 'identity-portal__provider'}
+                key={provider}
+                disabled={!config.configured}
+                onClick={() => void handleSignIn(provider)}
+              >
+                <span className="identity-portal__provider-mark">{provider === 'google' ? 'G' : provider === 'apple' ? '●' : '⊞'}</span>
+                Continue with {PROVIDER_LABELS[provider]}
+                {index === 0 && <ArrowRight weight="bold" />}
+              </button>
+            ))}
+          </div>
+        )}
+        {!config.configured && <p className="identity-portal__notice">Identity needs configuration: {config.missing.join(', ')}</p>}
+        {error && <p className="identity-portal__notice is-error">{error}</p>}
+        <p className="identity-portal__footer">By continuing, you enter with your FriskyDev identity.</p>
+      </div>
+    </section>
   )
 }

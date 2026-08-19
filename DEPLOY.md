@@ -16,8 +16,19 @@ disagrees with live, and `stix-mgic-vc-node.onrender.com` returns 404.
 | Env | `/opt/vc-node.env` |
 | State | `/opt/vc-node-data` mounted at `/data` |
 
-There is also a `stix-vc-node.service` systemd unit on port 8788. It is **stale** and does
-not serve production — its healthz reports a different issuer and `mediaPlaneEnabled: false`.
+The old `stix-vc-node.service` systemd unit on port 8788 has been disabled. It was a stale
+second copy with a different issuer and `mediaPlaneEnabled: false`; do not re-enable it.
+Production is only the `vc-node` Docker container on port 8797.
+
+## RTMP ingest
+
+VC Node can run a separate, authenticated MediaMTX sidecar as its RTMP ingest. It is
+not proxied through Cloudflare: publishers reach the Hermes public IP on TCP 1935. The
+firewall rule must be added deliberately, and only after the sidecar is healthy.
+
+The sidecar gets its credentials from `/opt/vc-node.env`; never write them into git or
+the MediaMTX template. It runs on the `vc-media` Docker network so the Telegram adapter
+can pull `rtmp://vc-rtmp:1935/vc` without exposing a control API publicly.
 
 ## Deploy
 
@@ -35,14 +46,14 @@ ssh hermes 'docker tag vc-node:<current> vc-node:rollback-$(date +%Y%m%d)
 ssh hermes 'cd /opt/vc-node-src && docker build -t vc-node:<tag> .'
 
 # 4. canary on a spare port first — never swap blind
-ssh hermes 'docker run -d --name vc-node-canary --env-file /opt/vc-node.env \
+ssh hermes 'docker run -d --name vc-node-canary --network vc-media --env-file /opt/vc-node.env \
               -e PORT=8799 -p 127.0.0.1:8799:8799 vc-node:<tag>
             curl -s localhost:8799/healthz'
 
 # 5. swap
 ssh hermes 'docker stop vc-node && docker rename vc-node vc-node-previous
             docker run -d --name vc-node --restart unless-stopped \
-              --env-file /opt/vc-node.env -p 127.0.0.1:8797:8797 \
+            --network vc-media --env-file /opt/vc-node.env -p 127.0.0.1:8797:8797 \
               -v /opt/vc-node-data:/data vc-node:<tag>
             docker rm -f vc-node-canary'
 ```
@@ -59,40 +70,21 @@ ssh hermes 'docker rm -f vc-node
 
 If the env changed too, restore `/opt/vc-node.env.bak-<date>` first.
 
-## Identity provider
+## Identity
 
-`IDENTITY_PROVIDER` in `/opt/vc-node.env` selects the sign-in surface at runtime:
+VC Node uses **Supabase FriskyDev only** for primary identity: Google, Apple, and
+Microsoft. It has no active Authentik fallback. `/v1/config/public` always advertises
+`identityProvider: "supabase"`; when Supabase settings are missing the UI names the
+configuration problem rather than exposing a different login path.
 
-- `authentik` (default) — OIDC against `authentik.friskydev.com`. Proven in production.
-- `supabase` — Supabase FriskyDev, the Fenrir master identity (`auth.users.id`), the same
-  project and SSO providers LORE uses.
-
-No rebuild is needed, because the value is served from `/v1/config/public` rather than
-inlined into the bundle. The server refuses to advertise `supabase` unless `SUPABASE_URL`
-and `SUPABASE_ANON_KEY` are also set.
-
-**`docker restart` is not enough.** `--env-file` is read once, when the container is
-*created*. Restarting reuses the environment baked in at `docker run`, so editing
-`/opt/vc-node.env` and restarting changes nothing — and worse, it leaves the file
-disagreeing with the running container, so the next recreate silently adopts a value
-nobody meant to apply. Switching requires recreating:
+**`docker restart` is not enough.** `--env-file` is read once when a container is
+*created*, so recreate `vc-node` after changing identity settings and verify:
 
 ```bash
-ssh hermes '
-  sed -i "s/^IDENTITY_PROVIDER=.*/IDENTITY_PROVIDER=supabase/" /opt/vc-node.env
-  docker rm -f vc-node
-  docker run -d --name vc-node --restart unless-stopped \
-    --env-file /opt/vc-node.env -p 127.0.0.1:8797:8797 \
-    -v /opt/vc-node-data:/data vc-node:supabase-identity
-  sleep 8
-  curl -s localhost:8797/v1/config/public | grep -o "\"identityProvider\":\"[a-z]*\""
-'
+curl -fsS https://vc.friskydev.com/v1/config/public | jq '{identityProvider, identityReady}'
 ```
 
-Always confirm with that last line. If it still prints `authentik`, the change did not
-take — do not assume it did.
-
-### Before switching to `supabase`
+### Required Supabase redirect allow-list
 
 `https://vc.friskydev.com/**` must be in the FriskyDev project's redirect allow-list
 (Dashboard → Authentication → URL Configuration → Redirect URLs). Until it is, Supabase

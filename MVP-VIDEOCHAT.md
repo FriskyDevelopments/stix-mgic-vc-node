@@ -46,14 +46,13 @@ OPERATOR_TOKEN_SECRET=... NODE_ENV=production npm start   # binds 0.0.0.0:$PORT
 ## Verify it works (evidence, not "should work")
 
 1. **Automated** — `npm test`. The WebRTC path is fully green:
-   - `src/lib/webrtc-client.test.ts` — 27 tests, the full client state machine.
+   - `src/lib/webrtc-client.test.ts` — 28 tests, the full client state machine,
+     including distinct anonymous identities for separate browser tabs.
    - `src/lib/webrtc-reconnect.test.ts` — 3 tests, the reconnection added here.
    - `server/signaling.test.ts` (25) + `server/rooms.test.ts` (24) — real HTTP + real
      WebSocket clients driving a full offer/answer/ICE exchange, including a stranger being
      refused from a room it never joined.
-   - Known pre-existing failures (4) are outside this MVP: stale demo-mode expectations in
-     `src/lib/env.test.ts` / `src/lib/alpha.test.ts` and one relative-URL bug in
-     `session-api.ts` (control-plane session path, not the room path).
+   - Current result: **116/116 tests pass** across 9 files.
 
 2. **Two live peers through the running node** (headless signaling proof):
    start the API, `POST /v1/rooms`, open two `ws /v1/signal` clients with distinct
@@ -116,3 +115,8 @@ static UI on Cloudflare Pages/Vercel. Ship to prod only after owner approval.
 - `src/components/CallStage.tsx` — enabled `reconnect` for the live call UI.
 - `src/lib/webrtc-reconnect.test.ts` — tests for reconnect, intentional-close, and the
   attempt cap.
+- `src/App.tsx` — exposes the real browser-room panel during local development while the
+  deferred Telegram/Discord control surfaces remain simulated.
+- `vite.config.ts` — proxies WebSocket upgrades to the signaling node in development.
+- `src/lib/webrtc-client.ts` — gives every anonymous browser tab a distinct,
+  reconnect-stable client identity.

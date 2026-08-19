@@ -18,6 +18,8 @@ import { SpotifyTrackPicker } from "@/components/SpotifyTrackPicker"
 import { DeviceSelector } from "@/components/DeviceSelector"
 import { PlatformAccess } from "@/components/PlatformAccess"
 import { RoomPanel } from "@/components/RoomPanel"
+import { FriskyDevIdGate } from "@/components/FriskyDevIdGate"
+import { VcMvpShell } from "@/components/VcMvpShell"
 import { TelegramVcPanel } from "@/components/TelegramVcPanel"
 import { DJModePanel } from "@/components/DJModePanel"
 import { HudFrame } from "@/components/wow/HudFrame"
@@ -108,9 +110,10 @@ interface ProtocolConfig {
   mode: SessionMode
 }
 
-function App() {
+function LegacyControlPlane() {
   const appEnv = getAppEnv()
   const [platform, setPlatform] = usePersistedState<Platform>("platform", "telegram")
+  const [friskyDevSignedIn, setFriskyDevSignedIn] = useState(false)
   const [sessionStatus, setSessionStatus] = usePersistedState<SessionStatus>("session-status", "standby")
   const [inputProtocol, setInputProtocol] = usePersistedState<InputProtocol>("input-protocol", "dj-mode")
   const [sessionMark, setSessionMark] = usePersistedState<SessionMark>("session-mark", "stix-default")
@@ -960,6 +963,8 @@ function App() {
     return log.type.toLowerCase() === diagnosticFilter.toLowerCase()
   }) : []
 
+  if (!appEnv.demoMode) return <VcMvpShell />
+
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
       {/* Atmospheric background effects */}
@@ -1020,6 +1025,8 @@ function App() {
           </div>
         </HudFrame>
 
+        <FriskyDevIdGate onChange={setFriskyDevSignedIn} />
+
         <PlatformAccess
           telegramStatus={telegramAuthStatus || 'disconnected'}
           telegramUser={telegramUser === undefined ? null : telegramUser}
@@ -1027,7 +1034,7 @@ function App() {
           discordStatus={discordAuthStatus || 'disconnected'}
           discordUser={discordUser === undefined ? null : discordUser}
           discordError={discordAuthError}
-          friskyDevSignedIn={false}
+          friskyDevSignedIn={friskyDevSignedIn}
           telegramBotUsername={null}
           telegramLinked={false}
           discordLinked={false}
@@ -1078,15 +1085,23 @@ function App() {
                 onAudioDeviceChange={handleAudioDeviceChange}
               />
 
-              {/* The preview shows the operator their own camera; this is the actual call.
-                  Live control plane only — in demo mode there is no node to signal through. */}
-              {!appEnv.demoMode && (
-                <div className="mt-4 space-y-4">
+              {/* npm run dev starts the signaling node alongside Vite, so browser rooms are
+                  real even while the legacy platform-control surfaces remain in demo mode. */}
+              <div className="mt-4 space-y-4">
+                {friskyDevSignedIn || appEnv.demoMode ? (
                   <RoomPanel localStream={cameraStream} />
-                  <TelegramVcPanel />
-                  <DJModePanel />
-                </div>
-              )}
+                ) : (
+                  <GlassCard className="p-5 text-center text-sm text-muted-foreground">
+                    Continue with FriskyDev ID to create or join a room.
+                  </GlassCard>
+                )}
+                {!appEnv.demoMode && (
+                  <>
+                    <TelegramVcPanel />
+                    <DJModePanel />
+                  </>
+                )}
+              </div>
               
               {sessionStatus === 'active' && operatorTier === 'premium' && operatorTimeRemaining > 0 && (
                 <div className="space-y-3 mt-4">
@@ -1898,6 +1913,10 @@ function App() {
       )}
     </div>
   )
+}
+
+function App() {
+  return <VcMvpShell />
 }
 
 export default App

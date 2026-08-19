@@ -22,6 +22,7 @@
  * sends an operator to a live session that will not connect.
  */
 import { getServerEnv } from './env'
+import { existsSync } from 'node:fs'
 import { hasTurn } from './ice'
 
 export type AdapterState = 'ready' | 'degraded' | 'not_implemented' | 'disabled'
@@ -60,22 +61,27 @@ export function buildMediaPlaneStatus(input: { signalingReady: boolean }): Media
 
   const adapters: AdapterStatus[] = [
     webrtc,
-    {
-      id: 'telegram-vc',
-      state: 'not_implemented',
-      reason:
-        'joining a Telegram group call requires MTProto with a user session, not a bot token — owner decision pending',
-    },
+    env.mtprotoConfigured && existsSync(`${process.env.MTPROTO_STATE_DIR || '/data/mtproto'}/operator.session`)
+      ? { id: 'telegram-vc', state: 'ready', reason: 'native MTProto/WebRTC adapter paired and ready for an RTMP or media source' }
+      : {
+          id: 'telegram-vc',
+          state: 'disabled',
+          reason: env.mtprotoConfigured
+            ? 'native MTProto/WebRTC adapter installed — pair the dedicated Telegram account once in Studio'
+            : 'native adapter installed — Telegram API credentials are not configured on this node',
+        },
     {
       id: 'discord-voice',
       state: 'not_implemented',
       reason: 'reachable via @discordjs/voice but audio only — Discord grants bots no camera or screen share',
     },
-    {
-      id: 'rtmp',
-      state: 'not_implemented',
-      reason: 'needs ffmpeg on the host and a stream key that, for Telegram, also comes from MTProto',
-    },
+    env.rtmpConfigured
+      ? { id: 'rtmp', state: 'ready', reason: `authenticated RTMP ingest ready on ${env.RTMP_PUBLIC_HOST}:1935/${env.RTMP_PATH}` }
+      : {
+          id: 'rtmp',
+          state: 'disabled',
+          reason: 'RTMP ingest sidecar is not configured on this node',
+        },
   ]
 
   const ready = adapters.some((adapter) => adapter.state === 'ready' || adapter.state === 'degraded')

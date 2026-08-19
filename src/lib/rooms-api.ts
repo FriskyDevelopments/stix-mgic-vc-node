@@ -23,6 +23,7 @@ export type RoomView = {
   platform: 'telegram' | 'discord' | 'web'
   maxParticipants: number
   createdAt: number
+  scheduledFor: number | null
   participants: RoomParticipant[]
   participantCount: number
 }
@@ -98,6 +99,14 @@ export async function getRoom(roomId: string): Promise<{ room: RoomView; signali
 
 export async function closeRoom(roomId: string): Promise<void> {
   await request(`/v1/rooms/${encodeURIComponent(roomId)}`, { method: 'DELETE' })
+}
+
+export async function scheduleRoomAt(roomId: string, scheduledFor: number): Promise<RoomView> {
+  const body = await request<{ room: RoomView }>(`/v1/rooms/${encodeURIComponent(roomId)}/schedule`, {
+    method: 'PATCH',
+    body: JSON.stringify({ scheduledFor }),
+  })
+  return body.room
 }
 
 export async function getMediaPlaneStatus(): Promise<MediaPlaneStatus> {

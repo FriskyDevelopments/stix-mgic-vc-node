@@ -4,6 +4,7 @@ import { resetServerEnvCache } from './env'
 import { configureAccountStore, resetAccountStore } from './account-store'
 import { setSignalingReady } from './sessions'
 import { joinRoom, resetRooms } from './rooms'
+import { mintOperatorToken } from './tokens'
 
 describe('control plane API', () => {
   beforeEach(() => {
@@ -14,11 +15,20 @@ describe('control plane API', () => {
     process.env.NODE_ENV = 'test'
     process.env.OPERATOR_TOKEN_SECRET = 'test-operator-token-secret'
     process.env.AUTH_REQUIRED = 'false'
+    delete process.env.PUBLIC_ROOMS_ENABLED
     process.env.MEDIA_PLANE_ENABLED = 'false'
     setSignalingReady(false)
     delete process.env.DISCORD_CLIENT_ID
     delete process.env.DISCORD_CLIENT_SECRET
+    delete process.env.DISCORD_APPLICATION_PUBLIC_KEY
+    delete process.env.DISCORD_APPLICATION_ID
+    delete process.env.DISCORD_BOT_TOKEN
     delete process.env.TELEGRAM_BOT_TOKEN
+    delete process.env.TELEGRAM_WEBHOOK_SECRET
+    delete process.env.RTMP_INGEST_ENABLED
+    delete process.env.RTMP_PUBLIC_HOST
+    delete process.env.RTMP_PUBLISH_USER
+    delete process.env.RTMP_PUBLISH_PASSWORD
   })
 
   it('reports health', async () => {
@@ -42,7 +52,8 @@ describe('control plane API', () => {
     expect(body.adapters).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: 'webrtc', state: 'degraded' }),
-        expect.objectContaining({ id: 'telegram-vc', state: 'not_implemented' }),
+        expect.objectContaining({ id: 'telegram-vc', state: 'disabled' }),
+        expect.objectContaining({ id: 'rtmp', state: 'disabled' }),
       ])
     )
   })
@@ -76,12 +87,80 @@ describe('control plane API', () => {
     expect(res.status).toBe(503)
   })
 
-  it('returns 503 for telegram-vc adapter endpoints', async () => {
+  it('protects telegram-vc adapter endpoints before reporting availability', async () => {
     const app = createApp()
     const res = await app.request('/v1/telegram-vc/status')
-    expect(res.status).toBe(503)
+    expect(res.status).toBe(401)
     const body = await res.json()
-    expect(body.available).toBe(false)
+    expect(body.error).toBe('Operator token required')
+  })
+
+  it('keeps RTMP publish credentials behind operator authentication', async () => {
+    process.env.RTMP_INGEST_ENABLED = 'true'
+    process.env.RTMP_PUBLIC_HOST = 'stream.example.test'
+    process.env.RTMP_PUBLISH_USER = 'operator'
+    process.env.RTMP_PUBLISH_PASSWORD = 'a-secure-test-stream-password'
+    resetServerEnvCache()
+    const app = createApp()
+
+    expect((await app.request('/v1/rtmp/publish')).status).toBe(401)
+
+    const token = mintOperatorToken({ sub: 'rtmp-operator', platform: 'web', name: 'RTMP Operator' })
+    const res = await app.request('/v1/rtmp/publish', { headers: { Authorization: `Bearer ${token}` } })
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.ready).toBe(true)
+    expect(body.publishUrl).toContain('rtmp://operator:')
+  })
+
+  it('rejects an unsigned Telegram webhook', async () => {
+    process.env.TELEGRAM_BOT_TOKEN = 'telegram-test-token'
+    process.env.TELEGRAM_WEBHOOK_SECRET = 'telegram-webhook-secret-that-is-long-enough'
+    resetServerEnvCache()
+    const app = createApp()
+    const res = await app.request('/v1/telegram/webhook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+    expect(res.status).toBe(401)
+  })
+
+  it('accepts a signed Telegram command webhook', async () => {
+    process.env.TELEGRAM_BOT_TOKEN = 'telegram-test-token'
+    process.env.TELEGRAM_WEBHOOK_SECRET = 'telegram-webhook-secret-that-is-long-enough'
+    resetServerEnvCache()
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = async () => new Response(JSON.stringify({ ok: true }), { status: 200 })
+    try {
+      const app = createApp()
+      const res = await app.request('/v1/telegram/webhook', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-telegram-bot-api-secret-token': process.env.TELEGRAM_WEBHOOK_SECRET,
+        },
+        body: JSON.stringify({ message: { text: '/vc', chat: { id: 42 } } }),
+      })
+      expect(res.status).toBe(200)
+      expect(await res.json()).toEqual({ ok: true, handled: true })
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  it('accepts the Supabase social-login session cookie for Telegram VC pairing', async () => {
+    const app = createApp()
+    const session = mintOperatorToken({
+      sub: 'supabase-auth-users-id',
+      platform: 'supabase',
+      name: 'Social Operator',
+    })
+    const res = await app.request('/v1/telegram-vc/pair/status', {
+      headers: { Cookie: `vc_session=${encodeURIComponent(session)}` },
+    })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ available: expect.any(Boolean) })
   })
 
   it('mints anonymous operator tokens', async () => {
@@ -138,11 +217,13 @@ describe('room REST API', () => {
     process.env.NODE_ENV = 'test'
     process.env.OPERATOR_TOKEN_SECRET = 'test-operator-token-secret'
     process.env.AUTH_REQUIRED = 'false'
+    delete process.env.PUBLIC_ROOMS_ENABLED
     process.env.MEDIA_PLANE_ENABLED = 'false'
     setSignalingReady(false)
     delete process.env.DISCORD_CLIENT_ID
     delete process.env.DISCORD_CLIENT_SECRET
     delete process.env.TELEGRAM_BOT_TOKEN
+    delete process.env.TELEGRAM_WEBHOOK_SECRET
   })
 
   it('creates a room and returns it with signaling info', async () => {
@@ -248,6 +329,46 @@ describe('room REST API', () => {
       headers: { 'x-client-id': 'stranger' },
     })
     expect(res.status).toBe(403)
+  })
+
+  it('treats a room UUID as an invitation when public rooms are enabled', async () => {
+    process.env.AUTH_REQUIRED = 'true'
+    process.env.PUBLIC_ROOMS_ENABLED = 'true'
+    resetServerEnvCache()
+    const app = createApp()
+    const created = await app.request('/v1/rooms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-client-id': 'owner' },
+      body: JSON.stringify({ name: 'Public invite' }),
+    })
+    expect(created.status).toBe(200)
+    const { room } = await created.json() as { room: { id: string } }
+
+    const guest = await app.request(`/v1/rooms/${room.id}`, {
+      headers: { 'x-client-id': 'guest' },
+    })
+    expect(guest.status).toBe(200)
+    expect((await guest.json()).room.name).toBe('Public invite')
+  })
+
+  it('treats a room UUID as an invitation between authenticated FriskyDev members', async () => {
+    process.env.AUTH_REQUIRED = 'true'
+    resetServerEnvCache()
+    const app = createApp()
+    const ownerToken = mintOperatorToken({ sub: 'friskydev:owner', platform: 'friskydev', name: 'Owner' })
+    const guestToken = mintOperatorToken({ sub: 'friskydev:guest', platform: 'friskydev', name: 'Guest' })
+    const created = await app.request('/v1/rooms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', authorization: `Bearer ${ownerToken}` },
+      body: JSON.stringify({ name: 'FriskyDev invite' }),
+    })
+    const { room } = await created.json() as { room: { id: string } }
+
+    const guest = await app.request(`/v1/rooms/${room.id}`, {
+      headers: { authorization: `Bearer ${guestToken}` },
+    })
+    expect(guest.status).toBe(200)
+    expect((await guest.json()).room.name).toBe('FriskyDev invite')
   })
 
   it('lets the owner close a room', async () => {

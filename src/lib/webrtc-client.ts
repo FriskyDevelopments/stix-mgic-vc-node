@@ -1,5 +1,6 @@
 import { getAppEnv } from '@/lib/env'
 import { apiHeaders, apiUrl } from '@/lib/api-client'
+import { getClientId } from '@/lib/client-id'
 import { log } from '@/lib/log'
 import { getOperatorToken } from '@/lib/operator-token'
 
@@ -118,6 +119,9 @@ type PeerEntry = {
   /** Candidates that arrived before the remote description was set. */
   pendingCandidates: RTCIceCandidateInit[]
   makingOffer: boolean
+  /** The senders for the local tracks, kept so a device switch can replaceTrack in place. */
+  videoSender?: RTCRtpSender
+  audioSender?: RTCRtpSender
 }
 
 const SIGNALING_PATH = '/v1/signal'
@@ -128,12 +132,17 @@ const DEFAULT_TELEMETRY_INTERVAL_MS = 5000
  * set headers on a WebSocket; it is short-lived and the connection is TLS-terminated at
  * the edge.
  */
-export function buildSignalingUrl(roomId: string, token: string | null, apiBaseUrl: string): string {
+export function buildSignalingUrl(
+  roomId: string,
+  token: string | null,
+  apiBaseUrl: string,
+  anonymousClientId = getClientId()
+): string {
   const base = apiBaseUrl || (typeof window !== 'undefined' ? window.location.origin : '')
   const url = new URL(SIGNALING_PATH, base || 'http://localhost')
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
   if (token) url.searchParams.set('token', token)
-  else url.searchParams.set('clientId', roomId.slice(0, 8))
+  else url.searchParams.set('clientId', anonymousClientId)
   return url.toString()
 }
 
@@ -156,8 +165,12 @@ export class CallClient {
   private closedByClient = false
   private reconnectAttempts = 0
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  /** Stable for this browser participant across signaling reconnects, unique across tabs. */
+  private readonly anonymousClientId: string
 
-  constructor(private readonly options: CallClientOptions) {}
+  constructor(private readonly options: CallClientOptions) {
+    this.anonymousClientId = getClientId()
+  }
 
   getState(): CallState {
     return this.state
@@ -169,6 +182,32 @@ export class CallClient {
       stream: entry.stream,
       connectionState: entry.connection.connectionState,
     }))
+  }
+
+  /**
+   * Swap the local camera or microphone track on every peer connection without
+   * renegotiating — `RTCRtpSender.replaceTrack` changes the source mid-call, so a device
+   * switch never drops the call. The local stream reference is kept current so a
+   * reconnection re-attaches the track the operator actually chose.
+   */
+  async replaceLocalTrack(track: MediaStreamTrack): Promise<void> {
+    for (const entry of this.peers.values()) {
+      const sender = track.kind === 'video' ? entry.videoSender : entry.audioSender
+      if (!sender) continue
+      try {
+        await sender.replaceTrack(track)
+      } catch {
+        // A failed replace on one peer must not abort the switch on the others.
+      }
+    }
+    // Keep the stream the client re-attaches on reconnect in sync with the live choice.
+    const stream = this.options.localStream
+    if (stream) {
+      for (const existing of stream.getTracks()) {
+        if (existing.kind === track.kind && existing !== track) stream.removeTrack(existing)
+      }
+      if (!stream.getTracks().includes(track)) stream.addTrack(track)
+    }
   }
 
   private setState(state: CallState): void {
@@ -204,7 +243,12 @@ export class CallClient {
    */
   private connectOnce(): Promise<void> {
     const env = getAppEnv()
-    const url = buildSignalingUrl(this.options.roomId, getOperatorToken(), env.apiBaseUrl)
+    const url = buildSignalingUrl(
+      this.options.roomId,
+      getOperatorToken(),
+      env.apiBaseUrl,
+      this.anonymousClientId
+    )
     const createSocket =
       this.options.createSocket ?? ((target: string) => new WebSocket(target) as unknown as SocketLike)
 
@@ -400,7 +444,9 @@ export class CallClient {
 
     if (this.options.localStream) {
       for (const track of this.options.localStream.getTracks()) {
-        connection.addTrack(track, this.options.localStream)
+        const sender = connection.addTrack(track, this.options.localStream)
+        if (track.kind === 'video') entry.videoSender = sender
+        else if (track.kind === 'audio') entry.audioSender = sender
       }
     }
 

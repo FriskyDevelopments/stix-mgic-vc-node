@@ -38,8 +38,12 @@ import {
 import { getIceServers } from './ice'
 import { SIGNALING_PATH } from './signaling'
 import { beginPairing, confirmPairing, pairingStatus } from './telegram-vc-pair'
+import { telegramVcAdapter } from './telegram-vc-adapter'
+import { getRtmpPublishConfig } from './rtmp-ingest'
+import { discordInteractions } from './discord-interactions'
 import { oidcCallback, oidcLogout, oidcMe, oidcStart, sessionClaimsFromCookie } from './oidc'
 import { supabaseSession } from './supabase-auth'
+import { handleTelegramUpdate, isTelegramWebhookAuthorized, WEBHOOK_HEADER } from './telegram-bot'
 
 type Variables = {
   operatorId: string
@@ -82,7 +86,10 @@ export function createApp() {
       issuer: env.SESSION_ISSUER,
       authRequired: env.AUTH_REQUIRED,
       discordConfigured: env.discordConfigured,
+      discordInteractionsConfigured: env.discordInteractionsConfigured,
+      discordBotConfigured: env.discordBotConfigured,
       telegramConfigured: env.telegramConfigured,
+      telegramWebhookConfigured: env.telegramWebhookConfigured,
       mediaPlaneEnabled: env.MEDIA_PLANE_ENABLED,
       friskydevAccounts: true,
       friskydevIdConfigured: env.oidcConfigured,
@@ -94,6 +101,10 @@ export function createApp() {
     c.json(buildMediaPlaneStatus({ signalingReady: isSignalingReady() }))
   )
 
+  // Public by design, but cryptographically authenticated by Discord's Ed25519
+  // signature. This is the endpoint registered in the Discord Developer Portal.
+  app.post('/v1/discord/interactions', discordInteractions)
+
   app.get('/v1/config/public', (c) =>
     c.json({
       discordClientId: env.DISCORD_CLIENT_ID || null,
@@ -103,11 +114,10 @@ export function createApp() {
       friskydevEnabled: true,
       friskydevIdConfigured: env.oidcConfigured,
       supabaseIdentityConfigured: env.supabaseConfigured,
-      // Which sign-in surface to render. Falls back to Authentik whenever Supabase is
-      // selected but not actually configured, so a half-set env can never produce a
-      // sign-in screen with nothing behind it.
-      identityProvider:
-        env.IDENTITY_PROVIDER === 'supabase' && env.supabaseConfigured ? 'supabase' : 'authentik',
+      // The active UI never falls back to a second identity provider. If these settings
+      // are absent, it stays on the social screen and names the missing configuration.
+      identityProvider: 'supabase',
+      identityReady: env.supabaseConfigured,
     })
   )
 
@@ -119,6 +129,22 @@ export function createApp() {
   // (obtained by the browser via SSO/PKCE) for the same `vc_session` cookie the OIDC path
   // issues, so rooms and signaling gate on `auth.users.id` with no downstream changes.
   app.post('/v1/auth/supabase/session', supabaseSession)
+
+  // Telegram sends this directly; it is authenticated with the secret header configured
+  // on the Bot API, not an operator cookie or browser bearer token.
+  app.post('/v1/telegram/webhook', async (c) => {
+    if (!env.telegramWebhookConfigured || !isTelegramWebhookAuthorized(c.req.header(WEBHOOK_HEADER))) {
+      return c.json({ error: 'Unauthorized Telegram webhook' }, 401)
+    }
+    let update: Parameters<typeof handleTelegramUpdate>[0]
+    try {
+      update = await c.req.json()
+    } catch {
+      return c.json({ error: 'Expected a Telegram update JSON payload' }, 400)
+    }
+    const result = await handleTelegramUpdate(update)
+    return c.json({ ok: true, ...result })
+  })
 
   app.post('/v1/account/register', async (c) => {
     const body = await c.req.json<{ email?: string; password?: string; displayName?: string }>()
@@ -600,11 +626,22 @@ export function createApp() {
   })
 
   // A Telegram MTProto session can control live call participants. Keep this surface
-  // behind the same operator authentication boundary as rooms before any adapter is
-  // wired; an unauthenticated browser must never be able to probe or operate it.
+  // behind the same operator authentication boundary as rooms. In particular, the
+  // primary Supabase social-login flow uses the HttpOnly vc_session cookie, not a
+  // browser-readable bearer token; rejecting that cookie here made the authenticated
+  // operator unable even to inspect or pair the adapter.
   app.use('/v1/telegram-vc/*', async (c, next) => {
     const header = c.req.header('authorization') || ''
     const token = header.startsWith('Bearer ') ? header.slice(7) : ''
+    const cookieClaims = !token ? sessionClaimsFromCookie(c.req.header('cookie')) : null
+
+    if (cookieClaims) {
+      c.set('operatorId', cookieClaims.sub)
+      c.set('operatorName', cookieClaims.name)
+      c.set('operatorPlatform', cookieClaims.platform)
+      await next()
+      return
+    }
 
     if (!token) return c.json({ error: 'Operator token required' }, 401)
 
@@ -628,41 +665,77 @@ export function createApp() {
     await next()
   })
 
+  // RTMP credentials are the keys to publish into the live pipeline. They follow the
+  // same social-session/operator-token boundary as the Telegram VC controls.
+  app.use('/v1/rtmp/*', async (c, next) => {
+    const header = c.req.header('authorization') || ''
+    const token = header.startsWith('Bearer ') ? header.slice(7) : ''
+    const cookieClaims = !token ? sessionClaimsFromCookie(c.req.header('cookie')) : null
+    if (cookieClaims) { await next(); return }
+    if (!token) return c.json({ error: 'Operator token required' }, 401)
+    if (verifyFriskyDevToken(token) || verifyOperatorToken(token)) { await next(); return }
+    return c.json({ error: 'Invalid or expired operator token' }, 401)
+  })
+
+  app.get('/v1/rtmp/publish', (c) => {
+    const config = getRtmpPublishConfig()
+    return config.ready ? c.json(config) : c.json({ error: 'RTMP ingest is not configured' }, 503)
+  })
+
   app.get('/v1/telegram-vc/pair/status', (c) => c.json(pairingStatus()))
 
   app.post('/v1/telegram-vc/pair/start', async (c) => {
+    const body: { phone?: string } = await c.req.json<{ phone?: string }>().catch(() => ({}))
     try {
-      return c.json(await beginPairing())
+      return c.json(await beginPairing(body.phone || ''))
     } catch (error) {
       return c.json({ error: error instanceof Error ? error.message : 'Could not send Telegram code' }, 503)
     }
   })
 
   app.post('/v1/telegram-vc/pair/confirm', async (c) => {
-    const body = await c.req.json<{ code?: string }>()
+    const body: { code?: string; password?: string } = await c.req.json<{ code?: string; password?: string }>().catch(() => ({}))
     try {
-      return c.json(await confirmPairing(body.code || ''))
+      return c.json(await confirmPairing(body.code || '', body.password))
     } catch (error) {
       return c.json({ error: error instanceof Error ? error.message : 'Could not verify Telegram code' }, 400)
     }
   })
 
-  // Telegram VC adapter — honestly unavailable until a real MTProto user session exists.
-  // The client polls /v1/telegram-vc/status and shows "not configured" when these
-  // routes return 503; no functional Join/Leave buttons are ever rendered.
-  app.all('/v1/telegram-vc/*', (c) =>
-    c.json(
-      {
-        error:
-          'Telegram VC adapter is not implemented. Joining a group call requires MTProto with a user session.',
-        adapter: 'telegram-vc',
-        available: false,
-        reason:
-          'joining a Telegram group call requires MTProto with a dedicated user session — not a bot token. Owner decision pending.',
+  const telegramStatus = async () => {
+    const result = await telegramVcAdapter.status()
+    return {
+      adapter: 'telegram-vc',
+      client: { connected: result.paired, userId: null, username: null },
+      call: {
+        state: result.active ? 'active' : 'idle', chatId: result.chatId ? String(result.chatId) : null,
+        ssrc: null, activeSource: result.source ? 'rtmp' : null, error: null, joinedAt: null, hasTransport: result.active,
       },
-      503
-    )
-  )
+    }
+  }
+  app.get('/v1/telegram-vc/status', async (c) => {
+    try { return c.json(await telegramStatus()) } catch (error) { return c.json({ error: error instanceof Error ? error.message : 'Telegram adapter unavailable' }, 503) }
+  })
+  app.post('/v1/telegram-vc/join', async (c) => {
+    const body: { chatId?: string; source?: string } = await c.req.json<{ chatId?: string; source?: string }>().catch(() => ({}))
+    try { await telegramVcAdapter.join(body.chatId || '', body.source || ''); return c.json({ call: (await telegramStatus()).call }) }
+    catch (error) { return c.json({ error: error instanceof Error ? error.message : 'Could not join Telegram group call' }, 503) }
+  })
+  app.post('/v1/telegram-vc/leave', async (c) => {
+    try { await telegramVcAdapter.leave(); return c.json({ call: (await telegramStatus()).call }) }
+    catch (error) { return c.json({ error: error instanceof Error ? error.message : 'Could not leave Telegram group call' }, 503) }
+  })
+  app.post('/v1/telegram-vc/source', async (c) => {
+    const body: { config?: { url?: string; path?: string } } = await c.req.json<{ config?: { url?: string; path?: string } }>().catch(() => ({}))
+    try { await telegramVcAdapter.source(body.config?.url || body.config?.path || ''); return c.json({ call: (await telegramStatus()).call }) }
+    catch (error) { return c.json({ error: error instanceof Error ? error.message : 'Could not switch Telegram source' }, 503) }
+  })
+  app.get('/v1/telegram-vc/groups', async (c) => {
+    try { return c.json(await telegramVcAdapter.groups()) }
+    catch (error) { return c.json({ error: error instanceof Error ? error.message : 'Could not load Telegram groups' }, 503) }
+  })
+  app.get('/v1/telegram-vc/participants', (c) => c.json({ participants: [], count: 0 }))
+  app.post('/v1/telegram-vc/mute', (c) => c.json({ error: 'Participant moderation is not available in the Telegram adapter yet' }, 501))
 
   return app
 }

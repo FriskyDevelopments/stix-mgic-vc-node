@@ -11,12 +11,14 @@ import {
   listRoomsForOperator,
   recordTelemetry,
   resetRooms,
+  scheduleRoom,
   roomCount,
   sweepEmptyRooms,
   toView,
   EMPTY_ROOM_TTL_MS,
   MAX_PARTICIPANTS_LIMIT,
   TELEMETRY_MAX_AGE_MS,
+  SCHEDULED_ROOM_GRACE_MS,
 } from './rooms'
 
 const OWNER = 'telegram:1'
@@ -209,6 +211,20 @@ describe('sweepEmptyRooms', () => {
     const room = createRoom({ ownerOperatorId: OWNER })
     joinRoom(room.id, { operatorId: OWNER, name: 'Owner' })
     expect(sweepEmptyRooms(Date.now() + EMPTY_ROOM_TTL_MS * 100)).toBe(0)
+  })
+
+  it('keeps a scheduled room until after its event window', () => {
+    const now = Date.now()
+    const scheduledFor = now + 24 * 60 * 60 * 1000
+    const room = createRoom({ ownerOperatorId: OWNER })
+    expect(scheduleRoom(room.id, OWNER, scheduledFor)?.scheduledFor).toBe(scheduledFor)
+    expect(sweepEmptyRooms(now + EMPTY_ROOM_TTL_MS * 2)).toBe(0)
+    expect(sweepEmptyRooms(scheduledFor + SCHEDULED_ROOM_GRACE_MS + 1)).toBe(1)
+  })
+
+  it('does not let another operator reschedule the room', () => {
+    const room = createRoom({ ownerOperatorId: OWNER })
+    expect(scheduleRoom(room.id, GUEST, Date.now() + 60_000)).toBeNull()
   })
 })
 

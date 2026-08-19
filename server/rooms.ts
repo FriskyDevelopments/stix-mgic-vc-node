@@ -17,6 +17,8 @@
  * reported the numbers read zero and the source reads `unavailable` — see sessions.ts.
  */
 import { randomUUID } from 'node:crypto'
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { dirname } from 'node:path'
 
 export type RoomPlatform = 'telegram' | 'discord' | 'web'
 
@@ -48,6 +50,7 @@ export type Room = {
   platform: RoomPlatform
   maxParticipants: number
   createdAt: number
+  scheduledFor: number | null
   participants: Map<string, Participant>
   telemetry: RoomTelemetry | null
 }
@@ -69,6 +72,7 @@ const DEFAULT_MAX_PARTICIPANTS = 4
 
 /** An empty room is swept after this long, so an abandoned room id cannot be squatted. */
 export const EMPTY_ROOM_TTL_MS = 10 * 60 * 1000
+export const SCHEDULED_ROOM_GRACE_MS = 4 * 60 * 60 * 1000
 
 /** Telemetry older than this is stale and reported as such rather than served as current. */
 export const TELEMETRY_MAX_AGE_MS = 15 * 1000
@@ -76,6 +80,35 @@ export const TELEMETRY_MAX_AGE_MS = 15 * 1000
 const rooms = new Map<string, Room>()
 const roomIdsByOwner = new Map<string, Set<string>>()
 const participantIdsByRoomAndOperator = new Map<string, Map<string, string>>()
+let statePath: string | null = null
+
+type StoredRoom = Omit<Room, 'participants' | 'telemetry'>
+
+function persistRooms(): void {
+  if (!statePath) return
+  const stored: StoredRoom[] = [...rooms.values()].map(({ participants: _participants, telemetry: _telemetry, ...room }) => room)
+  mkdirSync(dirname(statePath), { recursive: true })
+  const pending = `${statePath}.tmp`
+  writeFileSync(pending, JSON.stringify(stored), { mode: 0o600 })
+  renameSync(pending, statePath)
+}
+
+export function configureRoomPersistence(path: string | undefined): void {
+  statePath = path || null
+  if (!statePath) return
+  try {
+    const stored = JSON.parse(readFileSync(statePath, 'utf8')) as StoredRoom[]
+    for (const room of stored) {
+      if (!room?.id || !room.ownerOperatorId || rooms.has(room.id)) continue
+      rooms.set(room.id, { ...room, scheduledFor: room.scheduledFor ?? null, participants: new Map(), telemetry: null })
+      const owned = roomIdsByOwner.get(room.ownerOperatorId) ?? new Set<string>()
+      owned.add(room.id)
+      roomIdsByOwner.set(room.ownerOperatorId, owned)
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+  }
+}
 
 function removeRoomIndexes(room: Room): void {
   roomIdsByOwner.get(room.ownerOperatorId)?.delete(room.id)
@@ -104,6 +137,7 @@ export function createRoom(input: {
   name?: string
   platform?: RoomPlatform
   maxParticipants?: number
+  scheduledFor?: number
 }): Room {
   const id = randomUUID()
   const room: Room = {
@@ -113,6 +147,7 @@ export function createRoom(input: {
     platform: input.platform ?? 'web',
     maxParticipants: clampParticipants(input.maxParticipants),
     createdAt: Date.now(),
+    scheduledFor: input.scheduledFor && input.scheduledFor > Date.now() ? input.scheduledFor : null,
     participants: new Map(),
     telemetry: null,
   }
@@ -120,6 +155,17 @@ export function createRoom(input: {
   const ownedRoomIds = roomIdsByOwner.get(room.ownerOperatorId) ?? new Set<string>()
   ownedRoomIds.add(id)
   roomIdsByOwner.set(room.ownerOperatorId, ownedRoomIds)
+  persistRooms()
+  return room
+}
+
+export function scheduleRoom(roomId: string, byOperatorId: string, scheduledFor: number): Room | null {
+  const room = rooms.get(roomId)
+  if (!room || room.ownerOperatorId !== byOperatorId || !Number.isFinite(scheduledFor)) return null
+  const now = Date.now()
+  if (scheduledFor < now - 60_000 || scheduledFor > now + 366 * 24 * 60 * 60 * 1000) return null
+  room.scheduledFor = scheduledFor
+  persistRooms()
   return room
 }
 
@@ -189,6 +235,7 @@ export function closeRoom(roomId: string, byOperatorId: string): boolean {
   if (room.ownerOperatorId !== byOperatorId) return false
   rooms.delete(roomId)
   removeRoomIndexes(room)
+  persistRooms()
   return true
 }
 
@@ -224,12 +271,14 @@ export function findRoomForOperator(operatorId: string): { room: Room; participa
 export function sweepEmptyRooms(now = Date.now(), ttlMs = EMPTY_ROOM_TTL_MS): number {
   let removed = 0
   for (const [id, room] of rooms) {
-    if (room.participants.size === 0 && now - room.createdAt > ttlMs) {
+    const expiresAt = room.scheduledFor ? room.scheduledFor + SCHEDULED_ROOM_GRACE_MS : room.createdAt + ttlMs
+    if (room.participants.size === 0 && now > expiresAt) {
       rooms.delete(id)
       removeRoomIndexes(room)
       removed++
     }
   }
+  if (removed) persistRooms()
   return removed
 }
 

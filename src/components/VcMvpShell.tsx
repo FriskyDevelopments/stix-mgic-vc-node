@@ -7,6 +7,8 @@ import type { CallClient } from '@/lib/webrtc-client'
 import { IdentityGate } from '@/components/IdentityGate'
 import { RoomPanel } from '@/components/RoomPanel'
 import { CreatorTools } from '@/components/CreatorTools'
+import { TelegramVcPanel } from '@/components/TelegramVcPanel'
+import { NodeOperationsBoard } from '@/components/NodeOperationsBoard'
 import '@/styles/vc-mvp.css'
 import { initializeTelegramWebApp } from '@/lib/telegram-webapp'
 
@@ -18,7 +20,9 @@ export function VcMvpShell() {
   const [error, setError] = useState<string | null>(null)
   const [micEnabled, setMicEnabled] = useState(true)
   const [cameraEnabled, setCameraEnabled] = useState(true)
-  const [studioOpen, setStudioOpen] = useState(false)
+  // The node is a control room, not a landing page. Keep its working surfaces visible
+  // by default so OBS, capture, scheduling, Telegram and health never become hidden UI.
+  const [studioOpen, setStudioOpen] = useState(true)
   const [deviceMenuOpen, setDeviceMenuOpen] = useState(false)
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([])
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([])
@@ -141,7 +145,7 @@ export function VcMvpShell() {
     <main className="vc-shell"><div className="vc-ambient" aria-hidden="true" /><div className="vc-app">
       <header className="vc-header">
         <a className="vc-brand" href="/" aria-label="VC Node home"><img className="vc-mark" src="/vc-node-icon.png?v=2" alt="" /><span><strong>VC NODE</strong><small>FRISKY DEVELOPMENTS</small></span></a>
-        <div className="vc-header-right"><span className="vc-live"><i /> NODE ONLINE</span><button className="vc-studio-trigger" onClick={() => setStudioOpen((open) => !open)}><SlidersHorizontal size={17} /> Studio</button></div>
+        <div className="vc-header-right"><span className="vc-live"><i /> NODE ONLINE</span><button className="vc-studio-trigger" onClick={() => setStudioOpen((open) => !open)}><SlidersHorizontal size={17} /> {studioOpen ? 'Hide controls' : 'Control room'}</button></div>
       </header>
       <section className="vc-identity"><IdentityGate onChange={setAuthenticated} /></section>
       <section className="vc-stage" aria-label="Local video preview">
@@ -179,7 +183,7 @@ export function VcMvpShell() {
           </div>
         )}
       </section>
-      {studioOpen && <aside className="vc-studio-drawer"><div className="vc-drawer-head"><div><span>CREATOR STUDIO</span><h2>Broadcast tools</h2></div><button onClick={() => setStudioOpen(false)} aria-label="Close studio"><X size={19} /></button></div><CreatorTools cameraStream={stream} screenStream={screenStream} onScreenStream={setScreenStream} roomId={roomId} /></aside>}
+      {studioOpen && <aside className="vc-studio-drawer"><div className="vc-drawer-head"><div><span>CREATOR STUDIO</span><h2>Broadcast tools</h2></div><button onClick={() => setStudioOpen(false)} aria-label="Close studio"><X size={19} /></button></div><div className="vc-studio-intro"><div><span>LIVE SIGNAL CONSOLE</span><h3>One scene.<br />Every signal.</h3></div><div className="vc-signal-orb" aria-hidden="true"><i /><i /><i /></div><div className="vc-studio-rail"><span>OBS</span><span>SCREEN</span><span>CLIPSFLOW</span><span>RTMP</span><span>SPOTIFY</span><span>TELEGRAM</span></div></div><NodeOperationsBoard /><CreatorTools cameraStream={stream} screenStream={screenStream} onScreenStream={setScreenStream} roomId={roomId} /><div className="mt-4"><TelegramVcPanel accessGranted={authenticated} /></div></aside>}
       <footer className="vc-footer"><span>Encrypted peer-to-peer media</span><span>vc.friskydev.com</span></footer>
     </div></main>
   )

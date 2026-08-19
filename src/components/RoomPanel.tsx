@@ -13,6 +13,7 @@ import {
   type MediaPlaneStatus,
   type RoomView,
 } from '@/lib/rooms-api'
+import { shareToTelegram } from '@/lib/telegram-webapp'
 
 /**
  * RoomPanel — open a room, or join one someone sent you, and see who is on the call.
@@ -26,6 +27,11 @@ import {
 export type RoomPanelProps = {
   /** The operator's own camera/microphone, already acquired by the preview. */
   localStream: MediaStream | null
+  onRoomChange?: (roomId: string | null) => void
+  /** Selected speaker deviceId, routed down to the remote tiles. */
+  sinkId?: string
+  /** Surfaces the live CallClient so the shell can switch devices mid-call. */
+  onClientReady?: (client: import('@/lib/webrtc-client').CallClient | null) => void
 }
 
 function adapterTone(state: MediaPlaneStatus['adapters'][number]['state']): string {
@@ -39,11 +45,13 @@ function adapterTone(state: MediaPlaneStatus['adapters'][number]['state']): stri
   }
 }
 
-export function RoomPanel({ localStream }: RoomPanelProps) {
+export function RoomPanel({ localStream, onRoomChange, sinkId, onClientReady }: RoomPanelProps) {
   const [room, setRoom] = useState<RoomView | null>(null)
-  const [joinId, setJoinId] = useState('')
+  const [joinId, setJoinId] = useState(() => new URLSearchParams(window.location.search).get('room') || '')
   const [busy, setBusy] = useState(false)
   const [media, setMedia] = useState<MediaPlaneStatus | null>(null)
+
+  useEffect(() => { onRoomChange?.(room?.id || null) }, [room?.id, onRoomChange])
 
   useEffect(() => {
     let cancelled = false
@@ -57,6 +65,17 @@ export function RoomPanel({ localStream }: RoomPanelProps) {
     return () => {
       cancelled = true
     }
+  }, [])
+
+  useEffect(() => {
+    const action = new URLSearchParams(window.location.search).get('action')
+    if (action === 'new-room') {
+      void handleCreate()
+      return
+    }
+    if (joinId && !room) void handleJoin()
+    // The invite UUID is read once on mount; manual edits still use the Join button.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function handleCreate(): Promise<void> {
@@ -129,11 +148,23 @@ export function RoomPanel({ localStream }: RoomPanelProps) {
               size="sm"
               className="h-8 font-mono text-[10px]"
               onClick={() => {
-                void navigator.clipboard?.writeText(room.id)
-                toast.success('Room id copied')
+                const invite = `${window.location.origin}/?room=${encodeURIComponent(room.id)}`
+                void navigator.clipboard?.writeText(invite)
+                toast.success('Invite link copied')
               }}
             >
-              Copy id
+              Copy invite
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 font-mono text-[10px]"
+              onClick={() => {
+                const invite = `${window.location.origin}/?room=${encodeURIComponent(room.id)}`
+                shareToTelegram(invite, 'Join my VC Node room')
+              }}
+            >
+              Send by Telegram
             </Button>
             <Button variant="destructive" size="sm" className="h-8 font-mono text-[10px]" onClick={() => void handleLeave()}>
               Leave
@@ -163,7 +194,14 @@ export function RoomPanel({ localStream }: RoomPanelProps) {
         )}
       </GlassCard>
 
-      {room && <CallStage roomId={room.id} localStream={localStream} />}
+      {room && (
+        <CallStage
+          roomId={room.id}
+          localStream={localStream}
+          sinkId={sinkId}
+          onClientReady={onClientReady}
+        />
+      )}
     </div>
   )
 }

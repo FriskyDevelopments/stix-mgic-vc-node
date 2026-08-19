@@ -27,6 +27,7 @@ import { z } from 'zod'
 import { getServerEnv } from './env'
 import { getIceServers } from './ice'
 import { verifyOperatorToken } from './tokens'
+import { sessionClaimsFromCookie } from './oidc'
 import {
   getRoom,
   joinRoom,
@@ -119,7 +120,10 @@ function authenticate(req: IncomingMessage): { operatorId: string; operatorName:
     return { operatorId: claims.sub, operatorName: claims.name }
   }
 
-  if (env.AUTH_REQUIRED) return null
+  const cookieClaims = sessionClaimsFromCookie(req.headers.cookie)
+  if (cookieClaims) return { operatorId: cookieClaims.sub, operatorName: cookieClaims.name }
+
+  if (env.AUTH_REQUIRED && !env.PUBLIC_ROOMS_ENABLED) return null
 
   const clientId = url.searchParams.get('clientId')?.slice(0, 64) || 'local'
   return { operatorId: `anonymous:${clientId}`, operatorName: 'Anonymous Operator' }

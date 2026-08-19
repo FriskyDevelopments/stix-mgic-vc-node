@@ -2,8 +2,6 @@ import { createRoot } from 'react-dom/client'
 import { ErrorBoundary } from "react-error-boundary";
 import { PostHogProvider } from '@posthog/react'
 import { Toaster } from 'sonner'
-import "@github/spark/spark"
-
 import App from './App.tsx'
 import { DiscordCallback } from './components/DiscordCallback.tsx'
 import { SpotifyCallback } from './components/SpotifyCallback.tsx'

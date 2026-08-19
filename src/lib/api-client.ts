@@ -1,4 +1,5 @@
 import { getAppEnv } from '@/lib/env'
+import { getClientId } from '@/lib/client-id'
 import { getOperatorToken } from '@/lib/operator-token'
 
 export function apiUrl(path: string): string {
@@ -11,6 +12,7 @@ export function apiHeaders(
 ): Headers {
   const headers = new Headers(initialHeaders)
   headers.set('Content-Type', 'application/json')
+  headers.set('X-Client-Id', getClientId())
 
   if (includeOperatorToken) {
     const token = getOperatorToken()
