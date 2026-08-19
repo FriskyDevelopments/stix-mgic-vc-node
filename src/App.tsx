@@ -18,10 +18,11 @@ import { SpotifyTrackPicker } from "@/components/SpotifyTrackPicker"
 import { DeviceSelector } from "@/components/DeviceSelector"
 import { PlatformAccess } from "@/components/PlatformAccess"
 import { RoomPanel } from "@/components/RoomPanel"
-import { FriskyDevIdGate } from "@/components/FriskyDevIdGate"
-import { VcMvpShell } from "@/components/VcMvpShell"
+import { FriskyDevIdentityGate } from "@/components/FriskyDevIdentityGate"
 import { TelegramVcPanel } from "@/components/TelegramVcPanel"
 import { DJModePanel } from "@/components/DJModePanel"
+import { CreatorTools } from "@/components/CreatorTools"
+import { NodeOperationsBoard } from "@/components/NodeOperationsBoard"
 import { HudFrame } from "@/components/wow/HudFrame"
 import { ParticleField } from "@/components/wow/ParticleField"
 import { AnimatedGradient } from "@/components/wow/AnimatedGradient"
@@ -141,6 +142,8 @@ function LegacyControlPlane() {
   const [resolution, setResolution] = useState('720p')
   
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null)
+  const [screenStream, setScreenStream] = useState<MediaStream | null>(null)
+  const [roomId, setRoomId] = useState<string | null>(null)
   const [cameraPermissionError, setCameraPermissionError] = useState<string | null>(null)
 
   const [telegramAuthStatus, setTelegramAuthStatus] = usePersistedState<PlatformAuthStatus>("telegram-auth-status", "disconnected")
@@ -591,6 +594,11 @@ function LegacyControlPlane() {
       setCameraStream(null)
       addLog('info', 'SOURCE', 'Camera stream stopped')
     }
+    if (screenStream) {
+      screenStream.getTracks().forEach(track => track.stop())
+      setScreenStream(null)
+      addLog('info', 'SOURCE', 'Screen share stopped')
+    }
 
     try {
       const snapshot = await getSessionApi().stopSession()
@@ -963,8 +971,6 @@ function LegacyControlPlane() {
     return log.type.toLowerCase() === diagnosticFilter.toLowerCase()
   }) : []
 
-  if (!appEnv.demoMode) return <VcMvpShell />
-
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
       {/* Atmospheric background effects */}
@@ -1025,7 +1031,7 @@ function LegacyControlPlane() {
           </div>
         </HudFrame>
 
-        <FriskyDevIdGate onChange={setFriskyDevSignedIn} />
+        <FriskyDevIdentityGate onChange={(identity) => setFriskyDevSignedIn(Boolean(identity))} />
 
         <PlatformAccess
           telegramStatus={telegramAuthStatus || 'disconnected'}
@@ -1035,9 +1041,9 @@ function LegacyControlPlane() {
           discordUser={discordUser === undefined ? null : discordUser}
           discordError={discordAuthError}
           friskyDevSignedIn={friskyDevSignedIn}
-          telegramBotUsername={null}
-          telegramLinked={false}
-          discordLinked={false}
+          telegramBotUsername={appEnv.telegramBotUsername || null}
+          telegramLinked={telegramAuthStatus === 'connected'}
+          discordLinked={discordAuthStatus === 'connected'}
           onTelegramWidgetAuth={() => void handleTelegramAuth()}
           onTelegramDemoAuth={() => void handleTelegramAuth()}
           onTelegramDisconnect={handleTelegramDisconnect}
@@ -1089,18 +1095,24 @@ function LegacyControlPlane() {
                   real even while the legacy platform-control surfaces remain in demo mode. */}
               <div className="mt-4 space-y-4">
                 {friskyDevSignedIn || appEnv.demoMode ? (
-                  <RoomPanel localStream={cameraStream} />
+                  <RoomPanel
+                    localStream={cameraStream || screenStream}
+                    onRoomChange={setRoomId}
+                  />
                 ) : (
                   <GlassCard className="p-5 text-center text-sm text-muted-foreground">
                     Continue with FriskyDev ID to create or join a room.
                   </GlassCard>
                 )}
-                {!appEnv.demoMode && (
-                  <>
-                    <TelegramVcPanel />
-                    <DJModePanel />
-                  </>
-                )}
+                <NodeOperationsBoard />
+                <CreatorTools
+                  cameraStream={cameraStream}
+                  screenStream={screenStream}
+                  onScreenStream={setScreenStream}
+                  roomId={roomId}
+                />
+                <TelegramVcPanel accessGranted={friskyDevSignedIn || appEnv.demoMode} />
+                <DJModePanel />
               </div>
               
               {sessionStatus === 'active' && operatorTier === 'premium' && operatorTimeRemaining > 0 && (
@@ -1916,7 +1928,7 @@ function LegacyControlPlane() {
 }
 
 function App() {
-  return <VcMvpShell />
+  return <LegacyControlPlane />
 }
 
 export default App

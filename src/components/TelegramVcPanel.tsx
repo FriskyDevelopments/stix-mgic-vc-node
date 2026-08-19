@@ -58,25 +58,6 @@ export function TelegramVcPanel({ accessGranted = true }: { accessGranted?: bool
   const [pairCode, setPairCode] = useState('')
   const [pairPassword, setPairPassword] = useState('')
 
-  // Keep the Telegram lane discoverable in the Control Room, while keeping pairing,
-  // group selection and broadcast actions behind the node's authenticated operator session.
-  if (!accessGranted) {
-    return (
-      <GlassCard className="p-5" data-testid="telegram-access-preview">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="font-mono text-sm text-cyan-300">TELEGRAM VC</p>
-            <p className="mt-2 max-w-lg text-xs leading-relaxed text-white/55">
-              Pair the dedicated Telegram operator, select a group call, then route OBS, screen,
-              ClipsFlow or RTMP into it. Sign in above to unlock this broadcast lane.
-            </p>
-          </div>
-          <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 font-mono text-[9px] tracking-[.16em] text-cyan-200">OPERATOR ACCESS</span>
-        </div>
-      </GlassCard>
-    )
-  }
-
   // Telegram VC adapter — polls /v1/telegram-vc/status; if the server returns 503
   // (which it always does until a real MTProto user session is wired), show
   // "not configured" and render no functional Join/Leave/Source buttons.
@@ -216,6 +197,23 @@ export function TelegramVcPanel({ accessGranted = true }: { accessGranted?: bool
     } catch (err) {
       toast.error('Verification failed', { description: err instanceof Error ? err.message : 'Unknown error' })
     } finally { setBusy(false) }
+  }
+
+  if (!accessGranted) {
+    return (
+      <GlassCard className="p-5" data-testid="telegram-access-preview">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="font-mono text-sm text-cyan-300">TELEGRAM VC</p>
+            <p className="mt-2 max-w-lg text-xs leading-relaxed text-white/55">
+              Pair the dedicated Telegram operator, select a group call, then route OBS, screen,
+              ClipsFlow or RTMP into it. Sign in above to unlock this broadcast lane.
+            </p>
+          </div>
+          <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 font-mono text-[9px] tracking-[.16em] text-cyan-200">OPERATOR ACCESS</span>
+        </div>
+      </GlassCard>
+    )
   }
 
   if (unavailable) {
