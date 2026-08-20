@@ -3,7 +3,8 @@ import { getServerEnv } from './env'
 
 export type OperatorClaims = {
   sub: string
-  platform: 'telegram' | 'discord' | 'anonymous' | 'friskydev'
+  // 'supabase' is the Fenrir master identity (auth.users.id) — see server/supabase-auth.ts.
+  platform: 'telegram' | 'discord' | 'anonymous' | 'friskydev' | 'supabase'
   name: string
   iat: number
   exp: number

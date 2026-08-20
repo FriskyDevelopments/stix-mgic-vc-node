@@ -108,6 +108,15 @@ describe('buildSignalingUrl', () => {
   it('sends a client id instead when there is no token', () => {
     expect(buildSignalingUrl('room-abcdef12', null, 'https://vc.example')).toContain('clientId=')
   })
+
+  it('keeps anonymous browser participants distinct', () => {
+    const first = buildSignalingUrl('room-1', null, 'https://vc.example', 'tab-a')
+    const second = buildSignalingUrl('room-1', null, 'https://vc.example', 'tab-b')
+
+    expect(first).toContain('clientId=tab-a')
+    expect(second).toContain('clientId=tab-b')
+    expect(first).not.toBe(second)
+  })
 })
 
 describe('shouldInitiateOffer — one offer, never two', () => {

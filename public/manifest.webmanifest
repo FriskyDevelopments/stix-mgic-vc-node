@@ -1,0 +1,32 @@
+{
+  "name": "VC Node",
+  "short_name": "VC Node",
+  "description": "Secure peer-to-peer video rooms by Frisky Developments.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#07080a",
+  "theme_color": "#07080a",
+  "icons": [
+    {
+      "src": "/vc-node-icon-256.png?v=2",
+      "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/vc-node-icon-512.png?v=2",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New room",
+      "short_name": "New room",
+      "url": "/?action=new-room",
+      "icons": [{ "src": "/vc-node-icon-256.png?v=2", "sizes": "256x256" }]
+    }
+  ]
+}

@@ -31,7 +31,6 @@ export function DiscordCallback({ onAuthComplete, onAuthError }: DiscordCallback
 
     if (code && state && state === storedState) {
       sessionStorage.removeItem('discord_auth_state')
-<<<<<<< HEAD
       sessionStorage.removeItem('discord_link_mode')
 
       const redirectUri = `${window.location.origin}/auth/discord/callback`
@@ -47,20 +46,11 @@ export function DiscordCallback({ onAuthComplete, onAuthError }: DiscordCallback
                 linked: true,
                 identity: result.identity,
               },
-=======
-
-      handleDiscordCallback(code)
-        .then((result) => {
-          if (window.opener) {
-            window.opener.postMessage(
-              { type: 'discord-auth', user: result.user, token: result.token },
->>>>>>> origin/main
               window.location.origin
             )
             window.close()
           } else {
             onAuthComplete(result.user)
-<<<<<<< HEAD
           }
           return
         }
@@ -89,26 +79,8 @@ export function DiscordCallback({ onAuthComplete, onAuthError }: DiscordCallback
             window.location.origin
           )
           window.close()
-        }
+          }
       })
-=======
-          }
-        })
-        .catch((err) => {
-          console.error('Discord auth error:', err)
-          onAuthError()
-          if (window.opener) {
-            window.opener.postMessage(
-              {
-                type: 'discord-auth-error',
-                error: err instanceof Error ? err.message : 'auth failed',
-              },
-              window.location.origin
-            )
-            window.close()
-          }
-        })
->>>>>>> origin/main
     }
   }, [onAuthComplete, onAuthError])
 

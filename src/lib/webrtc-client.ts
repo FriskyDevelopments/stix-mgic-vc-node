@@ -1,5 +1,6 @@
 import { getAppEnv } from '@/lib/env'
 import { apiHeaders, apiUrl } from '@/lib/api-client'
+import { getClientId } from '@/lib/client-id'
 import { log } from '@/lib/log'
 import { getOperatorToken } from '@/lib/operator-token'
 
@@ -95,6 +96,20 @@ export type CallClientOptions = {
   createPeerConnection?: (config: { iceServers: IceServerConfig[] }) => PeerConnectionLike
   /** How often measured stats are reported upward. Zero disables reporting. */
   telemetryIntervalMs?: number
+  /**
+   * Automatic signaling reconnection. A dropped WebSocket is a lost call today; with this
+   * enabled the client re-opens the socket and re-joins the same room with capped
+   * exponential backoff. Off by default so existing callers keep their exact behaviour.
+   */
+  reconnect?: {
+    enabled?: boolean
+    /** Max consecutive attempts before giving up and going to `error`. Default 5. */
+    maxAttempts?: number
+    /** First backoff delay; doubles each attempt. Default 500ms. */
+    baseDelayMs?: number
+    /** Upper bound on any single backoff delay. Default 10000ms. */
+    maxDelayMs?: number
+  }
 }
 
 type PeerEntry = {
@@ -104,6 +119,9 @@ type PeerEntry = {
   /** Candidates that arrived before the remote description was set. */
   pendingCandidates: RTCIceCandidateInit[]
   makingOffer: boolean
+  /** The senders for the local tracks, kept so a device switch can replaceTrack in place. */
+  videoSender?: RTCRtpSender
+  audioSender?: RTCRtpSender
 }
 
 const SIGNALING_PATH = '/v1/signal'
@@ -114,12 +132,17 @@ const DEFAULT_TELEMETRY_INTERVAL_MS = 5000
  * set headers on a WebSocket; it is short-lived and the connection is TLS-terminated at
  * the edge.
  */
-export function buildSignalingUrl(roomId: string, token: string | null, apiBaseUrl: string): string {
+export function buildSignalingUrl(
+  roomId: string,
+  token: string | null,
+  apiBaseUrl: string,
+  anonymousClientId = getClientId()
+): string {
   const base = apiBaseUrl || (typeof window !== 'undefined' ? window.location.origin : '')
   const url = new URL(SIGNALING_PATH, base || 'http://localhost')
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
   if (token) url.searchParams.set('token', token)
-  else url.searchParams.set('clientId', roomId.slice(0, 8))
+  else url.searchParams.set('clientId', anonymousClientId)
   return url.toString()
 }
 
@@ -138,8 +161,16 @@ export class CallClient {
   private readonly peers = new Map<string, PeerEntry>()
   private state: CallState = 'idle'
   private telemetryTimer: ReturnType<typeof setInterval> | null = null
+  /** True once close() is called, so an intentional teardown never triggers a reconnect. */
+  private closedByClient = false
+  private reconnectAttempts = 0
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  /** Stable for this browser participant across signaling reconnects, unique across tabs. */
+  private readonly anonymousClientId: string
 
-  constructor(private readonly options: CallClientOptions) {}
+  constructor(private readonly options: CallClientOptions) {
+    this.anonymousClientId = getClientId()
+  }
 
   getState(): CallState {
     return this.state
@@ -151,6 +182,32 @@ export class CallClient {
       stream: entry.stream,
       connectionState: entry.connection.connectionState,
     }))
+  }
+
+  /**
+   * Swap the local camera or microphone track on every peer connection without
+   * renegotiating — `RTCRtpSender.replaceTrack` changes the source mid-call, so a device
+   * switch never drops the call. The local stream reference is kept current so a
+   * reconnection re-attaches the track the operator actually chose.
+   */
+  async replaceLocalTrack(track: MediaStreamTrack): Promise<void> {
+    for (const entry of this.peers.values()) {
+      const sender = track.kind === 'video' ? entry.videoSender : entry.audioSender
+      if (!sender) continue
+      try {
+        await sender.replaceTrack(track)
+      } catch {
+        // A failed replace on one peer must not abort the switch on the others.
+      }
+    }
+    // Keep the stream the client re-attaches on reconnect in sync with the live choice.
+    const stream = this.options.localStream
+    if (stream) {
+      for (const existing of stream.getTracks()) {
+        if (existing.kind === track.kind && existing !== track) stream.removeTrack(existing)
+      }
+      if (!stream.getTracks().includes(track)) stream.addTrack(track)
+    }
   }
 
   private setState(state: CallState): void {
@@ -174,8 +231,24 @@ export class CallClient {
 
   /** Open the socket and join the room. Resolves once the room has been joined. */
   async join(): Promise<void> {
+    this.closedByClient = false
+    this.reconnectAttempts = 0
+    return this.connectOnce()
+  }
+
+  /**
+   * One connection attempt. Resolves when the room is joined, rejects if the socket fails
+   * or closes before joining. A close *after* joining is a live-call disconnect and, when
+   * reconnection is enabled, schedules a re-join rather than ending the call.
+   */
+  private connectOnce(): Promise<void> {
     const env = getAppEnv()
-    const url = buildSignalingUrl(this.options.roomId, getOperatorToken(), env.apiBaseUrl)
+    const url = buildSignalingUrl(
+      this.options.roomId,
+      getOperatorToken(),
+      env.apiBaseUrl,
+      this.anonymousClientId
+    )
     const createSocket =
       this.options.createSocket ?? ((target: string) => new WebSocket(target) as unknown as SocketLike)
 
@@ -197,20 +270,27 @@ export class CallClient {
           this.setState('error')
           reject(new Error('Signaling connection failed'))
         }
+        // Reconnection is scheduled from onclose, which follows an error, so a single
+        // failure never schedules two attempts.
       }
 
       socket.onclose = () => {
         this.stopTelemetry()
-        // A close after a successful join is a disconnect, not a join failure.
-        if (this.state !== 'closed') this.setState(settled ? 'closed' : 'error')
         if (!settled) {
           settled = true
+          if (this.state !== 'closed') this.setState('error')
           reject(new Error('Signaling connection closed before joining'))
+        } else if (!this.closedByClient) {
+          // Dropped mid-call. Try to get back in unless the caller opted out.
+          if (this.state !== 'closed') this.setState('error')
         }
+        this.scheduleReconnect()
       }
 
       socket.onmessage = (event) => {
         void this.handleMessage(event.data, () => {
+          // A successful (re)join clears the backoff counter.
+          this.reconnectAttempts = 0
           if (!settled) {
             settled = true
             resolve()
@@ -218,6 +298,48 @@ export class CallClient {
         })
       }
     })
+  }
+
+  /**
+   * Re-open the signaling socket and re-join the same room after an unexpected drop.
+   * The node hands us a fresh participant id on re-join, so peers see us leave and return;
+   * the local peer connections are torn down and rebuilt from the `joined` snapshot.
+   */
+  private scheduleReconnect(): void {
+    if (this.closedByClient) return
+    const cfg = this.options.reconnect
+    if (!cfg?.enabled) return
+    if (this.reconnectTimer) return
+
+    const maxAttempts = cfg.maxAttempts ?? 5
+    if (this.reconnectAttempts >= maxAttempts) {
+      this.fail('reconnect_exhausted', `Gave up reconnecting after ${maxAttempts} attempts`)
+      this.setState('error')
+      return
+    }
+
+    const base = cfg.baseDelayMs ?? 500
+    const cap = cfg.maxDelayMs ?? 10_000
+    const delay = Math.min(base * 2 ** this.reconnectAttempts, cap)
+    this.reconnectAttempts++
+    this.setState('connecting')
+
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
+      if (this.closedByClient) return
+      // Old peer connections belong to a participant id the room no longer knows; drop them
+      // and let the `joined` snapshot rebuild the mesh.
+      this.resetPeers()
+      void this.connectOnce().catch(() => {
+        // A failed attempt closes the socket, and onclose schedules the next one.
+      })
+    }, delay)
+  }
+
+  private resetPeers(): void {
+    for (const entry of this.peers.values()) entry.connection.close()
+    this.peers.clear()
+    this.emitPeers()
   }
 
   private async handleMessage(raw: unknown, onJoined: () => void): Promise<void> {
@@ -322,7 +444,9 @@ export class CallClient {
 
     if (this.options.localStream) {
       for (const track of this.options.localStream.getTracks()) {
-        connection.addTrack(track, this.options.localStream)
+        const sender = connection.addTrack(track, this.options.localStream)
+        if (track.kind === 'video') entry.videoSender = sender
+        else if (track.kind === 'audio') entry.audioSender = sender
       }
     }
 
@@ -461,6 +585,11 @@ export class CallClient {
 
   /** Leave the room and tear everything down. Safe to call twice. */
   close(): void {
+    this.closedByClient = true
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
     this.stopTelemetry()
     for (const entry of this.peers.values()) entry.connection.close()
     this.peers.clear()

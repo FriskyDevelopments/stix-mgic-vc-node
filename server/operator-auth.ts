@@ -4,7 +4,7 @@ import { verifyOperatorToken } from './tokens'
 export type OperatorVariables = {
   operatorId: string
   operatorName: string
-  operatorPlatform: 'telegram' | 'discord' | 'anonymous'
+  operatorPlatform: 'telegram' | 'discord' | 'anonymous' | 'friskydev' | 'supabase'
 }
 
 export function createOperatorMiddleware(

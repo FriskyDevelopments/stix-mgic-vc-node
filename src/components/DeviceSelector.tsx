@@ -29,6 +29,7 @@ export function DeviceSelector({
   const [hasPermission, setHasPermission] = useState(false)
 
   const enumerateDevices = async () => {
+    if (!navigator.mediaDevices?.enumerateDevices) return
     try {
       const devices = await navigator.mediaDevices.enumerateDevices()
       
@@ -63,16 +64,18 @@ export function DeviceSelector({
   }
 
   useEffect(() => {
+    const mediaDevices = navigator.mediaDevices
+    if (!mediaDevices?.enumerateDevices) return
     enumerateDevices()
 
     const handleDeviceChange = () => {
       enumerateDevices()
     }
 
-    navigator.mediaDevices.addEventListener("devicechange", handleDeviceChange)
+    mediaDevices.addEventListener?.("devicechange", handleDeviceChange)
 
     return () => {
-      navigator.mediaDevices.removeEventListener("devicechange", handleDeviceChange)
+      mediaDevices.removeEventListener?.("devicechange", handleDeviceChange)
     }
   }, [])
 

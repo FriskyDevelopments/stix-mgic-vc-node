@@ -1,0 +1,27 @@
+# VC Node RTMP ingest — values are substituted only on Hermes from /opt/vc-node.env.
+# The sidecar exposes exactly one protected path. Its API stays private on the Docker
+# network; no unauthenticated reader, publisher, HLS, or WebRTC endpoint is enabled.
+logLevel: info
+api: yes
+apiAddress: :9997
+rtsp: no
+rtmp: yes
+rtmpAddress: :1935
+hls: no
+webrtc: no
+srt: no
+authMethod: internal
+authInternalUsers:
+  - user: __RTMP_PUBLISH_USER__
+    pass: __RTMP_PUBLISH_PASSWORD__
+    permissions:
+      - action: publish
+        path: vc
+      - action: read
+        path: vc
+  - user: any
+    permissions:
+      - action: api
+paths:
+  vc:
+    source: publisher

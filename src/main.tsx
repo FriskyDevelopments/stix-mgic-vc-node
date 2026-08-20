@@ -1,12 +1,7 @@
 import { createRoot } from 'react-dom/client'
 import { ErrorBoundary } from "react-error-boundary";
-<<<<<<< HEAD
 import { PostHogProvider } from '@posthog/react'
-=======
->>>>>>> origin/main
 import { Toaster } from 'sonner'
-import "@github/spark/spark"
-
 import App from './App.tsx'
 import { DiscordCallback } from './components/DiscordCallback.tsx'
 import { SpotifyCallback } from './components/SpotifyCallback.tsx'
@@ -71,11 +66,6 @@ function AppTree() {
 
 createRoot(document.getElementById('root')!).render(
   <ErrorBoundary FallbackComponent={ErrorFallback}>
-<<<<<<< HEAD
     <AppTree />
-=======
-    <Root />
-    <Toaster theme="dark" position="bottom-right" richColors closeButton />
->>>>>>> origin/main
   </ErrorBoundary>
 )

@@ -1,3 +1,7 @@
+# NOT the production deploy path. vc.friskydev.com is a Docker container on the `hermes`
+# box behind a cloudflared tunnel — see DEPLOY.md. This file is kept for reference only;
+# values here (e.g. MEDIA_PLANE_ENABLED) do not match live and changing them deploys
+# nothing.
 services:
   - type: web
     name: stix-mgic-vc-node

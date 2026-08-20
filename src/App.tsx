@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useEffect } from "react"
+import { useState, useEffect } from "react"
 import { usePersistedState } from "@/hooks/use-persisted-state"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
@@ -14,9 +14,18 @@ import { MetricDisplay } from "@/components/MetricDisplay"
 import { LogEntry } from "@/components/LogEntry"
 import { PreviewPanel } from "@/components/PreviewPanel"
 import { BrandControl } from "@/components/BrandControl"
+import { SpotifyTrackPicker } from "@/components/SpotifyTrackPicker"
 import { DeviceSelector } from "@/components/DeviceSelector"
 import { PlatformAccess } from "@/components/PlatformAccess"
-import { FriskyDevAccountPanel } from "@/components/FriskyDevAccount"
+import { RoomPanel } from "@/components/RoomPanel"
+import { FriskyDevIdentityGate } from "@/components/FriskyDevIdentityGate"
+import { TelegramVcPanel } from "@/components/TelegramVcPanel"
+import { DJModePanel } from "@/components/DJModePanel"
+import { CreatorTools } from "@/components/CreatorTools"
+import { NodeOperationsBoard } from "@/components/NodeOperationsBoard"
+import { HudFrame } from "@/components/wow/HudFrame"
+import { ParticleField } from "@/components/wow/ParticleField"
+import { AnimatedGradient } from "@/components/wow/AnimatedGradient"
 import { 
   Broadcast, 
   Lightning, 
@@ -58,7 +67,7 @@ import {
   Database
 } from "@phosphor-icons/react"
 import { toast } from "sonner"
-import { initiateSpotifyAuth, getSpotifyUser, formatTrackDisplay, clearSpotifySession, getStoredSpotifyRefreshToken, isSpotifyAccessExpiringSoon, refreshSpotifyToken } from "@/lib/spotify"
+import { initiateSpotifyAuth, getSpotifyUser, formatTrackDisplay, clearSpotifySession, getStoredSpotifyRefreshToken, isSpotifyAccessExpiringSoon, refreshSpotifyToken, isSpotifyConfigured } from "@/lib/spotify"
 import type { SpotifyTrack } from "@/lib/spotify"
 import {
   generateDemoStreamKey,
@@ -72,24 +81,10 @@ import { log } from "@/lib/log"
 import { 
   initiateTelegramAuth, 
   initiateDiscordAuth,
-  verifyTelegramLoginPayload,
   type PlatformAuthStatus,
   type TelegramUser,
   type DiscordUser
 } from "@/lib/auth"
-import {
-  linkTelegramToFriskyDev,
-  unlinkPlatformFromFriskyDev,
-  type FriskyDevAccount,
-  type LinkedPlatformIdentity,
-} from "@/lib/friskydev"
-
-const RoomPanel = lazy(async () => ({
-  default: (await import("@/components/RoomPanel")).RoomPanel,
-}))
-const SpotifyTrackPicker = lazy(async () => ({
-  default: (await import("@/components/SpotifyTrackPicker")).SpotifyTrackPicker,
-}))
 
 type Platform = 'telegram' | 'discord'
 type SessionStatus = 'standby' | 'active' | 'connecting' | 'error' | 'dj-mode'
@@ -116,9 +111,10 @@ interface ProtocolConfig {
   mode: SessionMode
 }
 
-function App() {
+function LegacyControlPlane() {
   const appEnv = getAppEnv()
   const [platform, setPlatform] = usePersistedState<Platform>("platform", "telegram")
+  const [friskyDevSignedIn, setFriskyDevSignedIn] = useState(false)
   const [sessionStatus, setSessionStatus] = usePersistedState<SessionStatus>("session-status", "standby")
   const [inputProtocol, setInputProtocol] = usePersistedState<InputProtocol>("input-protocol", "dj-mode")
   const [sessionMark, setSessionMark] = usePersistedState<SessionMark>("session-mark", "stix-default")
@@ -146,6 +142,8 @@ function App() {
   const [resolution, setResolution] = useState('720p')
   
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null)
+  const [screenStream, setScreenStream] = useState<MediaStream | null>(null)
+  const [roomId, setRoomId] = useState<string | null>(null)
   const [cameraPermissionError, setCameraPermissionError] = useState<string | null>(null)
 
   const [telegramAuthStatus, setTelegramAuthStatus] = usePersistedState<PlatformAuthStatus>("telegram-auth-status", "disconnected")
@@ -155,22 +153,6 @@ function App() {
   const [discordAuthStatus, setDiscordAuthStatus] = usePersistedState<PlatformAuthStatus>("discord-auth-status", "disconnected")
   const [discordUser, setDiscordUser] = usePersistedState<DiscordUser | null>("discord-user", null)
   const [discordAuthError, setDiscordAuthError] = useState<string | null>(null)
-  const [friskyDevAccount, setFriskyDevAccount] = useState<FriskyDevAccount | null>(null)
-  const [linkedIdentities, setLinkedIdentities] = useState<LinkedPlatformIdentity[]>([])
-  const [telegramBotUsername, setTelegramBotUsername] = useState<string | null>(
-    (import.meta.env.VITE_TELEGRAM_BOT_USERNAME as string | undefined)?.trim() || null
-  )
-
-  useEffect(() => {
-    fetch(`${appEnv.apiBaseUrl}/v1/config/public`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((cfg) => {
-        if (cfg?.telegramBotUsername) setTelegramBotUsername(cfg.telegramBotUsername)
-      })
-      .catch(() => {
-        // offline / demo — keep env username if any
-      })
-  }, [appEnv.apiBaseUrl])
 
   const protocols: ProtocolConfig[] = [
     { 
@@ -264,10 +246,6 @@ function App() {
   }
 
   const handleTelegramAuth = async () => {
-    if (!friskyDevAccount) {
-      toast.error('Sign in to FriskyDev before linking Telegram')
-      return
-    }
     setTelegramAuthStatus('connecting')
     setTelegramAuthError(null)
     addLog('info', 'AUTH', 'Telegram authorization initiated')
@@ -283,58 +261,7 @@ function App() {
     }
   }
 
-  const handleTelegramWidgetAuth = async (payload: Record<string, unknown>) => {
-    if (!friskyDevAccount) {
-      toast.error('Sign in to FriskyDev before linking Telegram')
-      return
-    }
-    setTelegramAuthStatus('connecting')
-    setTelegramAuthError(null)
-    addLog('info', 'AUTH', 'Telegram Login Widget payload received')
-    try {
-      const linked = await linkTelegramToFriskyDev(payload)
-      const user: TelegramUser = {
-        id: Number(payload.id),
-        first_name: String(payload.first_name || 'Operator'),
-        last_name: payload.last_name ? String(payload.last_name) : undefined,
-        username: payload.username ? String(payload.username) : undefined,
-        photo_url: payload.photo_url ? String(payload.photo_url) : undefined,
-      }
-      setTelegramUser(user)
-      setTelegramAuthStatus('connected')
-      setLinkedIdentities((prev) => {
-        const others = prev.filter((i) => i.platform !== 'telegram')
-        return [...others, linked.identity]
-      })
-      addLog('success', 'AUTH', 'Telegram linked to FriskyDev account')
-      toast.success('Telegram linked to FriskyDev')
-    } catch (error) {
-      // Fallback: verify without link (operator-only) if link fails due to missing session
-      try {
-        const verified = await verifyTelegramLoginPayload(payload)
-        setTelegramUser(verified.user)
-        setTelegramAuthStatus('connected')
-        addLog('success', 'AUTH', 'Telegram identity verified (not linked)')
-        toast.success('Telegram verified')
-      } catch {
-        const errorMessage = error instanceof Error ? error.message : 'Telegram link failed'
-        setTelegramAuthStatus('error')
-        setTelegramAuthError(errorMessage)
-        addLog('error', 'AUTH', errorMessage)
-        toast.error(errorMessage)
-      }
-    }
-  }
-
-  const handleTelegramDisconnect = async () => {
-    if (linkedIdentities.some((i) => i.platform === 'telegram')) {
-      try {
-        await unlinkPlatformFromFriskyDev('telegram')
-        setLinkedIdentities((prev) => prev.filter((i) => i.platform !== 'telegram'))
-      } catch {
-        // still clear local UI state
-      }
-    }
+  const handleTelegramDisconnect = () => {
     setTelegramAuthStatus('disconnected')
     setTelegramUser(null)
     setTelegramAuthError(null)
@@ -343,19 +270,13 @@ function App() {
   }
 
   const handleDiscordAuth = async () => {
-    if (!friskyDevAccount) {
-      toast.error('Sign in to FriskyDev before linking Discord')
-      return
-    }
     setDiscordAuthStatus('connecting')
     setDiscordAuthError(null)
     addLog('info', 'AUTH', 'Discord authorization initiated')
-    sessionStorage.setItem('discord_link_mode', '1')
     
     try {
       initiateDiscordAuth()
     } catch (error) {
-      sessionStorage.removeItem('discord_link_mode')
       const errorMessage = error instanceof Error ? error.message : 'Authorization failed'
       setDiscordAuthStatus('error')
       setDiscordAuthError(errorMessage)
@@ -364,15 +285,7 @@ function App() {
     }
   }
 
-  const handleDiscordDisconnect = async () => {
-    if (linkedIdentities.some((i) => i.platform === 'discord')) {
-      try {
-        await unlinkPlatformFromFriskyDev('discord')
-        setLinkedIdentities((prev) => prev.filter((i) => i.platform !== 'discord'))
-      } catch {
-        // still clear local UI state
-      }
-    }
+  const handleDiscordDisconnect = () => {
     setDiscordAuthStatus('disconnected')
     setDiscordUser(null)
     setDiscordAuthError(null)
@@ -404,24 +317,6 @@ function App() {
         }
         setDiscordAuthStatus('connected')
         setDiscordUser(user)
-<<<<<<< HEAD
-        if (event.data.linked && event.data.identity) {
-          setLinkedIdentities((prev) => {
-            const others = prev.filter((i) => i.platform !== 'discord')
-            return [...others, event.data.identity as LinkedPlatformIdentity]
-          })
-          addLog('success', 'AUTH', 'Discord linked to FriskyDev account')
-          toast.success('Discord linked to FriskyDev')
-        } else {
-          addLog(
-            'success',
-            'AUTH',
-            event.data.demo ? 'Discord demo identity linked' : 'Discord platform identity verified'
-          )
-          toast.success(event.data.demo ? 'Discord demo authorized' : 'Discord authorized')
-        }
-        addLog('success', 'AUTH', 'Session authorization ready')
-=======
         addLog(
           'success',
           'AUTH',
@@ -429,7 +324,6 @@ function App() {
         )
         addLog('success', 'AUTH', 'Session authorization ready')
         toast.success(event.data.demo ? 'Discord demo authorized' : 'Discord authorized')
->>>>>>> origin/main
       }
       
       if (event.data.type === 'discord-auth-error') {
@@ -700,6 +594,11 @@ function App() {
       setCameraStream(null)
       addLog('info', 'SOURCE', 'Camera stream stopped')
     }
+    if (screenStream) {
+      screenStream.getTracks().forEach(track => track.stop())
+      setScreenStream(null)
+      addLog('info', 'SOURCE', 'Screen share stopped')
+    }
 
     try {
       const snapshot = await getSessionApi().stopSession()
@@ -820,29 +719,15 @@ function App() {
   }
 
   const handleStabilize = () => {
-    if (inputProtocol === 'rtmp') {
-      addLog('info', 'UPLINK', 'Optimizing RTMP connection...')
-    } else {
-      addLog('info', 'SIGNAL', 'Initiating signal stabilization...')
-    }
-    
-    setTimeout(() => {
-      setSignalQuality(98)
-      setLatency(32)
-      setPacketLoss(0.1)
-      
-      if (inputProtocol === 'rtmp') {
-        addLog('success', 'UPLINK', 'Stream parameters optimized')
-      } else {
-        addLog('success', 'SIGNAL', 'Signal optimized')
-      }
-      toast.success('Signal stabilized')
-    }, 800)
+    // Signal stabilization requires a live peer connection reporting stats.
+    // Without measured telemetry this button cannot change anything real.
+    addLog('info', 'SIGNAL', 'Stabilize unavailable — no live peer connection reporting stats')
+    toast('Stabilize unavailable — requires live peer connection')
   }
 
   const handleGoLive = () => {
-    addLog('success', 'LIVE', 'Demo: session marked live (no production uplink)')
-    toast.success('Marked live (demo)')
+    addLog('info', 'LIVE', 'Go-live requires a connected media adapter (Telegram VC or Discord Voice). Currently deferred.')
+    toast('Go-live unavailable — no media adapter connected')
   }
 
   const handleEmergencyStop = () => {
@@ -1003,17 +888,13 @@ function App() {
   useEffect(() => {
     if (sessionStatus === 'active' || sessionStatus === 'dj-mode') {
       if (!appEnv.demoMode) return
+      // DEMO ONLY: simulates telemetry fluctuation when no live peer connection exists.
+      // In live mode, telemetry comes from RTCPeerConnection.getStats() reported via
+      // /v1/rooms/:id/telemetry — it is never invented by the client.
       const interval = setInterval(() => {
         setSignalQuality((prev) => {
           const baseVariation = sessionStatus === 'dj-mode' ? 2 : 3
           const newQuality = Math.min(100, Math.max(75, prev + (Math.random() - 0.5) * baseVariation))
-          
-          if (newQuality < 60 && prev >= 60 && sessionStatus === 'active') {
-            addLog('warning', 'PREVIEW', 'Degraded mode active')
-          } else if (newQuality < 30 && prev >= 30 && sessionStatus === 'active') {
-            addLog('error', 'PREVIEW', 'Signal loss detected')
-          }
-          
           return newQuality
         })
         setLatency((prev) => Math.max(25, prev + (Math.random() - 0.5) * 5))
@@ -1091,25 +972,34 @@ function App() {
   }) : []
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="mx-auto max-w-6xl px-4 py-8 space-y-8">
+    <div className="min-h-screen bg-black relative overflow-hidden">
+      {/* Atmospheric background effects */}
+      <AnimatedGradient className="fixed inset-0" opacity={0.08} />
+      <ParticleField className="fixed inset-0" particleCount={80} color="6, 182, 212" speed={0.15} />
+      <ParticleField className="fixed inset-0" particleCount={40} color="139, 92, 246" speed={0.1} maxRadius={1.5} />
+
+      <div className="relative z-10 mx-auto max-w-6xl px-4 py-8 space-y-8">
         
-        <header className="text-center space-y-3">
-          <h1 className="font-mono font-bold text-4xl md:text-5xl tracking-tight">
-            STIX M<span className="text-accent">Λ</span>GIC
+        <header className="text-center space-y-3 relative">
+          <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/5 via-transparent to-transparent pointer-events-none" />
+          <h1 className="font-mono font-bold text-4xl md:text-5xl tracking-tight relative">
+            <span className="absolute -inset-4 bg-gradient-to-r from-cyan-500/20 via-blue-500/10 to-purple-500/20 blur-2xl rounded-full" />
+            <span className="relative">STIX M<span className="text-accent animate-pulse">Λ</span>GIC</span>
           </h1>
-          <div className="h-px w-24 mx-auto bg-gradient-to-r from-transparent via-accent to-transparent" />
-          <p className="text-sm text-muted-foreground">
+          <div className="h-px w-32 mx-auto bg-gradient-to-r from-transparent via-accent to-transparent relative">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400 to-transparent blur-sm animate-pulse" />
+          </div>
+          <p className="text-sm text-cyan-400/60 font-mono tracking-[0.3em] uppercase">
             Multi-Platform Session Control
           </p>
-          <div className="mx-auto max-w-2xl rounded-lg border border-accent/30 bg-accent/5 px-4 py-2">
-            <p className="text-xs text-accent font-mono leading-relaxed">
+          <div className="mx-auto max-w-2xl rounded-lg border border-cyan-500/20 bg-cyan-500/5 backdrop-blur-sm px-4 py-2">
+            <p className="text-xs text-cyan-300/80 font-mono leading-relaxed">
               {getRuntimeBanner()}
             </p>
           </div>
         </header>
 
-        <div className="glass-panel rounded-xl p-4">
+        <HudFrame label="PLATFORM" variant="idle">
           <div className="space-y-3">
             <div className="text-center">
               <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
@@ -1139,36 +1029,9 @@ function App() {
               {platform === 'discord' && 'Target: Discord Voice Channel infrastructure'}
             </div>
           </div>
-        </div>
+        </HudFrame>
 
-        <FriskyDevAccountPanel
-          onAccountChange={(account, linked) => {
-            setFriskyDevAccount(account)
-            setLinkedIdentities(linked)
-            if (account) {
-              addLog('success', 'AUTH', `FriskyDev signed in as ${account.email}`)
-            }
-            const tg = linked.find((i) => i.platform === 'telegram')
-            const dc = linked.find((i) => i.platform === 'discord')
-            if (tg) {
-              setTelegramAuthStatus('connected')
-              setTelegramUser({
-                id: Number(tg.externalSubject),
-                first_name: tg.displayName.replace(/^@/, ''),
-                username: tg.displayName.startsWith('@') ? tg.displayName.slice(1) : undefined,
-              })
-            }
-            if (dc) {
-              setDiscordAuthStatus('connected')
-              setDiscordUser({
-                id: dc.externalSubject,
-                username: dc.displayName,
-                discriminator: '0',
-                global_name: dc.displayName,
-              })
-            }
-          }}
-        />
+        <FriskyDevIdentityGate onChange={(identity) => setFriskyDevSignedIn(Boolean(identity))} />
 
         <PlatformAccess
           telegramStatus={telegramAuthStatus || 'disconnected'}
@@ -1177,12 +1040,12 @@ function App() {
           discordStatus={discordAuthStatus || 'disconnected'}
           discordUser={discordUser === undefined ? null : discordUser}
           discordError={discordAuthError}
-          friskyDevSignedIn={Boolean(friskyDevAccount)}
-          telegramBotUsername={telegramBotUsername}
-          telegramLinked={linkedIdentities.some((i) => i.platform === 'telegram')}
-          discordLinked={linkedIdentities.some((i) => i.platform === 'discord')}
-          onTelegramWidgetAuth={handleTelegramWidgetAuth}
-          onTelegramDemoAuth={handleTelegramAuth}
+          friskyDevSignedIn={friskyDevSignedIn}
+          telegramBotUsername={appEnv.telegramBotUsername || null}
+          telegramLinked={telegramAuthStatus === 'connected'}
+          discordLinked={discordAuthStatus === 'connected'}
+          onTelegramWidgetAuth={() => void handleTelegramAuth()}
+          onTelegramDemoAuth={() => void handleTelegramAuth()}
           onTelegramDisconnect={handleTelegramDisconnect}
           onDiscordAuth={handleDiscordAuth}
           onDiscordDisconnect={handleDiscordDisconnect}
@@ -1228,21 +1091,29 @@ function App() {
                 onAudioDeviceChange={handleAudioDeviceChange}
               />
 
-              {/* The preview shows the operator their own camera; this is the actual call.
-                  Live control plane only — in demo mode there is no node to signal through. */}
-              {!appEnv.demoMode && (
-                <div className="mt-4">
-                  <Suspense
-                    fallback={
-                      <div className="rounded-lg border border-border/50 p-4 text-xs text-muted-foreground" role="status">
-                        Loading room controls...
-                      </div>
-                    }
-                  >
-                    <RoomPanel localStream={cameraStream} />
-                  </Suspense>
-                </div>
-              )}
+              {/* npm run dev starts the signaling node alongside Vite, so browser rooms are
+                  real even while the legacy platform-control surfaces remain in demo mode. */}
+              <div className="mt-4 space-y-4">
+                {friskyDevSignedIn || appEnv.demoMode ? (
+                  <RoomPanel
+                    localStream={cameraStream || screenStream}
+                    onRoomChange={setRoomId}
+                  />
+                ) : (
+                  <GlassCard className="p-5 text-center text-sm text-muted-foreground">
+                    Continue with FriskyDev ID to create or join a room.
+                  </GlassCard>
+                )}
+                <NodeOperationsBoard />
+                <CreatorTools
+                  cameraStream={cameraStream}
+                  screenStream={screenStream}
+                  onScreenStream={setScreenStream}
+                  roomId={roomId}
+                />
+                <TelegramVcPanel accessGranted={friskyDevSignedIn || appEnv.demoMode} />
+                <DJModePanel />
+              </div>
               
               {sessionStatus === 'active' && operatorTier === 'premium' && operatorTimeRemaining > 0 && (
                 <div className="space-y-3 mt-4">
@@ -1417,9 +1288,11 @@ function App() {
                       onClick={handleGoLive} 
                       variant="default"
                       className="gap-2 bg-success hover:bg-success/90"
+                      disabled
+                      title="No media adapter connected"
                     >
                       <Broadcast size={18} weight="fill" />
-                      Mark Live (Demo)
+                      Go Live (Deferred)
                     </Button>
 
                     {operatorTier === 'premium' && operatorTimeRemaining > 0 && operatorTimeRemaining < 300 && (
@@ -1575,7 +1448,21 @@ function App() {
                     Personal Source
                   </div>
                   
-                  {spotifyStatus === 'disconnected' || spotifyStatus === 'connecting' ? (
+                  {!isSpotifyConfigured() ? (
+                    <div className="glass-panel p-4 rounded-lg border border-border">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 rounded-lg bg-muted">
+                          <SpotifyLogo size={18} className="text-muted-foreground" />
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="text-sm font-semibold">Spotify</h4>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            <strong>Not configured</strong>. Set <span className="font-mono">VITE_SPOTIFY_CLIENT_ID</span> to enable.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : spotifyStatus === 'disconnected' || spotifyStatus === 'connecting' ? (
                     <div className="glass-panel p-4 rounded-lg border border-border">
                       <div className="flex items-start gap-3">
                         <div className="p-2 rounded-lg bg-muted">
@@ -2029,17 +1916,19 @@ function App() {
       </div>
       
       {spotifyAccessToken && (
-        <Suspense fallback={<div className="sr-only" role="status">Loading track picker</div>}>
-          <SpotifyTrackPicker
-            open={showTrackPicker}
-            onOpenChange={setShowTrackPicker}
-            accessToken={spotifyAccessToken}
-            onTrackSelect={handleSelectSpotifyTrack}
-          />
-        </Suspense>
+        <SpotifyTrackPicker
+          open={showTrackPicker}
+          onOpenChange={setShowTrackPicker}
+          accessToken={spotifyAccessToken}
+          onTrackSelect={handleSelectSpotifyTrack}
+        />
       )}
     </div>
   )
+}
+
+function App() {
+  return <LegacyControlPlane />
 }
 
 export default App

@@ -48,6 +48,52 @@ export interface SpotifyPlaylist {
   }
 }
 
+export interface SpotifyPlaybackState {
+  is_playing: boolean
+  progress_ms: number
+  device?: { id: string | null; name: string; is_active: boolean; volume_percent: number | null }
+  item: SpotifyTrack | null
+}
+
+async function spotifyRequest(accessToken: string, path: string, init?: RequestInit): Promise<Response> {
+  const response = await fetch(`${SPOTIFY_API_BASE}${path}`, {
+    ...init,
+    headers: { Authorization: `Bearer ${accessToken}`, ...init?.headers },
+  })
+  if (!response.ok && response.status !== 204) {
+    const detail = await response.text().catch(() => '')
+    throw new Error(detail || `Spotify returned ${response.status}`)
+  }
+  return response
+}
+
+export async function getSpotifyPlayback(accessToken: string): Promise<SpotifyPlaybackState | null> {
+  const response = await spotifyRequest(accessToken, '/me/player')
+  if (response.status === 204) return null
+  return response.json()
+}
+
+export async function spotifyPlay(accessToken: string): Promise<void> {
+  await spotifyRequest(accessToken, '/me/player/play', { method: 'PUT' })
+}
+
+export async function spotifyPause(accessToken: string): Promise<void> {
+  await spotifyRequest(accessToken, '/me/player/pause', { method: 'PUT' })
+}
+
+export async function spotifyNext(accessToken: string): Promise<void> {
+  await spotifyRequest(accessToken, '/me/player/next', { method: 'POST' })
+}
+
+export async function spotifyPrevious(accessToken: string): Promise<void> {
+  await spotifyRequest(accessToken, '/me/player/previous', { method: 'POST' })
+}
+
+export async function spotifySetVolume(accessToken: string, volume: number): Promise<void> {
+  const safeVolume = Math.max(0, Math.min(100, Math.round(volume)))
+  await spotifyRequest(accessToken, `/me/player/volume?volume_percent=${safeVolume}`, { method: 'PUT' })
+}
+
 function generateRandomString(length: number): string {
   const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
   const values = crypto.getRandomValues(new Uint8Array(length))
