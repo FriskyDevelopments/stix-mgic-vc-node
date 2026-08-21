@@ -38,21 +38,15 @@ export function ParticleField({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const resize = () => {
-      const rect = canvas.getBoundingClientRect();
-      canvas.width = rect.width * window.devicePixelRatio;
-      canvas.height = rect.height * window.devicePixelRatio;
-      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-    };
-
-    const observer = new ResizeObserver(() => resize());
-    observer.observe(canvas);
-    resize();
+    // The effect re-runs when the props below change, so drop the old field and let the
+    // first sized resize() seed a new one against the current particleCount.
+    particlesRef.current = [];
 
     // Initialize particles
     const initParticles = () => {
-      const w = canvas.width / window.devicePixelRatio;
-      const h = canvas.height / window.devicePixelRatio;
+      const dpr = window.devicePixelRatio || 1;
+      const w = canvas.width / dpr;
+      const h = canvas.height / dpr;
       particlesRef.current = Array.from({ length: particleCount }, () => {
         const life = 150 + Math.random() * 350;
         return {
@@ -67,11 +61,38 @@ export function ParticleField({
         };
       });
     };
-    initParticles();
+
+    // Same trap as AnimatedGradient: without a CSS size the canvas box comes from its own
+    // width/height attributes, so writing them from getBoundingClientRect() makes the
+    // ResizeObserver re-fire on its own output and the element doubles every tick. The
+    // w-full/h-full below pins the box, the guard stops the feedback, and setTransform
+    // replaces a scale() that compounded on each call.
+    const resize = () => {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      // Before the first layout the box is 0x0. Writing that would pin the backing store at
+      // a stub size, and because the CSS size no longer follows the attributes nothing would
+      // ever fire the observer again to correct it.
+      if (rect.width === 0 || rect.height === 0) return;
+      const nextWidth = Math.round(rect.width * dpr);
+      const nextHeight = Math.round(rect.height * dpr);
+      if (canvas.width === nextWidth && canvas.height === nextHeight) return;
+      canvas.width = nextWidth;
+      canvas.height = nextHeight;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      // Seed against the real box. Seeding against the 300x150 canvas default would leave
+      // every particle huddled in the top-left corner of a full-screen field.
+      if (particlesRef.current.length === 0) initParticles();
+    };
+
+    const observer = new ResizeObserver(() => resize());
+    observer.observe(canvas);
+    resize();
 
     const animate = () => {
-      const w = canvas.width / window.devicePixelRatio;
-      const h = canvas.height / window.devicePixelRatio;
+      const dpr = window.devicePixelRatio || 1;
+      const w = canvas.width / dpr;
+      const h = canvas.height / dpr;
 
       ctx.clearRect(0, 0, w, h);
 
@@ -127,7 +148,7 @@ export function ParticleField({
   return (
     <canvas
       ref={canvasRef}
-      className={cn("absolute inset-0 pointer-events-none z-0", className)}
+      className={cn("absolute inset-0 h-full w-full pointer-events-none z-0", className)}
     />
   );
 }

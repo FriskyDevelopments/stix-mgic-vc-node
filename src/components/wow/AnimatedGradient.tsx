@@ -26,11 +26,24 @@ export function AnimatedGradient({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    // A canvas with no CSS size takes its box from its own width/height attributes, so
+    // writing the attributes from getBoundingClientRect() feeds the ResizeObserver its own
+    // output and the element doubles on every tick until it saturates. The CSS size below
+    // (w-full/h-full) pins the box; this guard is the second lock, and setTransform
+    // replaces the scale() that used to compound once per resize.
     const resize = () => {
+      const dpr = window.devicePixelRatio || 1;
       const rect = canvas.getBoundingClientRect();
-      canvas.width = rect.width * window.devicePixelRatio;
-      canvas.height = rect.height * window.devicePixelRatio;
-      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+      // Before the first layout the box is 0x0. Writing that would pin the backing store at
+      // a stub size, and because the CSS size no longer follows the attributes nothing would
+      // ever fire the observer again to correct it.
+      if (rect.width === 0 || rect.height === 0) return;
+      const nextWidth = Math.round(rect.width * dpr);
+      const nextHeight = Math.round(rect.height * dpr);
+      if (canvas.width === nextWidth && canvas.height === nextHeight) return;
+      canvas.width = nextWidth;
+      canvas.height = nextHeight;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
 
     const obs = new ResizeObserver(() => resize());
@@ -38,8 +51,9 @@ export function AnimatedGradient({
     resize();
 
     const animate = () => {
-      const w = canvas.width / window.devicePixelRatio;
-      const h = canvas.height / window.devicePixelRatio;
+      const dpr = window.devicePixelRatio || 1;
+      const w = canvas.width / dpr;
+      const h = canvas.height / dpr;
       ctx.clearRect(0, 0, w, h);
 
       offsetRef.current += speed;
@@ -73,7 +87,7 @@ export function AnimatedGradient({
   return (
     <canvas
       ref={canvasRef}
-      className={cn("absolute inset-0 pointer-events-none", className)}
+      className={cn("absolute inset-0 h-full w-full pointer-events-none", className)}
       style={{
         filter: `blur(${blur})`,
         opacity,

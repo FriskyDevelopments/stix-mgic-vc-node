@@ -75,6 +75,7 @@ import {
   getRuntimeBanner,
 } from "@/lib/alpha"
 import { getAppEnv } from "@/lib/env"
+import { usePublicConfig } from "@/lib/public-config"
 import { getSessionApi } from "@/lib/session-api"
 import { setOperatorToken } from "@/lib/operator-token"
 import { log } from "@/lib/log"
@@ -113,6 +114,9 @@ interface ProtocolConfig {
 
 function LegacyControlPlane() {
   const appEnv = getAppEnv()
+  // The node knows its own Telegram bot; the bundle does not (see lib/public-config.ts).
+  const publicConfig = usePublicConfig()
+  const telegramBotUsername = publicConfig?.telegramBotUsername ?? appEnv.telegramBotUsername ?? null
   const [platform, setPlatform] = usePersistedState<Platform>("platform", "telegram")
   const [friskyDevSignedIn, setFriskyDevSignedIn] = useState(false)
   const [sessionStatus, setSessionStatus] = usePersistedState<SessionStatus>("session-status", "standby")
@@ -1041,7 +1045,7 @@ function LegacyControlPlane() {
           discordUser={discordUser === undefined ? null : discordUser}
           discordError={discordAuthError}
           friskyDevSignedIn={friskyDevSignedIn}
-          telegramBotUsername={appEnv.telegramBotUsername || null}
+          telegramBotUsername={telegramBotUsername}
           telegramLinked={telegramAuthStatus === 'connected'}
           discordLinked={discordAuthStatus === 'connected'}
           onTelegramWidgetAuth={() => void handleTelegramAuth()}
@@ -1911,7 +1915,11 @@ function LegacyControlPlane() {
             <Broadcast size={12} />
             <span className="font-mono">FRISKY DEVELOPMENTS</span>
           </div>
-          <p>Alpha local demo • Multi-platform session control • Telegram + Discord</p>
+          <p>
+            {appEnv.demoMode
+              ? 'Alpha local demo • Multi-platform session control • Telegram + Discord'
+              : 'Multi-platform session control • Telegram + Discord • vc.friskydev.com'}
+          </p>
         </footer>
       </div>
       

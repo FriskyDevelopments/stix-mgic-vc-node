@@ -34,3 +34,7 @@ data/
 
 .spark-workbench-id
 .vercel
+
+# Python bytecode from the Telegram VC adapter scripts
+__pycache__/
+*.pyc
