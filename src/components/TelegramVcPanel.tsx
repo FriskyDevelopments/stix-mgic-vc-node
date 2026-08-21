@@ -116,7 +116,7 @@ export function TelegramVcPanel({ accessGranted = true }: { accessGranted?: bool
     } finally { setGroupsLoading(false) }
   }
 
-  async function useVcNodeRtmp() {
+  async function applyVcNodeRtmp() {
     setBusy(true)
     try {
       const config = await getRtmpPublishConfig()
@@ -333,7 +333,7 @@ export function TelegramVcPanel({ accessGranted = true }: { accessGranted?: bool
               className="h-8 max-w-[240px] font-mono text-[11px]"
             />
             {sourceKind === 'rtmp' && (
-              <Button variant="outline" size="sm" className="h-8 font-mono text-[10px]" disabled={busy} onClick={() => void useVcNodeRtmp()}>
+              <Button variant="outline" size="sm" className="h-8 font-mono text-[10px]" disabled={busy} onClick={() => void applyVcNodeRtmp()}>
                 Use VC Node RTMP
               </Button>
             )}
