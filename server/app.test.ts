@@ -244,6 +244,68 @@ describe('control plane API', () => {
     expect(body.endpoints.login).toBe('/v1/account/login')
     expect(body.endpoints.register).toBe('/v1/account/register')
   })
+
+  it('accepts the Supabase session cookie as the account principal, keyed by auth.users.id', async () => {
+    const app = createApp()
+    const session = mintOperatorToken({
+      sub: 'supabase-auth-users-id',
+      platform: 'supabase',
+      name: 'Social Operator',
+    })
+    const res = await app.request('/v1/account/me', {
+      headers: { Cookie: `vc_session=${encodeURIComponent(session)}` },
+    })
+    expect(res.status).toBe(200)
+    const profile = await res.json()
+    // One principal: the account id IS the auth.users.id the session carries, never a
+    // second namespace minted for the same human.
+    expect(profile.account.id).toBe('supabase-auth-users-id')
+    expect(profile.account.displayName).toBe('Social Operator')
+    expect(profile.account.email).toBeNull()
+    expect(profile.linked).toEqual([])
+  })
+
+  it('refuses a telegram or anonymous session cookie as an account principal', async () => {
+    const app = createApp()
+    for (const platform of ['telegram', 'anonymous'] as const) {
+      const session = mintOperatorToken({
+        sub: `${platform}:12345`,
+        platform,
+        name: 'Not an account principal',
+      })
+      const me = await app.request('/v1/account/me', {
+        headers: { Cookie: `vc_session=${encodeURIComponent(session)}` },
+      })
+      expect(me.status).toBe(401)
+
+      const link = await app.request('/v1/account/link/telegram', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: `vc_session=${encodeURIComponent(session)}`,
+        },
+        body: JSON.stringify({ id: 1, first_name: 'A', auth_date: 1, hash: 'x' }),
+      })
+      expect(link.status).toBe(401)
+    }
+  })
+
+  it('does not fall back to the session cookie when a bearer is present but invalid', async () => {
+    const app = createApp()
+    const session = mintOperatorToken({
+      sub: 'supabase-auth-users-id',
+      platform: 'supabase',
+      name: 'Social Operator',
+    })
+    const res = await app.request('/v1/account/me', {
+      headers: {
+        Authorization: 'Bearer not-a-real-token',
+        Cookie: `vc_session=${encodeURIComponent(session)}`,
+      },
+    })
+    expect(res.status).toBe(401)
+  })
+  })
 })
 
 describe('room REST API', () => {

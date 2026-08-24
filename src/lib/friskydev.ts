@@ -6,9 +6,15 @@ const FRISKYDEV_SESSION_KEY = 'friskydev_session_token'
 
 export type FriskyDevAccount = {
   id: string
-  email: string
+  /**
+   * Null for a principal that came from the `vc_session` cookie (Supabase sign-in): that
+   * session carries an `auth.users.id` and a display name, and no email. Null means the
+   * principal has none, not that it is empty.
+   */
+  email: string | null
   displayName: string
-  createdAt: number
+  /** Null for the same reason as `email` — a session principal has no store row. */
+  createdAt: number | null
 }
 
 export type LinkedPlatformIdentity = {
@@ -45,7 +51,12 @@ async function accountRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const session = getFriskyDevSessionToken()
   if (session) headers.set('Authorization', `Bearer ${session}`)
 
-  const response = await fetch(apiUrl(path), { ...init, headers })
+  // The live sign-in is Supabase, which authenticates the operator with the HttpOnly
+  // `vc_session` cookie rather than a browser-readable bearer. Without this the cookie is
+  // never attached and every /v1/account/* call 401s for an operator the node has
+  // already authenticated. The server accepts the cookie only for supabase/friskydev
+  // sessions (see requireFriskyDev in server/app.ts).
+  const response = await fetch(apiUrl(path), { ...init, headers, credentials: 'include' })
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
     throw new Error((data as { error?: string }).error || `Request failed (${response.status})`)

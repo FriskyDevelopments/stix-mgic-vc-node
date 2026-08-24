@@ -76,10 +76,67 @@ type Variables = {
   friskyAccountId?: string
 }
 
-function requireFriskyDev(c: { req: { header: (name: string) => string | undefined } }) {
+/**
+ * The principal allowed to read and mutate `/v1/account/*`.
+ *
+ * Two sources, one principal. The legacy email/password store issues a browser-readable
+ * FriskyDev bearer (`mintFriskyDevToken`). The live sign-in does not: `supabaseSession`
+ * mints an operator token into the HttpOnly `vc_session` cookie whose `sub` is the bare
+ * `auth.users.id`. Accepting only the bearer left an operator the node had itself
+ * authenticated unable to link an identity — the exact failure already fixed for
+ * `/v1/telegram-vc/*` and never applied to this tree.
+ *
+ * `linkIdentity` stores `accountId` as an opaque string, so an `auth.users.id` principal
+ * needs no migration and no mapping table — which is what makes this safe.
+ *
+ * The cookie fallback is deliberately restricted to the two platforms that denote a
+ * node-verified human. An `anonymous` or `telegram` operator token must never be able to
+ * link or unlink an identity, and that restriction is what structurally guarantees the
+ * account principal stays `auth.users.id` and never becomes `telegram:<id>`.
+ */
+type FriskyPrincipal = {
+  sub: string
+  name: string
+  email: string | null
+  source: 'friskydev-bearer' | 'vc-session-cookie'
+}
+
+function requireFriskyDev(c: {
+  req: { header: (name: string) => string | undefined }
+}): FriskyPrincipal | null {
   const token = extractBearer(c.req.header('authorization'))
-  if (!token) return null
-  return verifyFriskyDevToken(token)
+  if (token) {
+    // A bearer that is present but unverifiable fails closed; it does not fall through
+    // to the cookie. Same rule as the `/v1/telegram-vc/*` guard.
+    const frisky = verifyFriskyDevToken(token)
+    if (!frisky) return null
+    return {
+      sub: frisky.sub,
+      name: frisky.name,
+      email: frisky.email,
+      source: 'friskydev-bearer',
+    }
+  }
+
+  const session = sessionClaimsFromCookie(c.req.header('cookie'))
+  if (!session) return null
+  if (session.platform !== 'supabase' && session.platform !== 'friskydev') return null
+  return {
+    sub: session.sub,
+    name: session.name,
+    email: null,
+    source: 'vc-session-cookie',
+  }
+}
+
+function linkedView(accountId: string) {
+  return listLinkedIdentities(accountId).map((i) => ({
+    platform: i.platform,
+    externalSubject: i.externalSubject,
+    displayName: i.displayName,
+    verifiedAt: i.verifiedAt,
+    meta: i.meta,
+  }))
 }
 
 /** Builds the Hono control-plane application and registers its API routes. */
@@ -379,19 +436,29 @@ export function createApp() {
   app.get('/v1/account/', accountIndex)
 
   app.get('/v1/account/me', (c) => {
-    const claims = requireFriskyDev(c)
-    if (!claims) return c.json({ error: 'FriskyDev session required' }, 401)
-    const account = getAccountById(claims.sub)
-    if (!account) return c.json({ error: 'Account not found' }, 404)
+    const principal = requireFriskyDev(c)
+    if (!principal) return c.json({ error: 'FriskyDev session required' }, 401)
+
+    const account = getAccountById(principal.sub)
+    if (account) {
+      return c.json({ account: publicAccount(account), linked: linkedView(account.id) })
+    }
+
+    // A vc_session principal has no row in the legacy account store, and creating one
+    // here would be a second namespace for the same human. Report exactly what the
+    // session asserts — `email` and `createdAt` are null because this principal has
+    // neither, not because they are empty.
+    if (principal.source !== 'vc-session-cookie') {
+      return c.json({ error: 'Account not found' }, 404)
+    }
     return c.json({
-      account: publicAccount(account),
-      linked: listLinkedIdentities(account.id).map((i) => ({
-        platform: i.platform,
-        externalSubject: i.externalSubject,
-        displayName: i.displayName,
-        verifiedAt: i.verifiedAt,
-        meta: i.meta,
-      })),
+      account: {
+        id: principal.sub,
+        email: null,
+        displayName: principal.name,
+        createdAt: null,
+      },
+      linked: linkedView(principal.sub),
     })
   })
 

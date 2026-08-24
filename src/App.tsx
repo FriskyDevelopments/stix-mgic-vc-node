@@ -79,6 +79,7 @@ import {
   type TelegramUser,
   type DiscordUser
 } from "@/lib/auth"
+import { linkTelegramToFriskyDev } from "@/lib/friskydev"
 
 type Platform = 'telegram' | 'discord'
 type SessionStatus = 'standby' | 'active' | 'connecting' | 'error' | 'dj-mode'
@@ -259,6 +260,48 @@ function LegacyControlPlane() {
       setTelegramAuthError(errorMessage)
       addLog('error', 'AUTH', `Telegram authorization failed: ${errorMessage}`)
       toast.error('Telegram authorization failed')
+    }
+  }
+
+  /**
+   * Real Telegram Login Widget payload (`data-onauth`).
+   *
+   * Platform Access is LAYER 2: it links an already-authenticated FriskyDev operator to a
+   * verified Telegram identity. It is not a sign-in method — Telegram is asked once, at
+   * linking, not on every login. So the signed payload goes to `/v1/account/link/telegram`,
+   * which re-verifies the HMAC server-side (server/auth-providers.ts:verifyTelegramLogin).
+   *
+   * It deliberately does NOT call verifyTelegramLoginPayload(): `/v1/auth/telegram/verify`
+   * mints an operator token whose `sub` is `telegram:<id>` and stores it over the operator
+   * token in sessionStorage. That would make the same human a second principal alongside
+   * `auth.users.id` — the exact failure server/supabase-auth.ts was written to prevent, and
+   * it would silently reassign room ownership (rooms.ts scopes by operatorId).
+   */
+  const handleTelegramWidgetAuth = async (payload: Record<string, unknown>) => {
+    setTelegramAuthStatus('connecting')
+    setTelegramAuthError(null)
+    addLog('info', 'AUTH', 'Telegram login widget returned a signed payload')
+
+    try {
+      const { identity } = await linkTelegramToFriskyDev(payload)
+
+      setTelegramUser({
+        id: Number(identity.externalSubject),
+        first_name:
+          typeof payload.first_name === 'string' ? payload.first_name : identity.displayName,
+        last_name: typeof payload.last_name === 'string' ? payload.last_name : undefined,
+        username: typeof payload.username === 'string' ? payload.username : undefined,
+        photo_url: typeof payload.photo_url === 'string' ? payload.photo_url : undefined,
+      })
+      setTelegramAuthStatus('connected')
+      addLog('success', 'AUTH', `Telegram identity ${identity.displayName} linked to FriskyDev`)
+      toast.success('Telegram linked')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Telegram link failed'
+      setTelegramAuthStatus('error')
+      setTelegramAuthError(message)
+      addLog('error', 'AUTH', `Telegram link failed: ${message}`)
+      toast.error('Telegram link failed')
     }
   }
 
@@ -1000,7 +1043,8 @@ function LegacyControlPlane() {
           discordAuthReason={publicConfig?.capabilities.discordAuth.reason ?? 'Checking Discord configuration'}
           telegramLinked={telegramAuthStatus === 'connected'}
           discordLinked={discordAuthStatus === 'connected'}
-          onTelegramWidgetAuth={(payload) => void handleTelegramAuth(payload)}
+          onTelegramWidgetAuth={(payload) => void handleTelegramWidgetAuth(payload)}
+          onTelegramDemoAuth={() => void handleTelegramAuth()}
           onTelegramDisconnect={handleTelegramDisconnect}
           onDiscordAuth={handleDiscordAuth}
           onDiscordDisconnect={handleDiscordDisconnect}
