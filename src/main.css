@@ -28,26 +28,17 @@
 /*
   ---break---
 */
+/*
+  This block used to restate the whole stock shadcn LIGHT palette. Because it is declared
+  after `@import './index.css'`, it overrode the STIX dark palette defined there — so
+  `--foreground` resolved to near-black and the control plane rendered black text on its own
+  black background, while `body { @apply bg-background }` painted the page white. The MVP
+  shell never showed it, since `vc-mvp.css` hard-codes its own colours.
+
+  Only the chart and sidebar tokens are kept here: `index.css` does not define them, and the
+  colour scheme belongs to `index.css` alone.
+*/
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
