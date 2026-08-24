@@ -32,13 +32,15 @@ function identityConfig(): { url: string; key: string } {
   }
 }
 
-/** SSO only. The same three LORE wires: Google, Apple, Microsoft (azure). No email auth. */
-export type OAuthProvider = 'google' | 'apple' | 'azure'
+/**
+ * FriskyDev identity is owned by the existing Authentik-backed OIDC provider in
+ * Supabase. Do not bypass it with a separately configured social provider here:
+ * that would create a second, inconsistent account path for the VC node.
+ */
+export type OAuthProvider = 'custom:friskydev'
 
 export const PROVIDER_LABELS: Record<OAuthProvider, string> = {
-  google: 'Google',
-  apple: 'Apple',
-  azure: 'Microsoft',
+  'custom:friskydev': 'FriskyDev',
 }
 
 export interface IdentityConfigState {
