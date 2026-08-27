@@ -6,7 +6,7 @@
         "scripts": {
                 "dev": "concurrently -k -n api,web -c cyan,magenta \"npm:dev:api\" \"npm:dev:web\"",
                 "dev:web": "vite",
-                "dev:api": "PORT=8787 HOST=127.0.0.1 NODE_ENV=development tsx watch server/index.ts",
+                "dev:api": "PORT=8787 HOST=127.0.0.1 NODE_ENV=development node --env-file-if-exists=.env.development.local --import tsx --watch server/index.ts",
                 "kill": "fuser -k 5000/tcp || true; fuser -k 8787/tcp || true",
                 "build": "tsc -b --noCheck && vite build",
                 "typecheck": "tsc --noEmit && tsc -p server/tsconfig.json --noEmit",
