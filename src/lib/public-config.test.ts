@@ -9,6 +9,9 @@ const CONFIG = {
   friskydevEnabled: true,
   friskydevIdConfigured: true,
   supabaseIdentityConfigured: true,
+  supabaseUrl: 'https://example.supabase.co',
+  supabasePublishableKey: 'publishable-test-key',
+  spotifyClientId: null,
   identityProvider: 'supabase',
   identityReady: true,
 }

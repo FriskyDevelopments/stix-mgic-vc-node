@@ -219,11 +219,16 @@ export function TelegramVcPanel({ accessGranted = true }: { accessGranted?: bool
   if (unavailable) {
     return (
       <GlassCard className="p-4">
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          Pair the dedicated Telegram operator here. It stays encrypted on this node and
-          never enters a browser session. Group-call controls unlock after the media adapter
-          is connected; the bot itself remains available for sharing and room launch.
-        </p>
+<div className="flex items-start gap-3">
+            <span className="rounded-full border border-accent/40 px-2 py-1 font-mono text-[10px] text-accent">STEP 2</span>
+            <div>
+              <p className="text-sm font-medium text-foreground">Pair the VC operator</p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Your Telegram identity is signed in. Pair the dedicated operator account here;
+                its encrypted session stays on this node and never enters the browser.
+              </p>
+            </div>
+          </div>
         {pairing?.available && !pairing.verified && (
           <div className="mt-4 space-y-2">
             {!pairing.awaitingCode ? (
@@ -259,9 +264,9 @@ export function TelegramVcPanel({ accessGranted = true }: { accessGranted?: bool
       {/* Header */}
       <GlassCard className="p-4">
         <div className="mb-3 flex items-center justify-between gap-2">
-          <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
-            Telegram VC
-          </span>
+<span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+              Step 3 · Select group & join VC
+            </span>
           {call && (
             <Badge variant="outline" className={`font-mono text-[10px] ${stateColor(call.state)}`}>
               {call.state}

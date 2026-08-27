@@ -18,14 +18,19 @@
  * row-level security. The service-role key must never appear here.
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { getCachedPublicConfig } from '@/lib/public-config'
 
-/** The FriskyDev / MyFenrir project — the same one LORE points at. Public client config. */
-const DEFAULT_URL = 'https://yqevglppbhuoxxfsfnih.supabase.co'
-const DEFAULT_PUBLISHABLE_KEY = 'sb_publishable_t8xng5GIhOmAtT4Nsf7Zgg_TO36FTTE'
-
-const URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || DEFAULT_URL
-const ANON_KEY =
-  (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) || DEFAULT_PUBLISHABLE_KEY
+function identityConfig(): { url: string; key: string } {
+  const runtime = getCachedPublicConfig()
+  return {
+    url: runtime?.supabaseUrl || (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() || '',
+    key:
+      runtime?.supabasePublishableKey ||
+      (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined)?.trim() ||
+      (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim() ||
+      '',
+  }
+}
 
 /** SSO only. The same three LORE wires: Google, Apple, Microsoft (azure). No email auth. */
 export type OAuthProvider = 'google' | 'apple' | 'azure'
@@ -43,9 +48,10 @@ export interface IdentityConfigState {
 }
 
 export function getIdentityConfigState(): IdentityConfigState {
+  const { url, key } = identityConfig()
   const missing: string[] = []
-  if (!URL) missing.push('VITE_SUPABASE_URL')
-  if (!ANON_KEY) missing.push('VITE_SUPABASE_ANON_KEY')
+  if (!url) missing.push('SUPABASE_URL')
+  if (!key) missing.push('SUPABASE_PUBLISHABLE_KEY')
   return { configured: missing.length === 0, missing }
 }
 
@@ -58,7 +64,8 @@ export function getSupabase(): SupabaseClient {
     throw new Error(`Supabase identity is not configured. Missing: ${missing.join(', ')}`)
   }
   if (!client) {
-    client = createClient(URL, ANON_KEY, {
+    const { url, key } = identityConfig()
+    client = createClient(url, key, {
       auth: {
         detectSessionInUrl: true,
         persistSession: true,

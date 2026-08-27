@@ -1,8 +1,17 @@
-const SPOTIFY_CLIENT_ID = (import.meta.env.VITE_SPOTIFY_CLIENT_ID as string | undefined)?.trim() || ''
+import { getCachedPublicConfig } from '@/lib/public-config'
+
 const SPOTIFY_REDIRECT_URI = window.location.origin + '/spotify-callback'
 
+function spotifyClientId(): string {
+  return (
+    getCachedPublicConfig()?.spotifyClientId ||
+    (import.meta.env.VITE_SPOTIFY_CLIENT_ID as string | undefined)?.trim() ||
+    ''
+  )
+}
+
 export function isSpotifyConfigured(): boolean {
-  return SPOTIFY_CLIENT_ID.length > 0
+  return spotifyClientId().length > 0
 }
 const SPOTIFY_SCOPES = [
   'user-read-private',
@@ -121,7 +130,7 @@ function base64urlencode(buffer: ArrayBuffer): string {
 
 export async function initiateSpotifyAuth(): Promise<void> {
   if (!isSpotifyConfigured()) {
-    throw new Error('Spotify is not configured. Set VITE_SPOTIFY_CLIENT_ID in your .env file.')
+    throw new Error('Spotify is not configured. Add SPOTIFY_CLIENT_ID to the project environment.')
   }
 
   const codeVerifier = generateRandomString(64)
@@ -133,7 +142,7 @@ export async function initiateSpotifyAuth(): Promise<void> {
   sessionStorage.setItem('spotify_auth_state', state)
 
   const params = new URLSearchParams({
-    client_id: SPOTIFY_CLIENT_ID,
+    client_id: spotifyClientId(),
     response_type: 'code',
     redirect_uri: SPOTIFY_REDIRECT_URI,
     state: state,
@@ -210,7 +219,7 @@ export async function handleSpotifyCallback(code: string, state: string): Promis
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: new URLSearchParams({
-        client_id: SPOTIFY_CLIENT_ID,
+        client_id: spotifyClientId(),
         grant_type: 'authorization_code',
         code: code,
         redirect_uri: SPOTIFY_REDIRECT_URI,
@@ -244,7 +253,7 @@ export async function refreshSpotifyToken(refreshToken: string): Promise<Spotify
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: new URLSearchParams({
-        client_id: SPOTIFY_CLIENT_ID,
+        client_id: spotifyClientId(),
         grant_type: 'refresh_token',
         refresh_token: refreshToken,
       }),

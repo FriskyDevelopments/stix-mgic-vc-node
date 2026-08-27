@@ -21,6 +21,9 @@ export type PublicConfig = {
   friskydevEnabled: boolean
   friskydevIdConfigured: boolean
   supabaseIdentityConfigured: boolean
+  supabaseUrl: string | null
+  supabasePublishableKey: string | null
+  spotifyClientId: string | null
   identityProvider: string
   identityReady: boolean
 }

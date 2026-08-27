@@ -114,6 +114,9 @@ export function createApp() {
       friskydevEnabled: true,
       friskydevIdConfigured: env.oidcConfigured,
       supabaseIdentityConfigured: env.supabaseConfigured,
+      supabaseUrl: env.SUPABASE_URL || null,
+      supabasePublishableKey: env.SUPABASE_PUBLISHABLE_KEY || env.SUPABASE_ANON_KEY || null,
+      spotifyClientId: env.SPOTIFY_CLIENT_ID || null,
       // The active UI never falls back to a second identity provider. If these settings
       // are absent, it stays on the social screen and names the missing configuration.
       identityProvider: 'supabase',
