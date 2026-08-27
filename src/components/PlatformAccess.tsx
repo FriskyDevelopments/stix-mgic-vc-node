@@ -146,7 +146,7 @@ export function PlatformAccess({
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold">Telegram</h3>
-                  <p className="text-xs text-muted-foreground">Login Widget verify</p>
+                  <p className="text-xs text-muted-foreground">Step 1 · Verify Telegram identity</p>
                 </div>
               </div>
               {getStatusBadge(telegramStatus, telegramLinked)}

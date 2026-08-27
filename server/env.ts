@@ -59,6 +59,8 @@ const serverEnvSchema = z.object({
   // must never appear in this process.
   SUPABASE_URL: z.string().url().optional().transform((v) => v?.replace(/\/$/, '')),
   SUPABASE_ANON_KEY: z.string().optional().transform((v) => v?.trim() || undefined),
+  SUPABASE_PUBLISHABLE_KEY: z.string().optional().transform((v) => v?.trim() || undefined),
+  SPOTIFY_CLIENT_ID: z.string().optional().transform((v) => v?.trim() || undefined),
   // VC Node has one primary identity plane: FriskyDev/Supabase social SSO. Keep this
   // explicit even though it has one value so an old environment cannot revive Authentik.
   IDENTITY_PROVIDER: z.literal('supabase').default('supabase'),
@@ -119,7 +121,9 @@ export function getServerEnv(): ServerEnv {
     oidcConfigured: Boolean(
       data.AUTHENTIK_ISSUER && data.OIDC_CLIENT_ID && data.OIDC_CLIENT_SECRET && data.OIDC_REDIRECT_URI
     ),
-    supabaseConfigured: Boolean(data.SUPABASE_URL && data.SUPABASE_ANON_KEY),
+    supabaseConfigured: Boolean(
+      data.SUPABASE_URL && (data.SUPABASE_PUBLISHABLE_KEY || data.SUPABASE_ANON_KEY)
+    ),
     rtmpConfigured: Boolean(
       data.RTMP_INGEST_ENABLED && data.RTMP_PUBLIC_HOST && data.RTMP_PUBLISH_USER && data.RTMP_PUBLISH_PASSWORD
     ),

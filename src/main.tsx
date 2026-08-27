@@ -11,10 +11,12 @@ import {
   initAnalytics,
   isAnalyticsEnabled,
 } from './lib/analytics'
+import { fetchPublicConfig } from './lib/public-config'
 
 import "./main.css"
 
 initAnalytics()
+await fetchPublicConfig()
 
 function Root() {
   const path = window.location.pathname
