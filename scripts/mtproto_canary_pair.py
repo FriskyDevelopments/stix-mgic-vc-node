@@ -17,6 +17,7 @@ from telethon.errors import SessionPasswordNeededError
 
 
 def required(name: str) -> str:
+    """Read a required environment variable or raise an error if missing or empty."""
     value = os.environ.get(name, "").strip()
     if not value:
         raise RuntimeError(f"{name} is required")
@@ -24,6 +25,7 @@ def required(name: str) -> str:
 
 
 def client_from_env(phone_argument: str | None) -> tuple[TelegramClient, str]:
+    """Construct a Telegram client from environment variables and return it with the phone number."""
     api_id = int(required("STIX_TELEGRAM_API_ID"))
     api_hash = required("STIX_TELEGRAM_API_HASH")
     phone = phone_argument or required("STIX_TELEGRAM_PHONE")
@@ -32,6 +34,7 @@ def client_from_env(phone_argument: str | None) -> tuple[TelegramClient, str]:
 
 
 def main() -> int:
+    """Execute the MTProto operator pairing flow: start code request, confirm with code, or run interactive."""
     parser = argparse.ArgumentParser()
     parser.add_argument("command", choices=("start", "confirm", "interactive"))
     parser.add_argument("--code")

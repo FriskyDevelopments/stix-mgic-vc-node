@@ -17,11 +17,15 @@ from telethon.sync import TelegramClient
 
 
 def output(payload: dict[str, Any]) -> None:
+    """Write a JSON object to stdout as a single line for Node.js consumption."""
     print(json.dumps(payload, separators=(",", ":")), flush=True)
 
 
 class Adapter:
+    """Manages Telegram group call state and MTProto session lifecycle."""
+
     def __init__(self) -> None:
+        """Initialize adapter with empty client, call engine, and session state."""
         self.client: TelegramClient | None = None
         self.calls: Any = None
         self.chat_id: int | None = None
@@ -45,6 +49,7 @@ class Adapter:
             self.calls.start()
 
     def status(self) -> dict[str, Any]:
+        """Return current operator pairing status, active call state, and media source."""
         paired = False
         try:
             self.ensure_client(start_calls=False)
@@ -54,6 +59,7 @@ class Adapter:
         return {"paired": paired, "active": self.chat_id is not None, "chatId": self.chat_id, "source": self.source}
 
     def join(self, chat_id: str, source: str) -> dict[str, Any]:
+        """Join a Telegram group call and start streaming the specified media source."""
         if not source.strip():
             raise RuntimeError("Choose an RTMP URL or media source before going live")
         self.ensure_client()
@@ -64,6 +70,7 @@ class Adapter:
         return self.status()
 
     def leave(self) -> dict[str, Any]:
+        """Leave the current Telegram group call and clear session state."""
         if self.calls and self.chat_id is not None:
             self.calls.leave_call(self.chat_id)
         self.chat_id = None
@@ -71,6 +78,7 @@ class Adapter:
         return self.status()
 
     def switch_source(self, source: str) -> dict[str, Any]:
+        """Switch to a different media source while remaining in the active call."""
         if self.chat_id is None:
             raise RuntimeError("Join a Telegram group call first")
         if not source.strip():
