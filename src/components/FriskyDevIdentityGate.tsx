@@ -36,7 +36,7 @@ export function FriskyDevIdentityGate({
   const [error, setError] = useState<string | null>(null)
   const config = getIdentityConfigState()
   const publicConfig = usePublicConfig()
-  const actions = listIdentityActions({
+  const actions = publicConfig?.identityProviders ?? listIdentityActions({
     supabaseConfigured: config.configured,
     friskydevIdConfigured: Boolean(publicConfig?.friskydevIdConfigured),
   })
@@ -61,6 +61,13 @@ export function FriskyDevIdentityGate({
   async function handleAction(action: IdentityAction) {
     setError(null)
     if (!action.ready) return
+    if (action.method === 'oidc') {
+      const returnTo = `${window.location.pathname}${window.location.search}`
+      const start = action.start ?? '/v1/auth/oidc/start'
+      const separator = start.includes('?') ? '&' : '?'
+      window.location.href = `${start}${separator}returnTo=${encodeURIComponent(returnTo)}`
+      return
+    }
     switch (action.id) {
       case 'google':
       case 'apple':
@@ -71,11 +78,9 @@ export function FriskyDevIdentityGate({
           setError(cause instanceof Error ? cause.message : 'Could not start sign-in')
         }
         return
-      case 'friskydev-id': {
-        const returnTo = `${window.location.pathname}${window.location.search}`
-        window.location.href = `/v1/auth/oidc/start?returnTo=${encodeURIComponent(returnTo)}`
+      case 'friskydev-id':
+        setError('FriskyDev ID sign-in is unavailable')
         return
-      }
       default: {
         const _never: never = action.id
         setError(`Unhandled identity action: ${_never}`)

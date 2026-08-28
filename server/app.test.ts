@@ -5,6 +5,7 @@ import { configureAccountStore, resetAccountStore } from './account-store'
 import { setSignalingReady } from './sessions'
 import { joinRoom, resetRooms } from './rooms'
 import { mintOperatorToken } from './tokens'
+import { mintFriskyDevToken } from './friskydev-tokens'
 
 describe('control plane API', () => {
   beforeEach(() => {
@@ -205,6 +206,7 @@ describe('control plane API', () => {
     const app = createApp()
     const res = await app.request('/v1/auth')
     expect(res.status).toBe(200)
+    expect(res.headers.get('cache-control')).toBe('no-store')
     const body = await res.json() as {
       ok: boolean
       authenticated: boolean
@@ -230,6 +232,7 @@ describe('control plane API', () => {
     const app = createApp()
     const res = await app.request('/v1/account')
     expect(res.status).toBe(200)
+    expect(res.headers.get('cache-control')).toBe('no-store')
     const body = await res.json() as {
       ok: boolean
       authenticated: boolean
@@ -242,6 +245,20 @@ describe('control plane API', () => {
     expect(body.endpoints.me).toBe('/v1/account/me')
     expect(body.endpoints.login).toBe('/v1/account/login')
     expect(body.endpoints.register).toBe('/v1/account/register')
+  })
+
+  it('marks account index errors as no-store', async () => {
+    const token = mintFriskyDevToken({
+      id: 'missing-account',
+      email: 'missing@example.test',
+      name: 'Missing Account',
+    })
+    const res = await createApp().request('/v1/account', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    expect(res.status).toBe(404)
+    expect(res.headers.get('cache-control')).toBe('no-store')
   })
 })
 

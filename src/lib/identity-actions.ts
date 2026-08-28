@@ -5,6 +5,7 @@ export type IdentityAction = {
   label: string
   ready: boolean
   method: 'supabase' | 'oidc'
+  start?: string
 }
 
 export function listIdentityActions(config: {

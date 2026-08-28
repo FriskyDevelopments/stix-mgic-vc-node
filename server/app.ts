@@ -153,6 +153,7 @@ export function createApp() {
   })
 
   const authIndex = (c: Context) => {
+    c.header('Cache-Control', 'no-store')
     const cookie = sessionClaimsFromCookie(c.req.header('cookie'))
     const supabase = publicSupabaseIdentity(env)
     return c.json({
@@ -252,6 +253,7 @@ export function createApp() {
   })
 
   const accountIndex = (c: Context) => {
+    c.header('Cache-Control', 'no-store')
     const endpoints = {
       me: '/v1/account/me',
       login: '/v1/account/login',
