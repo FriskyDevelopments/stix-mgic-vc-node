@@ -1,4 +1,4 @@
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { cors } from 'hono/cors'
 import { getServerEnv } from './env'
 import { exchangeDiscordCode, verifyTelegramLogin, type TelegramLoginPayload } from './auth-providers'
@@ -44,6 +44,7 @@ import { discordInteractions } from './discord-interactions'
 import { oidcCallback, oidcLogout, oidcMe, oidcStart, sessionClaimsFromCookie } from './oidc'
 import { supabaseSession } from './supabase-auth'
 import { handleTelegramUpdate, isTelegramWebhookAuthorized, WEBHOOK_HEADER } from './telegram-bot'
+import { buildIdentityCatalog, publicSupabaseIdentity } from './identity-catalog'
 
 type Variables = {
   operatorId: string
@@ -109,6 +110,8 @@ export function createApp() {
     const media = buildMediaPlaneStatus({ signalingReady: isSignalingReady() })
     const telegramAdapter = media.adapters.find((adapter) => adapter.id === 'telegram-vc')
     const discordAdapter = media.adapters.find((adapter) => adapter.id === 'discord-voice')
+    const supabase = publicSupabaseIdentity(env)
+    const identityProviders = buildIdentityCatalog(env)
 
     return c.json({
       discordClientId: env.DISCORD_CLIENT_ID || null,
@@ -118,11 +121,12 @@ export function createApp() {
       friskydevEnabled: true,
       friskydevIdConfigured: env.oidcConfigured,
       supabaseIdentityConfigured: env.supabaseConfigured,
-      supabaseUrl: env.SUPABASE_URL || null,
-      supabasePublishableKey: env.SUPABASE_PUBLISHABLE_KEY || env.SUPABASE_ANON_KEY || null,
+      supabaseUrl: supabase.url,
+      supabasePublishableKey: supabase.publishableKey,
       spotifyClientId: env.SPOTIFY_CLIENT_ID || null,
       identityProvider: 'supabase',
       identityReady: env.supabaseConfigured,
+      identityProviders,
       capabilities: {
         telegramAuth: {
           ready: env.telegramConfigured && Boolean(env.TELEGRAM_BOT_USERNAME),
@@ -147,6 +151,20 @@ export function createApp() {
       },
     })
   })
+
+  const authIndex = (c: Context) => {
+    const cookie = sessionClaimsFromCookie(c.req.header('cookie'))
+    const supabase = publicSupabaseIdentity(env)
+    return c.json({
+      ok: true,
+      authenticated: Boolean(cookie),
+      user: cookie ? { id: cookie.sub, name: cookie.name, platform: cookie.platform } : null,
+      providers: buildIdentityCatalog(env),
+      supabase,
+    })
+  }
+  app.get('/v1/auth', authIndex)
+  app.get('/v1/auth/', authIndex)
 
   app.get('/v1/auth/oidc/start', oidcStart)
   app.get('/v1/auth/oidc/callback', oidcCallback)
@@ -232,6 +250,62 @@ export function createApp() {
       })),
     })
   })
+
+  const accountIndex = (c: Context) => {
+    const endpoints = {
+      me: '/v1/account/me',
+      login: '/v1/account/login',
+      register: '/v1/account/register',
+    }
+    const claims = requireFriskyDev(c)
+    if (claims) {
+      const account = getAccountById(claims.sub)
+      if (!account) {
+        return c.json({
+          ok: false,
+          authenticated: false,
+          account: null,
+          linked: [],
+          endpoints,
+          error: 'Account not found',
+        }, 404)
+      }
+      return c.json({
+        ok: true,
+        authenticated: true,
+        account: publicAccount(account),
+        linked: listLinkedIdentities(account.id).map((i) => ({
+          platform: i.platform,
+          externalSubject: i.externalSubject,
+          displayName: i.displayName,
+          verifiedAt: i.verifiedAt,
+          meta: i.meta,
+        })),
+        endpoints,
+      })
+    }
+
+    const cookie = sessionClaimsFromCookie(c.req.header('cookie'))
+    if (cookie) {
+      return c.json({
+        ok: true,
+        authenticated: true,
+        account: { id: cookie.sub, displayName: cookie.name, platform: cookie.platform },
+        linked: [],
+        endpoints,
+      })
+    }
+
+    return c.json({
+      ok: true,
+      authenticated: false,
+      account: null,
+      linked: [],
+      endpoints,
+    })
+  }
+  app.get('/v1/account', accountIndex)
+  app.get('/v1/account/', accountIndex)
 
   app.get('/v1/account/me', (c) => {
     const claims = requireFriskyDev(c)

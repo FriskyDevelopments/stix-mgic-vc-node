@@ -23,6 +23,7 @@ const envSchema = z.object({
   // `supabase-identity.ts` carries the same public defaults LORE does; these only
   // override them per-deployment.
   VITE_SUPABASE_URL: optionalTrimmed,
+  VITE_SUPABASE_PUBLISHABLE_KEY: optionalTrimmed,
   VITE_SUPABASE_ANON_KEY: optionalTrimmed,
 })
 
@@ -51,6 +52,7 @@ function readRawEnv() {
     VITE_POSTHOG_PROJECT_TOKEN: import.meta.env.VITE_POSTHOG_PROJECT_TOKEN as string | undefined,
     VITE_POSTHOG_HOST: import.meta.env.VITE_POSTHOG_HOST as string | undefined,
     VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL as string | undefined,
+    VITE_SUPABASE_PUBLISHABLE_KEY: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined,
     VITE_SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined,
   }
 }

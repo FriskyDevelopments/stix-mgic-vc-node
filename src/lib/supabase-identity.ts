@@ -134,13 +134,14 @@ export async function signOut(): Promise<void> {
 }
 
 /**
- * Called once at startup. If Supabase has just returned from SSO (or a session is still
- * live) but the node has no cookie yet, exchange it. Idempotent and safe to call on every
- * mount — with no Supabase session it does nothing.
+ * Called once at startup. Reads the node's `vc_session` first (FriskyDev ID / OIDC, or a
+ * cookie minted earlier) so an OIDC-only node still appears signed in. If there is no
+ * cookie yet and Supabase is configured, exchange a live SSO session for one. Idempotent
+ * and safe to call on every mount.
  */
 export async function syncSessionOnLoad(): Promise<{ id: string; name: string } | null> {
-  if (!getIdentityConfigState().configured) return null
   const existing = await getNodeIdentity()
   if (existing) return existing
+  if (!getIdentityConfigState().configured) return null
   return establishNodeSession()
 }

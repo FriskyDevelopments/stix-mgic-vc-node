@@ -31,6 +31,13 @@ export type PublicConfig = {
   spotifyClientId: string | null
   identityProvider: string
   identityReady: boolean
+  identityProviders?: Array<{
+    id: 'google' | 'apple' | 'microsoft' | 'friskydev-id'
+    label: string
+    ready: boolean
+    method: 'supabase' | 'oidc'
+    start?: string
+  }>
   capabilities: {
     telegramAuth: RuntimeCapability
     discordAuth: RuntimeCapability

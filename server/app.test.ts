@@ -200,6 +200,49 @@ describe('control plane API', () => {
     })
     expect(res.status).toBe(401)
   })
+
+  it('serves GET /v1/auth as an identity catalog instead of Not found', async () => {
+    const app = createApp()
+    const res = await app.request('/v1/auth')
+    expect(res.status).toBe(200)
+    const body = await res.json() as {
+      ok: boolean
+      authenticated: boolean
+      providers: Array<{ id: string; label: string; ready: boolean; method: string }>
+    }
+    expect(body.ok).toBe(true)
+    expect(body.authenticated).toBe(false)
+    expect(body.providers.map((provider) => provider.id)).toEqual([
+      'google',
+      'apple',
+      'microsoft',
+      'friskydev-id',
+    ])
+    expect(body.providers.map((provider) => provider.label)).toEqual([
+      'Google',
+      'Apple',
+      'Microsoft',
+      'FriskyDev ID',
+    ])
+  })
+
+  it('serves GET /v1/account as a session probe instead of Not found', async () => {
+    const app = createApp()
+    const res = await app.request('/v1/account')
+    expect(res.status).toBe(200)
+    const body = await res.json() as {
+      ok: boolean
+      authenticated: boolean
+      account: unknown
+      endpoints: { me: string; login: string; register: string }
+    }
+    expect(body.ok).toBe(true)
+    expect(body.authenticated).toBe(false)
+    expect(body.account).toBeNull()
+    expect(body.endpoints.me).toBe('/v1/account/me')
+    expect(body.endpoints.login).toBe('/v1/account/login')
+    expect(body.endpoints.register).toBe('/v1/account/register')
+  })
 })
 
 describe('room REST API', () => {
