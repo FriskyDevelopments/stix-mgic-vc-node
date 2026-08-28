@@ -1,11 +1,3 @@
-/**
- * Platform authentication helpers.
- *
- * Discord: real OAuth code exchange via control-plane `/v1/auth/discord/exchange`
- * when the server has DISCORD_CLIENT_* configured.
- * Telegram: Login Widget payload verified via `/v1/auth/telegram/verify` when
- * TELEGRAM_BOT_TOKEN is configured; otherwise a clearly-labeled demo popup.
- */
 import { getAppEnv } from '@/lib/env'
 import { setOperatorToken } from '@/lib/operator-token'
 import { apiHeaders, apiUrl } from '@/lib/api-client'
@@ -29,16 +21,8 @@ export interface DiscordUser {
 }
 
 export interface AuthState {
-  telegram: {
-    status: PlatformAuthStatus
-    user: TelegramUser | null
-    error: string | null
-  }
-  discord: {
-    status: PlatformAuthStatus
-    user: DiscordUser | null
-    error: string | null
-  }
+  telegram: { status: PlatformAuthStatus; user: TelegramUser | null; error: string | null }
+  discord: { status: PlatformAuthStatus; user: DiscordUser | null; error: string | null }
 }
 
 function discordClientId(): string {
@@ -51,108 +35,6 @@ function discordRedirectUri(): string {
 
 export function isDiscordConfigured(): boolean {
   return discordClientId().length > 0
-}
-
-function openMockAuthPopup(title: string, messageType: 'telegram-auth' | 'discord-auth', userJson: string): void {
-  const width = 600
-  const height = 650
-  const left = (window.screen.width - width) / 2
-  const top = (window.screen.height - height) / 2
-
-  const authWindow = window.open(
-    '',
-    title.replace(/\s+/g, ''),
-    `width=${width},height=${height},left=${left},top=${top}`
-  )
-
-  if (!authWindow) {
-    throw new Error('Popup blocked — allow popups to complete demo authorization')
-  }
-
-  authWindow.document.write(`
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <title>${title}</title>
-        <style>
-          body {
-            margin: 0;
-            padding: 40px;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: oklch(0.15 0.01 260);
-            color: oklch(0.95 0.01 260);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-          }
-          .container { text-align: center; max-width: 400px; }
-          h1 { font-size: 24px; margin-bottom: 16px; font-weight: 600; }
-          p { font-size: 14px; line-height: 1.6; color: oklch(0.65 0.01 260); margin-bottom: 32px; }
-          .badge {
-            display: inline-block;
-            font-size: 11px;
-            font-family: ui-monospace, monospace;
-            letter-spacing: 0.04em;
-            padding: 4px 8px;
-            margin-bottom: 16px;
-            border: 1px solid oklch(0.75 0.14 195);
-            color: oklch(0.75 0.14 195);
-            border-radius: 4px;
-          }
-          .loader {
-            width: 48px;
-            height: 48px;
-            border: 3px solid oklch(0.25 0.02 260);
-            border-top-color: oklch(0.75 0.14 195);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin: 0 auto 24px;
-          }
-          @keyframes spin { to { transform: rotate(360deg); } }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="loader"></div>
-          <div class="badge">DEMO AUTH</div>
-          <h1>${title}</h1>
-          <p>Simulating platform access. Configure server secrets for real identity verification.</p>
-        </div>
-        <script>
-          setTimeout(() => {
-            window.opener.postMessage({
-              type: '${messageType}',
-              user: ${userJson},
-              demo: true
-            }, window.location.origin);
-            window.close();
-          }, 1200);
-        </script>
-      </body>
-    </html>
-  `)
-  authWindow.document.close()
-}
-
-export function initiateTelegramAuth(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    try {
-      openMockAuthPopup(
-        'Telegram Authorization (Demo)',
-        'telegram-auth',
-        `{
-          id: ${Date.now()},
-          first_name: 'Operator',
-          username: 'stix_operator',
-          photo_url: null
-        }`
-      )
-      resolve()
-    } catch (error) {
-      reject(error)
-    }
-  })
 }
 
 export async function verifyTelegramLoginPayload(payload: Record<string, unknown>): Promise<{
@@ -177,21 +59,10 @@ export async function verifyTelegramLoginPayload(payload: Record<string, unknown
 
 export function initiateDiscordAuth(): void {
   if (!isDiscordConfigured()) {
-    openMockAuthPopup(
-      'Discord Authorization (Demo)',
-      'discord-auth',
-      `{
-        id: '${Date.now()}',
-        username: 'operator',
-        discriminator: '0001',
-        global_name: 'STIX Operator',
-        avatar: undefined
-      }`
-    )
-    return
+    throw new Error('Discord OAuth is unavailable on this deployment')
   }
 
-  const state = Math.random().toString(36).substring(2, 15)
+  const state = crypto.randomUUID()
   sessionStorage.setItem('discord_auth_state', state)
 
   const params = new URLSearchParams({
@@ -201,35 +72,28 @@ export function initiateDiscordAuth(): void {
     scope: 'identify',
     state,
   })
-
+  const authorizeUrl = `https://discord.com/api/oauth2/authorize?${params.toString()}`
   const width = 500
   const height = 700
   const left = (window.screen.width - width) / 2
   const top = (window.screen.height - height) / 2
-
   const authWindow = window.open(
-    `https://discord.com/api/oauth2/authorize?${params.toString()}`,
+    authorizeUrl,
     'DiscordAuth',
     `width=${width},height=${height},left=${left},top=${top}`
   )
 
-  if (!authWindow) {
-    window.location.href = `https://discord.com/api/oauth2/authorize?${params.toString()}`
-  }
+  if (!authWindow) window.location.href = authorizeUrl
 }
 
 export async function handleDiscordCallback(code: string): Promise<{
   user: DiscordUser
   token: string
-  demo?: boolean
 }> {
   const response = await fetch(apiUrl('/v1/auth/discord/exchange'), {
     method: 'POST',
     headers: apiHeaders(undefined, false),
-    body: JSON.stringify({
-      code,
-      redirectUri: discordRedirectUri(),
-    }),
+    body: JSON.stringify({ code, redirectUri: discordRedirectUri() }),
   })
 
   if (!response.ok) {

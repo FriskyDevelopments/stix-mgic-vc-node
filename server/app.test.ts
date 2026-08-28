@@ -58,23 +58,17 @@ describe('control plane API', () => {
     )
   })
 
-  it('starts and stops a session without auth when AUTH_REQUIRED=false', async () => {
+  it('rejects a session when the requested platform adapter is unavailable', async () => {
     const app = createApp()
     const start = await app.request('/v1/sessions/start', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ platform: 'telegram', protocol: 'dj-mode', mode: 'dj' }),
     })
-    expect(start.status).toBe(200)
-    const started = await start.json()
-    expect(started.status).toBe('dj-mode')
-    expect(started.source).toBe('live-api')
-    expect(started.mediaPlane.ready).toBe(false)
-
-    const stop = await app.request('/v1/sessions/stop', { method: 'POST' })
-    expect(stop.status).toBe(200)
-    const stopped = await stop.json()
-    expect(stopped.status).toBe('standby')
+    expect(start.status).toBe(503)
+    const body = await start.json()
+    expect(body.error).toBe('Telegram VC is unavailable')
+    expect(body.reason).toBeTruthy()
   })
 
   it('rejects discord exchange when not configured', async () => {

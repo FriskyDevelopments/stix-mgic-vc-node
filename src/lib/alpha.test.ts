@@ -12,12 +12,12 @@ import { isSpotifyConfigured } from './spotify'
 describe('alpha value helpers', () => {
   it('exposes a clear alpha banner', () => {
     expect(ALPHA_BANNER).toMatch(/Alpha/i)
-    expect(ALPHA_BANNER).toMatch(/local demo/i)
-    expect(ALPHA_BANNER).toMatch(/no production/i)
+    expect(ALPHA_BANNER).toMatch(/real providers only/i)
+    expect(ALPHA_BANNER).toMatch(/unavailable/i)
   })
 
   it('returns a runtime banner for current mode', () => {
-    expect(getRuntimeBanner()).toMatch(/demo|Production mode/i)
+    expect(getRuntimeBanner()).toMatch(/control surface|Live control plane/i)
   })
 
   it('maps platform destinations for architecture', () => {

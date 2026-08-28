@@ -14,6 +14,12 @@ const CONFIG = {
   spotifyClientId: null,
   identityProvider: 'supabase',
   identityReady: true,
+  capabilities: {
+    telegramAuth: { ready: true, reason: 'configured' },
+    discordAuth: { ready: false, reason: 'not configured' },
+    telegramVc: { ready: false, reason: 'not paired' },
+    discordVoice: { ready: false, reason: 'not configured' },
+  },
 }
 
 describe('runtime public config', () => {

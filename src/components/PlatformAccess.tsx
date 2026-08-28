@@ -33,10 +33,13 @@ interface PlatformAccessProps {
   discordError: string | null
   friskyDevSignedIn: boolean
   telegramBotUsername?: string | null
+  telegramAuthReady: boolean
+  telegramAuthReason: string
+  discordAuthReady: boolean
+  discordAuthReason: string
   telegramLinked?: boolean
   discordLinked?: boolean
   onTelegramWidgetAuth: (payload: Record<string, unknown>) => void
-  onTelegramDemoAuth: () => void
   onTelegramDisconnect: () => void
   onDiscordAuth: () => void
   onDiscordDisconnect: () => void
@@ -51,10 +54,13 @@ export function PlatformAccess({
   discordError,
   friskyDevSignedIn,
   telegramBotUsername,
+  telegramAuthReady,
+  telegramAuthReason,
+  discordAuthReady,
+  discordAuthReason,
   telegramLinked,
   discordLinked,
   onTelegramWidgetAuth,
-  onTelegramDemoAuth,
   onTelegramDisconnect,
   onDiscordAuth,
   onDiscordDisconnect,
@@ -190,28 +196,17 @@ export function PlatformAccess({
 
             {telegramStatus !== 'connected' && (
               <div className="space-y-3">
-                {telegramBotUsername ? (
+                {telegramAuthReady && telegramBotUsername ? (
                   <TelegramLoginWidget
                     botUsername={telegramBotUsername}
                     onAuth={onTelegramWidgetAuth}
                     disabled={!friskyDevSignedIn}
                   />
                 ) : (
-                  <>
-                    <p className="text-xs text-muted-foreground">
-                      Real Telegram Login Widget needs bot username + server token.
-                    </p>
-                    <Button
-                      onClick={onTelegramDemoAuth}
-                      variant="outline"
-                      size="sm"
-                      className="w-full gap-2"
-                      disabled={!friskyDevSignedIn}
-                    >
-                      <SignIn size={16} />
-                      Demo Telegram (no bot configured)
-                    </Button>
-                  </>
+                  <div className="rounded-lg border border-warning/30 bg-warning/5 p-3">
+                    <p className="text-xs font-medium text-warning">Telegram unavailable</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{telegramAuthReason}</p>
+                  </div>
                 )}
               </div>
             )}
@@ -290,12 +285,18 @@ export function PlatformAccess({
                   <div>• Server-side code → token exchange</div>
                   <div>• Link to FriskyDev account</div>
                 </div>
+                {!discordAuthReady && (
+                  <div className="rounded-lg border border-warning/30 bg-warning/5 p-3">
+                    <p className="text-xs font-medium text-warning">Discord unavailable</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{discordAuthReason}</p>
+                  </div>
+                )}
                 <Button
                   onClick={onDiscordAuth}
                   variant="default"
                   size="sm"
                   className="w-full gap-2"
-                  disabled={!friskyDevSignedIn || discordStatus === 'connecting'}
+                  disabled={!friskyDevSignedIn || !discordAuthReady || discordStatus === 'connecting'}
                 >
                   <SignIn size={16} />
                   {discordStatus === 'connecting' ? 'Connecting…' : 'Link Discord'}

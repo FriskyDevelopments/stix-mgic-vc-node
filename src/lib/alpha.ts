@@ -10,15 +10,12 @@ export type AlphaInputProtocol =
   | 'relay'
 
 export const ALPHA_BANNER =
-  'Alpha — local demo only. Sessions and platform auth are simulated; no production Telegram/Discord connectivity.'
+  'Alpha control surface — real providers only. Unconfigured authentication and voice adapters stay unavailable.'
 
 export function getRuntimeBanner(): string {
   const env = getAppEnv()
   if (env.isLiveApiConfigured) {
-    // Do not restate the media plane's state here — this string is baked at build time and
-    // said "deferred" long after WebRTC, Telegram VC and RTMP went live. Per-adapter state
-    // is measured and served by /v1/media/status, which the operations board renders.
-    return 'Production control plane — session authority via API. Media-plane adapters report their own state below.'
+    return 'Live control plane — provider authentication and voice adapters report verified runtime readiness.'
   }
   return ALPHA_BANNER
 }
