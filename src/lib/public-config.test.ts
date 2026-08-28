@@ -14,6 +14,12 @@ const CONFIG = {
   spotifyClientId: null,
   identityProvider: 'supabase',
   identityReady: true,
+  identityProviders: [
+    { id: 'google', label: 'Google', ready: true, method: 'supabase' },
+    { id: 'apple', label: 'Apple', ready: true, method: 'supabase' },
+    { id: 'microsoft', label: 'Microsoft', ready: true, method: 'supabase' },
+    { id: 'friskydev-id', label: 'FriskyDev ID', ready: true, method: 'oidc', start: '/v1/auth/oidc/start' },
+  ],
   capabilities: {
     telegramAuth: { ready: true, reason: 'configured' },
     discordAuth: { ready: false, reason: 'not configured' },

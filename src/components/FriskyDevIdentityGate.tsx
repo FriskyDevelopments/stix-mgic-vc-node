@@ -1,5 +1,6 @@
 /**
- * The VC node sign-in surface, backed by Supabase FriskyDev (the Fenrir master identity).
+ * The VC node sign-in surface, backed by Supabase FriskyDev (the Fenrir master identity)
+ * plus an explicit FriskyDev ID button when Authentik OIDC is configured on the node.
  *
  * The gate reports the identity the NODE resolved, never the one the browser believes it
  * has. That distinction is the whole point: a Supabase session sitting in localStorage
@@ -9,18 +10,21 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ArrowRight, CheckCircle, ShieldCheck, Sparkle } from '@phosphor-icons/react'
 import {
-  PROVIDER_LABELS,
   getIdentityConfigState,
   signInWithProvider,
   signOut,
   syncSessionOnLoad,
-  type OAuthProvider,
 } from '@/lib/supabase-identity'
+import {
+  identityActionMark,
+  listIdentityActions,
+  supabaseProviderFor,
+  type IdentityAction,
+} from '@/lib/identity-actions'
+import { usePublicConfig } from '@/lib/public-config'
 import '@/styles/identity-portal.css'
 
 type Identity = { id: string; name: string }
-
-const PROVIDERS: OAuthProvider[] = ['google', 'apple', 'azure']
 
 export function FriskyDevIdentityGate({
   onChange,
@@ -31,6 +35,12 @@ export function FriskyDevIdentityGate({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const config = getIdentityConfigState()
+  const publicConfig = usePublicConfig()
+  const actions = listIdentityActions({
+    supabaseConfigured: config.configured,
+    friskydevIdConfigured: Boolean(publicConfig?.friskydevIdConfigured),
+  })
+  const primaryIndex = Math.max(0, actions.findIndex((action) => action.ready))
 
   const refresh = useCallback(async () => {
     try {
@@ -48,12 +58,28 @@ export function FriskyDevIdentityGate({
     void refresh()
   }, [refresh])
 
-  async function handleSignIn(provider: OAuthProvider) {
+  async function handleAction(action: IdentityAction) {
     setError(null)
-    try {
-      await signInWithProvider(provider)
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not start sign-in')
+    if (!action.ready) return
+    switch (action.id) {
+      case 'google':
+      case 'apple':
+      case 'microsoft':
+        try {
+          await signInWithProvider(supabaseProviderFor(action.id))
+        } catch (cause) {
+          setError(cause instanceof Error ? cause.message : 'Could not start sign-in')
+        }
+        return
+      case 'friskydev-id': {
+        const returnTo = `${window.location.pathname}${window.location.search}`
+        window.location.href = `/v1/auth/oidc/start?returnTo=${encodeURIComponent(returnTo)}`
+        return
+      }
+      default: {
+        const _never: never = action.id
+        setError(`Unhandled identity action: ${_never}`)
+      }
     }
   }
 
@@ -95,21 +121,25 @@ export function FriskyDevIdentityGate({
           </div>
         ) : (
           <div className="identity-portal__actions" data-testid="sso-buttons">
-            {PROVIDERS.map((provider, index) => (
+            {actions.map((action, index) => (
               <button
-                className={index === 0 ? 'identity-portal__provider is-primary' : 'identity-portal__provider'}
-                key={provider}
-                disabled={!config.configured}
-                onClick={() => void handleSignIn(provider)}
+                className={index === primaryIndex ? 'identity-portal__provider is-primary' : 'identity-portal__provider'}
+                key={action.id}
+                data-testid={`identity-action-${action.id}`}
+                disabled={!action.ready}
+                onClick={() => void handleAction(action)}
               >
-                <span className="identity-portal__provider-mark">{provider === 'google' ? 'G' : provider === 'apple' ? '●' : '⊞'}</span>
-                Continue with {PROVIDER_LABELS[provider]}
-                {index === 0 && <ArrowRight weight="bold" />}
+                <span className="identity-portal__provider-mark">{identityActionMark(action.id)}</span>
+                Continue with {action.label}
+                {index === primaryIndex && <ArrowRight weight="bold" />}
               </button>
             ))}
           </div>
         )}
-        {!config.configured && <p className="identity-portal__notice">Identity needs configuration: {config.missing.join(', ')}</p>}
+        {!config.configured && <p className="identity-portal__notice">Social SSO needs configuration: {config.missing.join(', ')}</p>}
+        {publicConfig && !publicConfig.friskydevIdConfigured && (
+          <p className="identity-portal__notice">FriskyDev ID is not configured on this node.</p>
+        )}
         {error && <p className="identity-portal__notice is-error">{error}</p>}
         <p className="identity-portal__footer">By continuing, you enter with your FriskyDev identity.</p>
       </div>
