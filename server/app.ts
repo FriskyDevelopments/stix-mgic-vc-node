@@ -105,8 +105,12 @@ export function createApp() {
   // signature. This is the endpoint registered in the Discord Developer Portal.
   app.post('/v1/discord/interactions', discordInteractions)
 
-  app.get('/v1/config/public', (c) =>
-    c.json({
+  app.get('/v1/config/public', (c) => {
+    const media = buildMediaPlaneStatus({ signalingReady: isSignalingReady() })
+    const telegramAdapter = media.adapters.find((adapter) => adapter.id === 'telegram-vc')
+    const discordAdapter = media.adapters.find((adapter) => adapter.id === 'discord-voice')
+
+    return c.json({
       discordClientId: env.DISCORD_CLIENT_ID || null,
       telegramBotUsername: env.TELEGRAM_BOT_USERNAME || null,
       authRequired: env.AUTH_REQUIRED,
@@ -117,12 +121,32 @@ export function createApp() {
       supabaseUrl: env.SUPABASE_URL || null,
       supabasePublishableKey: env.SUPABASE_PUBLISHABLE_KEY || env.SUPABASE_ANON_KEY || null,
       spotifyClientId: env.SPOTIFY_CLIENT_ID || null,
-      // The active UI never falls back to a second identity provider. If these settings
-      // are absent, it stays on the social screen and names the missing configuration.
       identityProvider: 'supabase',
       identityReady: env.supabaseConfigured,
+      capabilities: {
+        telegramAuth: {
+          ready: env.telegramConfigured && Boolean(env.TELEGRAM_BOT_USERNAME),
+          reason: env.telegramConfigured && env.TELEGRAM_BOT_USERNAME
+            ? 'Telegram Login Widget verification is configured'
+            : 'Telegram bot token and bot username are required',
+        },
+        discordAuth: {
+          ready: env.discordConfigured,
+          reason: env.discordConfigured
+            ? 'Discord OAuth code exchange is configured'
+            : 'Discord client ID and client secret are required',
+        },
+        telegramVc: {
+          ready: telegramAdapter?.state === 'ready',
+          reason: telegramAdapter?.reason || 'Telegram VC adapter is unavailable',
+        },
+        discordVoice: {
+          ready: discordAdapter?.state === 'ready',
+          reason: discordAdapter?.reason || 'Discord voice adapter is unavailable',
+        },
+      },
     })
-  )
+  })
 
   app.get('/v1/auth/oidc/start', oidcStart)
   app.get('/v1/auth/oidc/callback', oidcCallback)
@@ -466,6 +490,17 @@ export function createApp() {
     const platform = body.platform || 'telegram'
     const protocol = body.protocol || 'dj-mode'
     const mode = body.mode || (protocol === 'dj-mode' ? 'dj' : 'operator')
+    const media = buildMediaPlaneStatus({ signalingReady: isSignalingReady() })
+    const requiredAdapter = media.adapters.find((adapter) =>
+      adapter.id === (platform === 'telegram' ? 'telegram-vc' : 'discord-voice')
+    )
+
+    if (!requiredAdapter || requiredAdapter.state !== 'ready') {
+      return c.json({
+        error: `${platform === 'telegram' ? 'Telegram VC' : 'Discord Voice'} is unavailable`,
+        reason: requiredAdapter?.reason || 'No verified adapter is configured',
+      }, 503)
+    }
 
     const snapshot = startSession({
       operatorId: c.get('operatorId'),

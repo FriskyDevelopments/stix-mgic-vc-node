@@ -80,7 +80,7 @@ import { getSessionApi } from "@/lib/session-api"
 import { setOperatorToken } from "@/lib/operator-token"
 import { log } from "@/lib/log"
 import { 
-  initiateTelegramAuth, 
+  verifyTelegramLoginPayload,
   initiateDiscordAuth,
   type PlatformAuthStatus,
   type TelegramUser,
@@ -249,13 +249,17 @@ function LegacyControlPlane() {
     setLogs((currentLogs) => [newLog, ...(currentLogs || [])].slice(0, 100))
   }
 
-  const handleTelegramAuth = async () => {
+  const handleTelegramAuth = async (payload: Record<string, unknown>) => {
     setTelegramAuthStatus('connecting')
     setTelegramAuthError(null)
-    addLog('info', 'AUTH', 'Telegram authorization initiated')
-    
+    addLog('info', 'AUTH', 'Verifying Telegram Login Widget payload')
+
     try {
-      await initiateTelegramAuth()
+      const result = await verifyTelegramLoginPayload(payload)
+      setTelegramUser(result.user)
+      setTelegramAuthStatus('connected')
+      addLog('success', 'AUTH', 'Telegram platform identity verified')
+      toast.success('Telegram authorized')
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Authorization failed'
       setTelegramAuthStatus('error')
@@ -1046,10 +1050,13 @@ function LegacyControlPlane() {
           discordError={discordAuthError}
           friskyDevSignedIn={friskyDevSignedIn}
           telegramBotUsername={telegramBotUsername}
+          telegramAuthReady={publicConfig?.capabilities.telegramAuth.ready ?? false}
+          telegramAuthReason={publicConfig?.capabilities.telegramAuth.reason ?? 'Checking Telegram configuration'}
+          discordAuthReady={publicConfig?.capabilities.discordAuth.ready ?? false}
+          discordAuthReason={publicConfig?.capabilities.discordAuth.reason ?? 'Checking Discord configuration'}
           telegramLinked={telegramAuthStatus === 'connected'}
           discordLinked={discordAuthStatus === 'connected'}
-          onTelegramWidgetAuth={() => void handleTelegramAuth()}
-          onTelegramDemoAuth={() => void handleTelegramAuth()}
+          onTelegramWidgetAuth={(payload) => void handleTelegramAuth(payload)}
           onTelegramDisconnect={handleTelegramDisconnect}
           onDiscordAuth={handleDiscordAuth}
           onDiscordDisconnect={handleDiscordDisconnect}

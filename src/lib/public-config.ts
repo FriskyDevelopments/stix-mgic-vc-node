@@ -13,6 +13,11 @@
 import { useEffect, useState } from 'react'
 import { apiUrl } from '@/lib/api-client'
 
+export type RuntimeCapability = {
+  ready: boolean
+  reason: string
+}
+
 export type PublicConfig = {
   discordClientId: string | null
   telegramBotUsername: string | null
@@ -26,6 +31,12 @@ export type PublicConfig = {
   spotifyClientId: string | null
   identityProvider: string
   identityReady: boolean
+  capabilities: {
+    telegramAuth: RuntimeCapability
+    discordAuth: RuntimeCapability
+    telegramVc: RuntimeCapability
+    discordVoice: RuntimeCapability
+  }
 }
 
 let cached: PublicConfig | null = null
