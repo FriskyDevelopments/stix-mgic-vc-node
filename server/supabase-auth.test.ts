@@ -7,7 +7,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp } from './app'
 import { resetServerEnvCache } from './env'
-import { mintOperatorToken } from './tokens'
 
 const SUPABASE_URL = 'https://yqevglppbhuoxxfsfnih.supabase.co'
 const ANON_KEY = 'sb_publishable_test'

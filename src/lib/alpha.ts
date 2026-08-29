@@ -57,8 +57,3 @@ export function getArchitectureLayers(
   }
 }
 
-export function generateDemoStreamKey(): string {
-  // This key is a placeholder. A real stream key comes from the platform (Telegram RTMP
-  // via MTProto or Discord). Until those adapters are wired, no real key exists.
-  return `sk_placeholder_${Math.random().toString(36).substring(2, 15)}`
-}

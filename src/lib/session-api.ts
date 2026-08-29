@@ -46,36 +46,6 @@ export interface SessionApi {
   extendOperatorTime(seconds: number): Promise<{ remainingSeconds: number }>
 }
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-function demoSnapshot(
-  status: SessionSnapshot['status'],
-  protocol: SessionProtocol
-): SessionSnapshot {
-  const isRtmp = protocol === 'rtmp'
-  const isCamera = protocol === 'virtual-camera'
-  const isDj = status === 'dj-mode' || protocol === 'dj-mode'
-
-  return {
-    status,
-    signalQuality: isDj ? 88 : isCamera ? 92 : isRtmp ? 90 : 85,
-    latency: isCamera ? 42 : isRtmp ? 180 : 120,
-    frameRate: isCamera || isRtmp ? 30 : 24,
-    bitrate: isRtmp ? 2500 : 0,
-    packetLoss: isRtmp ? 0.2 : 0,
-    audioSync: status === 'standby' ? 'muted' : 'stable',
-    resolution: '720p',
-    streamKey: isRtmp ? `sk_demo_${Math.random().toString(36).slice(2, 10)}` : undefined,
-    source: 'demo',
-    mediaPlane: {
-      enabled: false,
-      ready: false,
-      reason: 'control-plane-only',
-    },
-  }
-}
 
 async function liveRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(apiUrl(path), {
@@ -91,7 +61,7 @@ async function liveRequest<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>
 }
 
-class DemoSessionApi implements SessionApi {
+class UnavailableSessionApi implements SessionApi {
   isLiveConfigured(): boolean {
     return false
   }
@@ -100,20 +70,16 @@ class DemoSessionApi implements SessionApi {
     return null
   }
 
-  async startSession(request: StartSessionRequest): Promise<SessionSnapshot> {
-    log.info('session', 'Demo startSession', request)
-    await delay(request.mode === 'dj' ? 400 : 500)
-    return demoSnapshot(request.mode === 'dj' ? 'dj-mode' : 'active', request.protocol)
+  async startSession(): Promise<SessionSnapshot> {
+    throw new Error('Session API is unavailable. Start the node control plane before opening a session.')
   }
 
   async stopSession(): Promise<SessionSnapshot> {
-    log.info('session', 'Demo stopSession')
-    await delay(200)
-    return demoSnapshot('standby', 'dj-mode')
+    throw new Error('Session API is unavailable. No remote session was stopped.')
   }
 
-  async extendOperatorTime(seconds: number): Promise<{ remainingSeconds: number }> {
-    return { remainingSeconds: seconds }
+  async extendOperatorTime(): Promise<{ remainingSeconds: number }> {
+    throw new Error('Session API is unavailable. Operator time cannot be extended.')
   }
 }
 
@@ -171,7 +137,7 @@ let sessionApi: SessionApi | null = null
 
 export function getSessionApi(): SessionApi {
   if (sessionApi) return sessionApi
-  sessionApi = getAppEnv().isLiveApiConfigured ? new LiveSessionApi() : new DemoSessionApi()
+  sessionApi = getAppEnv().isLiveApiConfigured ? new LiveSessionApi() : new UnavailableSessionApi()
   return sessionApi
 }
 

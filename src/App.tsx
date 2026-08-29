@@ -43,12 +43,9 @@ import {
   CheckCircle,
   MonitorPlay,
   Camera,
-  Microphone,
   SpeakerHigh,
   Copy,
   ArrowsDownUp,
-  FileVideo,
-  GitBranch,
   Eye,
   Key,
   CloudArrowUp,
@@ -59,18 +56,14 @@ import {
   SpotifyLogo,
   SignIn,
   SignOut,
-  Waveform,
   UserCircle,
   PlugsConnected,
-  Upload,
-  FilmStrip,
   Database
 } from "@phosphor-icons/react"
 import { toast } from "sonner"
 import { initiateSpotifyAuth, getSpotifyUser, formatTrackDisplay, clearSpotifySession, getStoredSpotifyRefreshToken, isSpotifyAccessExpiringSoon, refreshSpotifyToken, isSpotifyConfigured } from "@/lib/spotify"
 import type { SpotifyTrack } from "@/lib/spotify"
 import {
-  generateDemoStreamKey,
   getArchitectureLayers,
   getRuntimeBanner,
 } from "@/lib/alpha"
@@ -126,7 +119,7 @@ function LegacyControlPlane() {
   const [operatorTier] = useState<OperatorTier>(appEnv.operatorTier)
   const [operatorTimeRemaining, setOperatorTimeRemaining] = useState(120)
   const [operatorTimeElapsed, setOperatorTimeElapsed] = useState(0)
-  const [streamKey, setStreamKey] = useState(() => generateDemoStreamKey())
+  const [streamKey, setStreamKey] = useState<string | null>(null)
   const [isTransitioning, setIsTransitioning] = useState(false)
   
   const [djAudioSource, setDjAudioSource] = usePersistedState<DJAudioSource>("dj-audio-source", "stix-library")
@@ -148,7 +141,7 @@ function LegacyControlPlane() {
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null)
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null)
   const [roomId, setRoomId] = useState<string | null>(null)
-  const [cameraPermissionError, setCameraPermissionError] = useState<string | null>(null)
+  const [, setCameraPermissionError] = useState<string | null>(null)
 
   const [telegramAuthStatus, setTelegramAuthStatus] = usePersistedState<PlatformAuthStatus>("telegram-auth-status", "disconnected")
   const [telegramUser, setTelegramUser] = usePersistedState<TelegramUser | null>("telegram-user", null)
@@ -309,13 +302,9 @@ function LegacyControlPlane() {
         const user = event.data.user as TelegramUser
         setTelegramAuthStatus('connected')
         setTelegramUser(user)
-        addLog(
-          'success',
-          'AUTH',
-          event.data.demo ? 'Telegram demo identity linked' : 'Telegram platform identity verified'
-        )
+        addLog('success', 'AUTH', 'Telegram platform identity verified')
         addLog('success', 'AUTH', 'Session authorization ready')
-        toast.success(event.data.demo ? 'Telegram demo authorized' : 'Telegram authorized')
+        toast.success('Telegram authorized')
       }
       
       if (event.data.type === 'discord-auth' && event.data.user) {
@@ -325,13 +314,9 @@ function LegacyControlPlane() {
         }
         setDiscordAuthStatus('connected')
         setDiscordUser(user)
-        addLog(
-          'success',
-          'AUTH',
-          event.data.demo ? 'Discord demo identity linked' : 'Discord platform identity verified'
-        )
+        addLog('success', 'AUTH', 'Discord platform identity verified')
         addLog('success', 'AUTH', 'Session authorization ready')
-        toast.success(event.data.demo ? 'Discord demo authorized' : 'Discord authorized')
+        toast.success('Discord authorized')
       }
       
       if (event.data.type === 'discord-auth-error') {
@@ -429,11 +414,7 @@ function LegacyControlPlane() {
       setResolution(snapshot.resolution)
       if (snapshot.streamKey) setStreamKey(snapshot.streamKey)
 
-      addLog(
-        'info',
-        'SESSION',
-        snapshot.source === 'live-api' ? 'Session started via live API' : 'Demo session started (simulated)'
-      )
+      addLog('info', 'SESSION', 'Session started via live API')
       
       if (operatorTier === 'premium') {
         addLog('success', 'SESSION', `Operator session active — ${Math.floor(operatorTimeRemaining / 60)}:${String(operatorTimeRemaining % 60).padStart(2, '0')} available`)
@@ -509,7 +490,7 @@ function LegacyControlPlane() {
       addLog('success', 'DJ', 'DJ Mode active')
       addLog('success', 'LOOP', 'Visual cycle running')
       addLog('success', 'AUDIO', 'Ambient track active')
-      addLog('info', 'SESSION', snapshot.source === 'live-api' ? 'Autonomous mode via live API' : 'Autonomous mode live (demo)')
+      addLog('info', 'SESSION', 'Autonomous mode started via live API')
       
       if (sessionMark !== 'off') {
         addLog('success', 'BRAND', 'Session mark applied')
@@ -534,20 +515,6 @@ function LegacyControlPlane() {
     addLog('info', 'DJ', 'DJ Mode terminated')
     addLog('info', 'SESSION', 'Autonomous session ended')
     toast('DJ Mode stopped')
-  }
-
-  const handleUpgradeToOperator = () => {
-    if (operatorTier === 'free') {
-      toast('Upgrade to premium for live operator sessions')
-      return
-    }
-    
-    if (sessionStatus === 'dj-mode') {
-      setSessionStatus('standby')
-      addLog('info', 'SESSION', 'Switching from DJ Mode to operator session')
-      setInputProtocol('clipsflow')
-      toast.success('Ready for operator session')
-    }
   }
 
   const handleExtendTime = () => {
@@ -581,16 +548,16 @@ function LegacyControlPlane() {
         
         setTimeout(() => {
           setSessionStatus('dj-mode')
-          setSignalQuality(88)
-          setLatency(35)
-          setAudioSync('stable')
-          setResolution('720p')
+          setSignalQuality(0)
+          setLatency(0)
+          setAudioSync('muted')
+          setResolution('Unavailable')
           setFrameRate(0)
           setBitrate(0)
           setPacketLoss(0)
           setIsTransitioning(false)
-          
-          toast.success('DJ Mode active — session continuing autonomously')
+
+          toast('DJ Mode requested — waiting for measured adapter telemetry')
         }, 800)
       }, 1200)
     }
@@ -751,15 +718,18 @@ function LegacyControlPlane() {
   }
 
   const handleCopyStreamKey = () => {
-    navigator.clipboard.writeText(streamKey)
+    if (!streamKey) {
+      toast.error('No stream key is available')
+      return
+    }
+    void navigator.clipboard.writeText(streamKey)
     toast.success('Stream key copied to clipboard')
   }
 
   const handleResetKey = () => {
-    const nextKey = generateDemoStreamKey()
-    setStreamKey(nextKey)
-    addLog('warning', 'SECURITY', 'Stream key regenerated (demo)')
-    toast.success('Demo stream key regenerated')
+    setStreamKey(null)
+    addLog('warning', 'SECURITY', 'Local stream key cleared; request a new key from the configured RTMP service')
+    toast('Stream key cleared')
   }
 
   const handleSpotifyLogin = async () => {
@@ -893,32 +863,6 @@ function LegacyControlPlane() {
     }
   }, [sessionStatus, operatorTier, operatorTimeRemaining])
 
-  useEffect(() => {
-    if (sessionStatus === 'active' || sessionStatus === 'dj-mode') {
-      if (!appEnv.demoMode) return
-      // DEMO ONLY: simulates telemetry fluctuation when no live peer connection exists.
-      // In live mode, telemetry comes from RTCPeerConnection.getStats() reported via
-      // /v1/rooms/:id/telemetry — it is never invented by the client.
-      const interval = setInterval(() => {
-        setSignalQuality((prev) => {
-          const baseVariation = sessionStatus === 'dj-mode' ? 2 : 3
-          const newQuality = Math.min(100, Math.max(75, prev + (Math.random() - 0.5) * baseVariation))
-          return newQuality
-        })
-        setLatency((prev) => Math.max(25, prev + (Math.random() - 0.5) * 5))
-        
-        if (inputProtocol === 'virtual-camera') {
-          setFrameRate((prev) => Math.min(30, Math.max(24, prev + (Math.random() - 0.5) * 2)))
-        }
-        
-        if (inputProtocol === 'rtmp') {
-          setBitrate((prev) => Math.min(3000, Math.max(2000, prev + (Math.random() - 0.5) * 100)))
-          setPacketLoss((prev) => Math.min(2, Math.max(0, prev + (Math.random() - 0.5) * 0.3)))
-        }
-      }, 3000)
-      return () => clearInterval(interval)
-    }
-  }, [sessionStatus, inputProtocol, appEnv.demoMode])
 
   useEffect(() => {
     if (!spotifyAccessToken) return
@@ -1102,10 +1046,10 @@ function LegacyControlPlane() {
                 onAudioDeviceChange={handleAudioDeviceChange}
               />
 
-              {/* npm run dev starts the signaling node alongside Vite, so browser rooms are
-                  real even while the legacy platform-control surfaces remain in demo mode. */}
+        {/* npm run dev starts the signaling node alongside Vite. Platform controls remain
+            unavailable until their server-side provider and media adapters report ready. */}
               <div className="mt-4 space-y-4">
-                {friskyDevSignedIn || appEnv.demoMode ? (
+                {friskyDevSignedIn ? (
                   <RoomPanel
                     localStream={cameraStream || screenStream}
                     onRoomChange={setRoomId}
@@ -1122,7 +1066,7 @@ function LegacyControlPlane() {
                   onScreenStream={setScreenStream}
                   roomId={roomId}
                 />
-                <TelegramVcPanel accessGranted={friskyDevSignedIn || appEnv.demoMode} />
+                <TelegramVcPanel accessGranted={friskyDevSignedIn} />
                 <DJModePanel />
               </div>
               
@@ -1618,11 +1562,7 @@ function LegacyControlPlane() {
           {sessionStatus !== 'standby' && (
             <CollapsibleSection
               title="Source Details"
-              description={
-                inputProtocol === 'virtual-camera' && sessionStatus === 'active'
-                  ? 'Live camera metrics where available; other values may be simulated'
-                  : 'Simulated telemetry for alpha demo'
-              }
+              description="Measured session telemetry from the active control-plane adapter; unavailable values remain empty."
             >
               {inputProtocol === 'virtual-camera' && (
                 <>
@@ -1703,13 +1643,15 @@ function LegacyControlPlane() {
                     </div>
                     <div className="flex gap-2">
                       <Input 
-                        value={streamKey} 
+                        value={streamKey ?? ''}
+                        placeholder="Unavailable until RTMP session starts"
                         readOnly 
                         className="font-mono text-xs"
                         type="password"
                       />
                       <Button 
-                        onClick={handleCopyStreamKey} 
+                        onClick={handleCopyStreamKey}
+                        disabled={!streamKey}
                         variant="outline" 
                         size="icon"
                       >
@@ -1922,11 +1864,7 @@ function LegacyControlPlane() {
             <Broadcast size={12} />
             <span className="font-mono">FRISKY DEVELOPMENTS</span>
           </div>
-          <p>
-            {appEnv.demoMode
-              ? 'Alpha local demo • Multi-platform session control • Telegram + Discord'
-              : 'Multi-platform session control • Telegram + Discord • vc.friskydev.com'}
-          </p>
+          <p>Verified-provider session control • Telegram + Discord • vc.friskydev.com</p>
         </footer>
       </div>
       

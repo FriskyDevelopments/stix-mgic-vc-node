@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { MagnifyingGlass, MusicNote, ListBullets, TrendUp, Play, Pause, SpeakerHigh, SpeakerSlash } from '@phosphor-icons/react'
+import { MagnifyingGlass, MusicNote, ListBullets, TrendUp, Play, Pause, SpeakerSlash } from '@phosphor-icons/react'
 import type { SpotifyTrack, SpotifyPlaylist } from '@/lib/spotify'
 import { 
   getUserTopTracks, 

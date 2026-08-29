@@ -7,10 +7,9 @@ import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { MediaCompositor, AudioMixer, combineStreams } from '@/lib/compositor'
-import type { VideoSource, OverlayConfig } from '@/lib/compositor'
+import type { OverlayConfig } from '@/lib/compositor'
 
 type VideoSourceType = 'camera' | 'file' | 'none'
-type AudioSourceType = 'mic' | 'file' | 'spotify' | 'none'
 
 type DeviceInfo = { deviceId: string; label: string }
 
@@ -44,8 +43,8 @@ export function DJModePanel({
   const [videoFileName, setVideoFileName] = useState<string | null>(null)
 
   // Audio state
-  const [micEnabled, setMicEnabled] = useState(true)
-  const [fileAudioEnabled, setFileAudioEnabled] = useState(true)
+  const [micEnabled] = useState(true)
+  const [fileAudioEnabled] = useState(true)
   const [micGain, setMicGain] = useState(80)
   const [fileGain, setFileGain] = useState(80)
 
