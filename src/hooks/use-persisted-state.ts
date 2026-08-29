@@ -44,7 +44,6 @@ export function usePersistedState<T = string>(
   useEffect(() => {
     setValue(readStoredValue(key, initialValue))
     // Rehydrate once per key on mount.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key])
 
   const setPersisted = useCallback(

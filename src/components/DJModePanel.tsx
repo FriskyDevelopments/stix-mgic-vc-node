@@ -75,8 +75,8 @@ export function DJModePanel({
         .filter(d => d.kind === 'videoinput')
         .map(d => ({ deviceId: d.deviceId, label: d.label || `Camera ${d.deviceId.slice(0, 8)}` }))
       setCameras(videoDevices)
-      if (videoDevices.length > 0 && !selectedCamera) {
-        setSelectedCamera(videoDevices[0].deviceId)
+      if (videoDevices.length > 0) {
+        setSelectedCamera((current) => current || videoDevices[0].deviceId)
       }
     }).catch(() => {})
   }, [])
@@ -116,7 +116,7 @@ export function DJModePanel({
       cameraStream.getTracks().forEach(t => t.stop())
       setCameraStream(null)
     }
-  }, [videoSource, selectedCamera])
+  }, [videoSource, selectedCamera, cameraStream, startCamera])
 
   // Handle video file selection
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {

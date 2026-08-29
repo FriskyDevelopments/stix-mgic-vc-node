@@ -119,7 +119,6 @@ export function CallStage({ roomId, localStream, onStateChange, sinkId, onClient
       onClientReady?.(null)
     }
     // Re-joining on a localStream change would drop the call; tracks are attached at join.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId])
 
   return (

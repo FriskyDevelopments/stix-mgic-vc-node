@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -70,18 +70,18 @@ export function CreatorTools({ cameraStream, screenStream, onScreenStream, roomI
     }
     window.addEventListener('message', receive)
     return () => window.removeEventListener('message', receive)
-  }, [])
+  }, [refreshSpotify])
 
   useEffect(() => {
     if (!spotifyToken) return
     const timer = window.setInterval(() => void refreshSpotify(spotifyToken), 5000)
     return () => window.clearInterval(timer)
-  }, [spotifyToken])
+  }, [spotifyToken, refreshSpotify])
 
-  async function refreshSpotify(token = spotifyToken) {
+  const refreshSpotify = useCallback(async (token = spotifyToken) => {
     if (!token) return
     try { setPlayback(await getSpotifyPlayback(token)) } catch (error) { toast.error('Spotify playback unavailable', { description: error instanceof Error ? error.message : '' }) }
-  }
+  }, [spotifyToken])
 
   async function spotifyAction(action: (token: string) => Promise<void>) {
     if (!spotifyToken) return
