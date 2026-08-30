@@ -48,7 +48,15 @@ export function buildMediaPlaneStatus(input: { signalingReady: boolean }): Media
 
   const webrtc: AdapterStatus = input.signalingReady
     ? hasTurn()
-      ? { id: 'webrtc', state: 'ready', reason: 'signaling live, STUN and TURN configured' }
+      ? {
+        id: 'webrtc',
+        state: 'ready',
+        reason: env.cloudflareTurnConfigured
+          ? env.cloudflareRealtimeConfigured
+            ? 'signaling live, STUN and Cloudflare TURN relay configured, Cloudflare SFU available for scale'
+            : 'signaling live, STUN and Cloudflare TURN relay configured'
+          : 'signaling live, STUN and TURN configured',
+      }
       : {
           id: 'webrtc',
           state: 'degraded',

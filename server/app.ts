@@ -35,7 +35,8 @@ import {
   scheduleRoom,
   toView,
 } from './rooms'
-import { getIceServers } from './ice'
+import { getIceServersAsync } from './ice'
+import { createSfuSession } from './cloudflare-realtime'
 import { SIGNALING_PATH } from './signaling'
 import { beginPairing, confirmPairing, pairingStatus } from './telegram-vc-pair'
 import { telegramVcAdapter } from './telegram-vc-adapter'
@@ -143,6 +144,18 @@ export function createApp() {
         discordVoice: {
           ready: discordAdapter?.state === 'ready',
           reason: discordAdapter?.reason || 'Discord voice adapter is unavailable',
+        },
+        cloudflareTurn: {
+          ready: env.cloudflareTurnConfigured,
+          reason: env.cloudflareTurnConfigured
+            ? 'Cloudflare TURN relay credentials are minted per call'
+            : 'Cloudflare TURN key ID and API token are required',
+        },
+        cloudflareSfu: {
+          ready: env.cloudflareRealtimeConfigured,
+          reason: env.cloudflareRealtimeConfigured
+            ? 'Cloudflare Realtime SFU sessions can be created for scale'
+            : 'Cloudflare Realtime app ID and secret are required',
         },
       },
     })
@@ -593,9 +606,29 @@ export function createApp() {
       room: toView(room),
       signaling: {
         path: SIGNALING_PATH,
-        iceServers: getIceServers(),
+        iceServers: await getIceServersAsync(),
       },
     })
+  })
+
+  // Bootstrap a Cloudflare Realtime SFU session for a caller who has already been admitted
+  // to the operator plane. The app secret never leaves the server; the client receives only
+  // the session id it negotiates its push/pull tracks against. 503 when the SFU is not
+  // configured so the client falls back to mesh rather than silently believing it scaled.
+  app.post('/v1/media/sfu/session', async (c) => {
+    if (!env.cloudflareRealtimeConfigured) {
+      return c.json({ error: 'Cloudflare Realtime SFU is not configured on this node' }, 503)
+    }
+    try {
+      const session = await createSfuSession()
+      if (!session) {
+        return c.json({ error: 'Cloudflare Realtime SFU is not configured on this node' }, 503)
+      }
+      return c.json({ sessionId: session.sessionId })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to create SFU session'
+      return c.json({ error: message }, 502)
+    }
   })
 
   app.patch('/v1/rooms/:id/schedule', async (c) => {
@@ -610,7 +643,7 @@ export function createApp() {
     return c.json({ rooms: rooms.map((room) => toView(room)) })
   })
 
-  app.get('/v1/rooms/:id', (c) => {
+  app.get('/v1/rooms/:id', async (c) => {
     const room = getRoom(c.req.param('id'))
     if (!room) return c.json({ error: 'Room not found' }, 404)
 
@@ -628,7 +661,7 @@ export function createApp() {
       room: toView(room),
       signaling: {
         path: SIGNALING_PATH,
-        iceServers: getIceServers(),
+        iceServers: await getIceServersAsync(),
       },
     })
   })

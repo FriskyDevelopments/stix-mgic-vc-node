@@ -70,6 +70,20 @@ const serverEnvSchema = z.object({
   TURN_URLS: z.string().optional().transform((v) => v?.trim() || undefined),
   TURN_USERNAME: z.string().optional().transform((v) => v?.trim() || undefined),
   TURN_CREDENTIAL: z.string().optional().transform((v) => v?.trim() || undefined),
+  // Cloudflare Realtime (formerly Calls). Two independent credentials, each optional:
+  //   - TURN key (KEY_ID + API_TOKEN) mints short-lived relay credentials on demand, so a
+  //     static TURN username/password never ships to the browser and rotates every call.
+  //   - Realtime app (APP_ID + APP_SECRET) drives the SFU, which relays media through
+  //     Cloudflare instead of the mesh so a room can scale past a handful of participants.
+  // Both are secrets and stay server-side; the browser only ever sees derived, expiring
+  // artifacts (an ICE server entry, an SFU session id).
+  CLOUDFLARE_TURN_KEY_ID: z.string().optional().transform((v) => v?.trim() || undefined),
+  CLOUDFLARE_TURN_KEY_API_TOKEN: z.string().optional().transform((v) => v?.trim() || undefined),
+  CLOUDFLARE_REALTIME_APP_ID: z.string().optional().transform((v) => v?.trim() || undefined),
+  CLOUDFLARE_REALTIME_APP_SECRET: z.string().optional().transform((v) => v?.trim() || undefined),
+  // How long a minted Cloudflare TURN credential stays valid. One hour comfortably covers
+  // a call while keeping the blast radius of a leaked credential small.
+  CLOUDFLARE_TURN_TTL_SECONDS: z.coerce.number().int().positive().max(86_400).default(3600),
 })
 
 export type ServerEnv = z.infer<typeof serverEnvSchema> & {
@@ -83,6 +97,8 @@ export type ServerEnv = z.infer<typeof serverEnvSchema> & {
   oidcConfigured: boolean
   supabaseConfigured: boolean
   rtmpConfigured: boolean
+  cloudflareTurnConfigured: boolean
+  cloudflareRealtimeConfigured: boolean
 }
 
 let cached: ServerEnv | null = null
@@ -126,6 +142,12 @@ export function getServerEnv(): ServerEnv {
     ),
     rtmpConfigured: Boolean(
       data.RTMP_INGEST_ENABLED && data.RTMP_PUBLIC_HOST && data.RTMP_PUBLISH_USER && data.RTMP_PUBLISH_PASSWORD
+    ),
+    cloudflareTurnConfigured: Boolean(
+      data.CLOUDFLARE_TURN_KEY_ID && data.CLOUDFLARE_TURN_KEY_API_TOKEN
+    ),
+    cloudflareRealtimeConfigured: Boolean(
+      data.CLOUDFLARE_REALTIME_APP_ID && data.CLOUDFLARE_REALTIME_APP_SECRET
     ),
   }
 
