@@ -1,4 +1,5 @@
 import { getAppEnv } from '@/lib/env'
+import { solveAltcha } from '@/lib/altcha'
 import { apiHeaders, apiUrl } from '@/lib/api-client'
 import { log } from '@/lib/log'
 import { clearOperatorToken, getOperatorToken, setOperatorToken } from '@/lib/operator-token'
@@ -96,7 +97,11 @@ class LiveSessionApi implements SessionApi {
       return null
     }
 
-    const response = await fetch(apiUrl('/v1/auth/anonymous'), { method: 'POST' })
+    const response = await fetch(apiUrl('/v1/auth/anonymous'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ altcha: await solveAltcha() }),
+    })
     if (!response.ok) {
       throw new Error('Unable to mint anonymous operator token')
     }

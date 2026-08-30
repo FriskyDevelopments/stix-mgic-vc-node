@@ -1,5 +1,6 @@
 import { getAppEnv } from '@/lib/env'
 import { setOperatorToken } from '@/lib/operator-token'
+import { solveAltcha } from '@/lib/altcha'
 
 const FRISKYDEV_SESSION_KEY = 'friskydev_session_token'
 
@@ -64,7 +65,7 @@ export async function registerFriskyDevAccount(input: {
     linked: LinkedPlatformIdentity[]
   }>('/v1/account/register', {
     method: 'POST',
-    body: JSON.stringify(input),
+    body: JSON.stringify({ ...input, altcha: await solveAltcha() }),
   })
   setFriskyDevSessionToken(data.sessionToken)
   setOperatorToken(data.operatorToken)
@@ -82,7 +83,7 @@ export async function loginFriskyDevAccount(input: {
     linked: LinkedPlatformIdentity[]
   }>('/v1/account/login', {
     method: 'POST',
-    body: JSON.stringify(input),
+    body: JSON.stringify({ ...input, altcha: await solveAltcha() }),
   })
   setFriskyDevSessionToken(data.sessionToken)
   setOperatorToken(data.operatorToken)

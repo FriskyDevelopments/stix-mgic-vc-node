@@ -37,6 +37,7 @@ import {
 } from './rooms'
 import { getIceServersAsync } from './ice'
 import { createSfuSession } from './cloudflare-realtime'
+import { issueAltchaChallenge, isAltchaReady, verifyAltcha } from './altcha'
 import { SIGNALING_PATH } from './signaling'
 import { beginPairing, confirmPairing, pairingStatus } from './telegram-vc-pair'
 import { telegramVcAdapter } from './telegram-vc-adapter'
@@ -101,6 +102,16 @@ export function createApp() {
   app.get('/v1/media/status', (c) =>
     c.json(buildMediaPlaneStatus({ signalingReady: isSignalingReady() }))
   )
+
+  // ALTCHA proof-of-work challenge. Public by design — the client must solve this before
+  // hitting abuse-prone auth routes. Returns 503 when no HMAC key is configured so the
+  // client can degrade gracefully rather than send an unsolvable payload.
+  app.get('/v1/altcha/challenge', async (c) => {
+    if (!isAltchaReady()) {
+      return c.json({ error: 'ALTCHA is not configured' }, 503)
+    }
+    return c.json(await issueAltchaChallenge())
+  })
 
   // Public by design, but cryptographically authenticated by Discord's Ed25519
   // signature. This is the endpoint registered in the Discord Developer Portal.
@@ -187,7 +198,10 @@ export function createApp() {
   })
 
   app.post('/v1/account/register', async (c) => {
-    const body = await c.req.json<{ email?: string; password?: string; displayName?: string }>()
+    const body = await c.req.json<{ email?: string; password?: string; displayName?: string; altcha?: string }>()
+    if (isAltchaReady() && !(await verifyAltcha(body.altcha))) {
+      return c.json({ error: 'Human verification failed. Please try again.' }, 403)
+    }
     try {
       const account = createAccount({
         email: body.email || '',
@@ -218,7 +232,10 @@ export function createApp() {
   })
 
   app.post('/v1/account/login', async (c) => {
-    const body = await c.req.json<{ email?: string; password?: string }>()
+    const body = await c.req.json<{ email?: string; password?: string; altcha?: string }>()
+    if (isAltchaReady() && !(await verifyAltcha(body.altcha))) {
+      return c.json({ error: 'Human verification failed. Please try again.' }, 403)
+    }
     const account = authenticateAccount(body.email || '', body.password || '')
     if (!account) return c.json({ error: 'Invalid email or password' }, 401)
 
@@ -440,6 +457,10 @@ export function createApp() {
   app.post('/v1/auth/anonymous', async (c) => {
     if (env.AUTH_REQUIRED) {
       return c.json({ error: 'Anonymous operators are disabled (AUTH_REQUIRED=true)' }, 403)
+    }
+    const body = await c.req.json<{ altcha?: string }>().catch(() => ({}) as { altcha?: string })
+    if (isAltchaReady() && !(await verifyAltcha(body.altcha))) {
+      return c.json({ error: 'Human verification failed. Please try again.' }, 403)
     }
 
     const token = mintOperatorToken({
