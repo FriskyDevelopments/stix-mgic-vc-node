@@ -6,7 +6,7 @@ const optionalTrimmed = z
   .transform((value) => value?.trim() || undefined)
 
 const envSchema = z.object({
-  VITE_DEMO_MODE: z.enum(['true', 'false']).optional(),
+
   VITE_API_BASE_URL: z.string().optional().transform((value) => {
     const trimmed = value?.trim()
     if (!trimmed) return ''
@@ -28,7 +28,6 @@ const envSchema = z.object({
 })
 
 export type AppEnv = {
-  demoMode: boolean
   apiBaseUrl: string
   discordClientId?: string
   spotifyClientId?: string
@@ -42,7 +41,6 @@ export type AppEnv = {
 
 function readRawEnv() {
   return {
-    VITE_DEMO_MODE: import.meta.env.VITE_DEMO_MODE as string | undefined,
     VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL as string | undefined,
     VITE_DISCORD_CLIENT_ID: import.meta.env.VITE_DISCORD_CLIENT_ID as string | undefined,
     VITE_SPOTIFY_CLIENT_ID: import.meta.env.VITE_SPOTIFY_CLIENT_ID as string | undefined,
@@ -66,28 +64,22 @@ export function getAppEnv(): AppEnv {
   if (!parsed.success) {
     console.error('[env] Invalid environment configuration', parsed.error.flatten())
     cachedEnv = {
-      demoMode: !import.meta.env.PROD,
       apiBaseUrl: '',
       operatorTier: 'premium',
-      isLiveApiConfigured: Boolean(import.meta.env.PROD),
+      isLiveApiConfigured: true,
       authRequired: false,
       posthogHost: 'https://us.i.posthog.com',
     }
     return cachedEnv
   }
 
-  const explicitDemo = parsed.data.VITE_DEMO_MODE
-  const demoMode =
-    explicitDemo === 'true' ? true : explicitDemo === 'false' ? false : !import.meta.env.PROD
-
   cachedEnv = {
-    demoMode,
     apiBaseUrl: parsed.data.VITE_API_BASE_URL || '',
     discordClientId: parsed.data.VITE_DISCORD_CLIENT_ID,
     spotifyClientId: parsed.data.VITE_SPOTIFY_CLIENT_ID,
     telegramBotUsername: parsed.data.VITE_TELEGRAM_BOT_USERNAME,
     operatorTier: parsed.data.VITE_OPERATOR_TIER,
-    isLiveApiConfigured: !demoMode,
+    isLiveApiConfigured: true,
     authRequired: parsed.data.VITE_AUTH_REQUIRED === 'true',
     posthogProjectToken: parsed.data.VITE_POSTHOG_PROJECT_TOKEN,
     posthogHost: parsed.data.VITE_POSTHOG_HOST || 'https://us.i.posthog.com',

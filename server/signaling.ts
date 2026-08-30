@@ -25,7 +25,7 @@ import type { Duplex } from 'node:stream'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { z } from 'zod'
 import { getServerEnv } from './env'
-import { getIceServers } from './ice'
+import { getIceServersAsync } from './ice'
 import { verifyOperatorToken } from './tokens'
 import { sessionClaimsFromCookie } from './oidc'
 import {
@@ -167,7 +167,7 @@ export function attachSignaling(server: Server): SignalingHub {
     return state.messageCount <= RATE_LIMIT_MESSAGES
   }
 
-  function handleJoin(state: SocketState, roomId: string): void {
+  async function handleJoin(state: SocketState, roomId: string): Promise<void> {
     if (state.roomId) {
       // A socket is one seat. Re-joining without leaving would strand the first seat.
       detach(state)
@@ -189,13 +189,19 @@ export function attachSignaling(server: Server): SignalingHub {
     state.participantId = result.participant.id
     byParticipant.set(result.participant.id, state.socket)
 
+    // Minted before the send so the client negotiates with a live relay. Awaited here
+    // rather than sent over REST so a client always uses the ICE configuration of the node
+    // it is actually signalling through.
+    const iceServers = await getIceServersAsync()
+
+    // The socket may have gone away while the TURN credential was minting.
+    if (state.roomId !== roomId) return
+
     send(state.socket, {
       type: 'joined',
       self: result.participant,
       room: toView(room),
-      // Sent here rather than over REST so a client always negotiates with the ICE
-      // configuration of the node it is actually signalling through.
-      iceServers: getIceServers(),
+      iceServers,
     })
 
     for (const peer of peersOf(room, result.participant.id)) {

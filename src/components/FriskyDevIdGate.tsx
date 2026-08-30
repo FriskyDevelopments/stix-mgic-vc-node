@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { GlassCard } from '@/components/GlassCard'
 
@@ -8,7 +8,7 @@ export function FriskyDevIdGate({ onChange }: { onChange: (authenticated: boolea
   const [user, setUser] = useState<Identity | null>(null)
   const [loading, setLoading] = useState(true)
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     try {
       const response = await fetch('/v1/auth/oidc/me', { credentials: 'same-origin' })
       const data = response.ok ? ((await response.json()) as { user: Identity }) : null
@@ -17,11 +17,11 @@ export function FriskyDevIdGate({ onChange }: { onChange: (authenticated: boolea
     } finally {
       setLoading(false)
     }
-  }
+  }, [onChange])
 
   useEffect(() => {
     void refresh()
-  }, [])
+  }, [refresh])
 
   async function logout() {
     await fetch('/v1/auth/oidc/logout', { method: 'POST', credentials: 'same-origin' })

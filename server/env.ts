@@ -70,6 +70,28 @@ const serverEnvSchema = z.object({
   TURN_URLS: z.string().optional().transform((v) => v?.trim() || undefined),
   TURN_USERNAME: z.string().optional().transform((v) => v?.trim() || undefined),
   TURN_CREDENTIAL: z.string().optional().transform((v) => v?.trim() || undefined),
+  // Cloudflare Realtime (formerly Calls). Two independent credentials, each optional:
+  //   - TURN key (KEY_ID + API_TOKEN) mints short-lived relay credentials on demand, so a
+  //     static TURN username/password never ships to the browser and rotates every call.
+  //   - Realtime app (APP_ID + APP_SECRET) drives the SFU, which relays media through
+  //     Cloudflare instead of the mesh so a room can scale past a handful of participants.
+  // Both are secrets and stay server-side; the browser only ever sees derived, expiring
+  // artifacts (an ICE server entry, an SFU session id).
+  CLOUDFLARE_TURN_KEY_ID: z.string().optional().transform((v) => v?.trim() || undefined),
+  CLOUDFLARE_TURN_KEY_API_TOKEN: z.string().optional().transform((v) => v?.trim() || undefined),
+  CLOUDFLARE_REALTIME_APP_ID: z.string().optional().transform((v) => v?.trim() || undefined),
+  CLOUDFLARE_REALTIME_APP_SECRET: z.string().optional().transform((v) => v?.trim() || undefined),
+  // How long a minted Cloudflare TURN credential stays valid. One hour comfortably covers
+  // a call while keeping the blast radius of a leaked credential small.
+  CLOUDFLARE_TURN_TTL_SECONDS: z.coerce.number().int().positive().max(86_400).default(3600),
+  // ALTCHA proof-of-work anti-abuse. The HMAC key signs each challenge so a client
+  // cannot forge a solved payload; it is a server secret and never reaches the browser.
+  // In development a stable fallback is used so the flow works out of the box; production
+  // must supply a real key or challenge issuance/verification is refused.
+  ALTCHA_HMAC_KEY: z.string().min(16).optional().transform((v) => v?.trim() || undefined),
+  // Proof-of-work difficulty. Higher = more client CPU per request. 100k solves in well
+  // under a second on a laptop while still costing an abuser real time at scale.
+  ALTCHA_MAX_NUMBER: z.coerce.number().int().positive().max(10_000_000).default(100_000),
 })
 
 export type ServerEnv = z.infer<typeof serverEnvSchema> & {
@@ -83,6 +105,10 @@ export type ServerEnv = z.infer<typeof serverEnvSchema> & {
   oidcConfigured: boolean
   supabaseConfigured: boolean
   rtmpConfigured: boolean
+  cloudflareTurnConfigured: boolean
+  cloudflareRealtimeConfigured: boolean
+  altchaKey: string
+  altchaConfigured: boolean
 }
 
 let cached: ServerEnv | null = null
@@ -127,6 +153,25 @@ export function getServerEnv(): ServerEnv {
     rtmpConfigured: Boolean(
       data.RTMP_INGEST_ENABLED && data.RTMP_PUBLIC_HOST && data.RTMP_PUBLISH_USER && data.RTMP_PUBLISH_PASSWORD
     ),
+    cloudflareTurnConfigured: Boolean(
+      data.CLOUDFLARE_TURN_KEY_ID && data.CLOUDFLARE_TURN_KEY_API_TOKEN
+    ),
+    cloudflareRealtimeConfigured: Boolean(
+      data.CLOUDFLARE_REALTIME_APP_ID && data.CLOUDFLARE_REALTIME_APP_SECRET
+    ),
+    // ALTCHA is enforced ONLY when a real key is explicitly configured. Without it the
+    // feature stays dormant — the challenge endpoint returns 503 and the abuse-prone
+    // routes do not require a token — matching this node's "unavailable until configured"
+    // model and keeping local/dev/test usable out of the box.
+    altchaKey: data.ALTCHA_HMAC_KEY ?? '',
+    altchaConfigured: Boolean(data.ALTCHA_HMAC_KEY),
+  }
+
+  if (data.NODE_ENV === 'production' && !data.ALTCHA_HMAC_KEY) {
+    // Not fatal: the app still boots, but the challenge endpoint refuses to issue and the
+    // abuse-prone routes fall open. Surfacing this loudly keeps a misconfigured production
+    // from silently shipping without proof-of-work protection.
+    console.warn('[altcha] ALTCHA_HMAC_KEY is not set; proof-of-work protection is disabled')
   }
 
   return cached

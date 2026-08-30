@@ -1,17 +1,16 @@
-import { useState, useEffect, useRef } from 'react'
+import { useCallback, useState, useEffect, useRef } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { MagnifyingGlass, MusicNote, ListBullets, TrendUp, Play, Pause, SpeakerHigh, SpeakerSlash } from '@phosphor-icons/react'
+import { MagnifyingGlass, MusicNote, ListBullets, TrendUp, Play, Pause, SpeakerSlash } from '@phosphor-icons/react'
 import type { SpotifyTrack, SpotifyPlaylist } from '@/lib/spotify'
 import { 
   getUserTopTracks, 
   getUserPlaylists, 
   getPlaylistTracks, 
   searchTracks,
-  formatTrackDisplay,
   formatDuration
 } from '@/lib/spotify'
 
@@ -41,12 +40,6 @@ export function SpotifyTrackPicker({
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const audioRef = useRef<HTMLAudioElement | null>(null)
-
-  useEffect(() => {
-    if (open && accessToken) {
-      loadInitialData()
-    }
-  }, [open, accessToken])
 
   useEffect(() => {
     return () => {
@@ -114,7 +107,7 @@ export function SpotifyTrackPicker({
     setIsPlaying(true)
   }
 
-  const loadInitialData = async () => {
+  const loadInitialData = useCallback(async () => {
     setLoading(true)
     try {
       const [tracks, lists] = await Promise.all([
@@ -128,8 +121,14 @@ export function SpotifyTrackPicker({
     } finally {
       setLoading(false)
     }
-  }
+  }, [accessToken])
 
+  useEffect(() => {
+    if (open && accessToken) {
+      void loadInitialData()
+    }
+  }, [open, accessToken, loadInitialData])
+  
   const handleSearch = async () => {
     if (!searchQuery.trim()) return
     

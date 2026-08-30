@@ -75,7 +75,6 @@ export function RoomPanel({ localStream, onRoomChange, sinkId, onClientReady }: 
     }
     if (joinId && !room) void handleJoin()
     // The invite UUID is read once on mount; manual edits still use the Join button.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function handleCreate(): Promise<void> {

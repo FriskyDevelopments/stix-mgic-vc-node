@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -59,6 +59,11 @@ export function CreatorTools({ cameraStream, screenStream, onScreenStream, roomI
 
   useEffect(() => () => obsClient.disconnect(), [obsClient])
 
+  const refreshSpotify = useCallback(async (token = spotifyToken) => {
+    if (!token) return
+    try { setPlayback(await getSpotifyPlayback(token)) } catch (error) { toast.error('Spotify playback unavailable', { description: error instanceof Error ? error.message : '' }) }
+  }, [spotifyToken])
+
   useEffect(() => {
     const receive = (event: MessageEvent) => {
       if (event.origin !== window.location.origin || event.data?.type !== 'spotify-auth') return
@@ -70,18 +75,13 @@ export function CreatorTools({ cameraStream, screenStream, onScreenStream, roomI
     }
     window.addEventListener('message', receive)
     return () => window.removeEventListener('message', receive)
-  }, [])
+  }, [refreshSpotify])
 
   useEffect(() => {
     if (!spotifyToken) return
     const timer = window.setInterval(() => void refreshSpotify(spotifyToken), 5000)
     return () => window.clearInterval(timer)
-  }, [spotifyToken])
-
-  async function refreshSpotify(token = spotifyToken) {
-    if (!token) return
-    try { setPlayback(await getSpotifyPlayback(token)) } catch (error) { toast.error('Spotify playback unavailable', { description: error instanceof Error ? error.message : '' }) }
-  }
+  }, [spotifyToken, refreshSpotify])
 
   async function spotifyAction(action: (token: string) => Promise<void>) {
     if (!spotifyToken) return

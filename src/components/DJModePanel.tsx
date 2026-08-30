@@ -7,10 +7,9 @@ import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { MediaCompositor, AudioMixer, combineStreams } from '@/lib/compositor'
-import type { VideoSource, OverlayConfig } from '@/lib/compositor'
+import type { OverlayConfig } from '@/lib/compositor'
 
 type VideoSourceType = 'camera' | 'file' | 'none'
-type AudioSourceType = 'mic' | 'file' | 'spotify' | 'none'
 
 type DeviceInfo = { deviceId: string; label: string }
 
@@ -44,8 +43,8 @@ export function DJModePanel({
   const [videoFileName, setVideoFileName] = useState<string | null>(null)
 
   // Audio state
-  const [micEnabled, setMicEnabled] = useState(true)
-  const [fileAudioEnabled, setFileAudioEnabled] = useState(true)
+  const [micEnabled] = useState(true)
+  const [fileAudioEnabled] = useState(true)
   const [micGain, setMicGain] = useState(80)
   const [fileGain, setFileGain] = useState(80)
 
@@ -76,8 +75,8 @@ export function DJModePanel({
         .filter(d => d.kind === 'videoinput')
         .map(d => ({ deviceId: d.deviceId, label: d.label || `Camera ${d.deviceId.slice(0, 8)}` }))
       setCameras(videoDevices)
-      if (videoDevices.length > 0 && !selectedCamera) {
-        setSelectedCamera(videoDevices[0].deviceId)
+      if (videoDevices.length > 0) {
+        setSelectedCamera((current) => current || videoDevices[0].deviceId)
       }
     }).catch(() => {})
   }, [])
@@ -117,7 +116,7 @@ export function DJModePanel({
       cameraStream.getTracks().forEach(t => t.stop())
       setCameraStream(null)
     }
-  }, [videoSource, selectedCamera])
+  }, [videoSource, selectedCamera, cameraStream, startCamera])
 
   // Handle video file selection
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {

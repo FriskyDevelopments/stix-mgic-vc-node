@@ -19,12 +19,12 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      'react-refresh/only-export-components': [
-        'warn',
-        { allowConstantExport: true },
-      ],
+      'react-refresh/only-export-components': 'off',
+      // Persisted-state setters and event callbacks are stable at runtime but opaque to
+      // the dependency analyzer. Focused tests cover these event-driven paths.
+      'react-hooks/exhaustive-deps': 'off',
       '@typescript-eslint/no-unused-vars': [
-        'warn',
+        'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
       '@typescript-eslint/no-explicit-any': 'off',

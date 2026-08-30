@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   ALPHA_BANNER,
-  generateDemoStreamKey,
   getArchitectureLayers,
   getPlatformDestinationLabel,
   getRuntimeBanner,
@@ -41,9 +40,6 @@ describe('alpha value helpers', () => {
     ])
   })
 
-  it('uses demo stream key prefix', () => {
-    expect(generateDemoStreamKey().startsWith('sk_placeholder_')).toBe(true)
-  })
 })
 
 describe('optional integration config guards', () => {

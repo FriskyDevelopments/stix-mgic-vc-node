@@ -8,20 +8,10 @@ describe('getAppEnv', () => {
     vi.unstubAllEnvs()
   })
 
-  it('defaults to demo mode in non-production builds', () => {
+  it('uses the real node API in development and production', () => {
     const env = getAppEnv()
-    expect(env.demoMode).toBe(true)
-    expect(env.isLiveApiConfigured).toBe(false)
-    expect(env.operatorTier).toBe('premium')
-  })
-
-  it('enables live API when demo is false', () => {
-    vi.stubEnv('VITE_DEMO_MODE', 'false')
-    resetAppEnvCache()
-
-    const env = getAppEnv()
-    expect(env.demoMode).toBe(false)
     expect(env.isLiveApiConfigured).toBe(true)
+    expect(env.operatorTier).toBe('premium')
   })
 
   it('defaults PostHog host and leaves token unset', () => {
@@ -38,24 +28,19 @@ describe('getSessionApi', () => {
     vi.unstubAllEnvs()
   })
 
-  it('uses demo API by default in vitest', async () => {
+  it('selects the live API without a demo fallback', () => {
     const api = getSessionApi()
-    expect(api.isLiveConfigured()).toBe(false)
-
-    const snapshot = await api.startSession({
-      platform: 'telegram',
-      protocol: 'dj-mode',
-      mode: 'dj',
-    })
-
-    expect(snapshot.source).toBe('demo')
-    expect(snapshot.status).toBe('dj-mode')
+    expect(api.isLiveConfigured()).toBe(true)
   })
 
-  it('stops demo sessions to standby', async () => {
+  it('never creates a local stream key when the node is unreachable', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('node unavailable')))
     const api = getSessionApi()
-    const snapshot = await api.stopSession()
-    expect(snapshot.status).toBe('standby')
-    expect(snapshot.source).toBe('demo')
+
+    await expect(api.startSession({
+      platform: 'telegram',
+      protocol: 'rtmp',
+      mode: 'operator',
+    })).rejects.toThrow('node unavailable')
   })
 })
