@@ -37,14 +37,26 @@ export function isDiscordConfigured(): boolean {
   return discordClientId().length > 0
 }
 
+function sanitizeTelegramLoginPayload(payload: Record<string, unknown>): Record<string, unknown> {
+  const keys = ['id', 'first_name', 'last_name', 'username', 'photo_url', 'auth_date', 'hash'] as const
+  const sanitized: Record<string, unknown> = {}
+  for (const key of keys) {
+    const value = payload[key]
+    if (value === undefined || value === null || value === '') continue
+    sanitized[key] = value
+  }
+  return sanitized
+}
+
 export async function verifyTelegramLoginPayload(payload: Record<string, unknown>): Promise<{
   user: TelegramUser
   token: string
 }> {
+  const sanitized = sanitizeTelegramLoginPayload(payload)
   const response = await fetch(apiUrl('/v1/auth/telegram/verify'), {
     method: 'POST',
     headers: apiHeaders(undefined, false),
-    body: JSON.stringify(payload),
+    body: JSON.stringify(sanitized),
   })
 
   if (!response.ok) {
@@ -54,6 +66,16 @@ export async function verifyTelegramLoginPayload(payload: Record<string, unknown
 
   const data = (await response.json()) as { token: string; user: TelegramUser }
   setOperatorToken(data.token)
+
+  try {
+    const { getFriskyDevSessionToken, linkTelegramToFriskyDev } = await import('@/lib/friskydev')
+    if (getFriskyDevSessionToken()) {
+      await linkTelegramToFriskyDev(sanitized)
+    }
+  } catch {
+    // Verification already succeeded. Account linking is best-effort.
+  }
+
   return data
 }
 
