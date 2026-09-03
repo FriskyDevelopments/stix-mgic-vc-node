@@ -38,7 +38,7 @@ export function isDiscordConfigured(): boolean {
 }
 
 function sanitizeTelegramLoginPayload(payload: Record<string, unknown>): Record<string, unknown> {
-  const keys = ['id', 'first_name', 'last_name', 'username', 'photo_url', 'auth_date', 'hash'] as const
+  const keys = ['id', 'first_name', 'last_name', 'username', 'photo_url', 'auth_date', 'hash', 'initData', 'query_id', 'user', 'signature'] as const
   const sanitized: Record<string, unknown> = {}
   for (const key of keys) {
     const value = payload[key]
