@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -23,6 +24,7 @@ import {
   getDiscordAvatarUrl,
 } from "@/lib/auth"
 import { TelegramLoginWidget } from "@/components/TelegramLoginWidget"
+import { telegramWebAppInitData } from "@/lib/telegram-webapp"
 
 interface PlatformAccessProps {
   telegramStatus: PlatformAuthStatus
@@ -65,6 +67,14 @@ export function PlatformAccess({
   onDiscordAuth,
   onDiscordDisconnect,
 }: PlatformAccessProps) {
+  const submittedMiniApp = useRef(false)
+  useEffect(() => {
+    if (!friskyDevSignedIn || !telegramAuthReady || telegramStatus !== "disconnected") return
+    const initData = telegramWebAppInitData()
+    if (!initData || submittedMiniApp.current) return
+    submittedMiniApp.current = true
+    onTelegramWidgetAuth({ initData })
+  }, [friskyDevSignedIn, telegramAuthReady, telegramStatus, onTelegramWidgetAuth])
   const getStatusBadge = (
     status: PlatformAuthStatus,
     linked?: boolean

@@ -79,6 +79,29 @@ describe('Telegram login verification', () => {
       })
     })
 
+    it("accepts auth_date and id as decimal strings", () => {
+      const authDate = Math.floor(Date.now() / 1000)
+      const payload = signWidget(BOT_TOKEN, {
+        id: "424242",
+        first_name: "Stringy",
+        auth_date: String(authDate),
+      })
+      expect(verifyTelegramLogin(payload)).toEqual({
+        id: 424242,
+        first_name: "Stringy",
+      })
+    })
+
+    it("rejects scientific-notation ids that would poison the HMAC string", () => {
+      const payload = signWidget(BOT_TOKEN, {
+        id: "7.77e+9",
+        first_name: "Nope",
+        auth_date: Math.floor(Date.now() / 1000),
+      })
+      expect(normalizeTelegramLoginPayload(payload)).toBeNull()
+      expect(verifyTelegramLogin(payload)).toBeNull()
+    })
+
     it('rejects a payload signed by a different bot token', () => {
       const payload = signWidget('999:other-bot', {
         id: 1,

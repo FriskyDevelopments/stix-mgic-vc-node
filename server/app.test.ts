@@ -1,3 +1,4 @@
+import { createHash, createHmac } from 'node:crypto'
 import { describe, expect, it, beforeEach } from 'vitest'
 import { createApp } from './app'
 import { resetServerEnvCache } from './env'
@@ -485,4 +486,90 @@ describe('room REST API', () => {
     expect(body.signalQuality).toBe(91)
     expect(body.reportedBy).toBe('anonymous:local')
   })
+  it('verifies Telegram Login Widget payloads on /v1/auth/telegram/verify', async () => {
+    const botToken = '123456:TEST-telegram-bot-token'
+    process.env.TELEGRAM_BOT_TOKEN = botToken
+    resetServerEnvCache()
+    const fields = {
+      id: 4242,
+      first_name: 'June',
+      username: 'operator',
+      auth_date: Math.floor(Date.now() / 1000),
+    }
+    const check = Object.entries(fields)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, value]) => `${key}=${String(value)}`)
+      .join('\n')
+    const hash = createHmac('sha256', createHash('sha256').update(botToken).digest()).update(check).digest('hex')
+    const app = createApp()
+    const res = await app.request('/v1/auth/telegram/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...fields, hash }),
+    })
+    expect(res.status).toBe(200)
+    const body = await res.json() as { user: { id: number; username?: string }; token: string }
+    expect(body.user.id).toBe(4242)
+    expect(body.user.username).toBe('operator')
+    expect(typeof body.token).toBe('string')
+  })
+
+  it('verifies Mini App initData payloads on /v1/auth/telegram/verify', async () => {
+    const botToken = '123456:TEST-telegram-bot-token'
+    process.env.TELEGRAM_BOT_TOKEN = botToken
+    resetServerEnvCache()
+    const user = JSON.stringify({ id: 42, first_name: 'Ada', username: 'ada_tg' })
+    const fields = { auth_date: String(Math.floor(Date.now() / 1000)), user, query_id: 'AAE' }
+    const check = Object.entries(fields).map(([key, value]) => `${key}=${value}`).sort().join('\n')
+    const secret = createHmac('sha256', 'WebAppData').update(botToken).digest()
+    const hash = createHmac('sha256', secret).update(check).digest('hex')
+    const initData = new URLSearchParams({ ...fields, hash }).toString()
+    const app = createApp()
+    const res = await app.request('/v1/auth/telegram/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ initData }),
+    })
+    expect(res.status).toBe(200)
+    const body = await res.json() as { user: { id: number; first_name: string; username?: string } }
+    expect(body.user).toEqual({ id: 42, first_name: 'Ada', username: 'ada_tg' })
+  })
+
+  it('links Telegram from Mini App initData when a FriskyDev session exists', async () => {
+    const botToken = '123456:TEST-telegram-bot-token'
+    process.env.TELEGRAM_BOT_TOKEN = botToken
+    resetServerEnvCache()
+    const app = createApp()
+    const register = await app.request('/v1/account/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: 'tg-link@frisky.dev',
+        password: 'securepass1',
+        displayName: 'Linker',
+      }),
+    })
+    expect(register.status).toBe(200)
+    const created = await register.json() as { sessionToken: string }
+    const user = JSON.stringify({ id: 77, first_name: 'Linked', username: 'linked_tg' })
+    const fields = { auth_date: String(Math.floor(Date.now() / 1000)), user }
+    const check = Object.entries(fields).map(([key, value]) => `${key}=${value}`).sort().join('\n')
+    const secret = createHmac('sha256', 'WebAppData').update(botToken).digest()
+    const hash = createHmac('sha256', secret).update(check).digest('hex')
+    const initData = new URLSearchParams({ ...fields, hash }).toString()
+    const res = await app.request('/v1/account/link/telegram', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${created.sessionToken}`,
+      },
+      body: JSON.stringify({ initData }),
+    })
+    expect(res.status).toBe(200)
+    const body = await res.json() as { linked: boolean; identity: { externalSubject: string; displayName: string } }
+    expect(body.linked).toBe(true)
+    expect(body.identity.externalSubject).toBe('77')
+    expect(body.identity.displayName).toBe('@linked_tg')
+  })
+
 })
