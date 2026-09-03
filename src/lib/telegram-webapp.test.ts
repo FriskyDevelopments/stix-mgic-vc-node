@@ -27,3 +27,16 @@ describe('Telegram Mini App bridge', () => {
     expect(open).toHaveBeenCalledWith(expect.stringContaining('https://t.me/share/url?'), '_blank', 'noopener,noreferrer')
   })
 })
+
+describe('telegramWebAppInitData', () => {
+  it('returns the Mini App initData string when present', async () => {
+    const { telegramWebAppInitData } = await import('./telegram-webapp')
+    window.Telegram = { WebApp: { initData: 'query_id=abc&hash=deadbeef' } }
+    expect(telegramWebAppInitData()).toBe('query_id=abc&hash=deadbeef')
+  })
+
+  it('returns null when the page is not a Mini App', async () => {
+    const { telegramWebAppInitData } = await import('./telegram-webapp')
+    expect(telegramWebAppInitData()).toBeNull()
+  })
+})

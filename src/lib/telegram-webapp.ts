@@ -31,3 +31,11 @@ export function shareToTelegram(invite: string, text: string): void {
   if (app?.openTelegramLink) app.openTelegramLink(url)
   else window.open(url, '_blank', 'noopener,noreferrer')
 }
+
+/** Raw Mini App initData, or null when this page is not inside Telegram. */
+export function telegramWebAppInitData(): string | null {
+  const data = telegramWebApp()?.initData
+  if (typeof data !== 'string') return null
+  const trimmed = data.trim()
+  return trimmed.length > 0 ? trimmed : null
+}

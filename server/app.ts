@@ -363,20 +363,21 @@ export function createApp() {
 
     const payload = await c.req.json<TelegramLoginPayload>()
     try {
-      if (!verifyTelegramLogin(payload)) {
+      const user = verifyTelegramLogin(payload)
+      if (!user) {
         return c.json({ error: 'Invalid Telegram login payload' }, 401)
       }
 
       const linked = linkIdentity({
         accountId: claims.sub,
         platform: 'telegram',
-        externalSubject: String(payload.id),
-        displayName: payload.username ? `@${payload.username}` : payload.first_name,
+        externalSubject: String(user.id),
+        displayName: user.username ? `@${user.username}` : user.first_name,
         meta: {
-          username: payload.username,
-          first_name: payload.first_name,
-          last_name: payload.last_name,
-          photo_url: payload.photo_url,
+          username: user.username,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          photo_url: user.photo_url,
         },
       })
 
@@ -502,24 +503,25 @@ export function createApp() {
 
     const payload = await c.req.json<TelegramLoginPayload>()
     try {
-      if (!verifyTelegramLogin(payload)) {
+      const user = verifyTelegramLogin(payload)
+      if (!user) {
         return c.json({ error: 'Invalid Telegram login payload' }, 401)
       }
 
       const token = mintOperatorToken({
-        sub: `telegram:${payload.id}`,
+        sub: `telegram:${user.id}`,
         platform: 'telegram',
-        name: payload.username ? `@${payload.username}` : payload.first_name,
+        name: user.username ? `@${user.username}` : user.first_name,
       })
 
       return c.json({
         token,
         user: {
-          id: payload.id,
-          first_name: payload.first_name,
-          last_name: payload.last_name,
-          username: payload.username,
-          photo_url: payload.photo_url,
+          id: user.id,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          username: user.username,
+          photo_url: user.photo_url,
         },
       })
     } catch (error) {

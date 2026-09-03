@@ -37,8 +37,14 @@ export function isDiscordConfigured(): boolean {
   return discordClientId().length > 0
 }
 
-function sanitizeTelegramLoginPayload(payload: Record<string, unknown>): Record<string, unknown> {
-  const keys = ['id', 'first_name', 'last_name', 'username', 'photo_url', 'auth_date', 'hash'] as const
+export function telegramVerifyBody(payload: Record<string, unknown>): Record<string, unknown> {
+  const initData = typeof payload.initData === 'string' ? payload.initData.trim() : ''
+  if (initData) return { initData }
+
+  const miniApp = payload.user !== undefined && payload.user !== null
+  const keys = miniApp
+    ? (['auth_date', 'hash', 'query_id', 'user', 'signature'] as const)
+    : (['id', 'first_name', 'last_name', 'username', 'photo_url', 'auth_date', 'hash'] as const)
   const sanitized: Record<string, unknown> = {}
   for (const key of keys) {
     const value = payload[key]
@@ -52,7 +58,7 @@ export async function verifyTelegramLoginPayload(payload: Record<string, unknown
   user: TelegramUser
   token: string
 }> {
-  const sanitized = sanitizeTelegramLoginPayload(payload)
+  const sanitized = telegramVerifyBody(payload)
   const response = await fetch(apiUrl('/v1/auth/telegram/verify'), {
     method: 'POST',
     headers: apiHeaders(undefined, false),
