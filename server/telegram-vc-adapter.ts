@@ -9,8 +9,36 @@ type Reply<T = unknown> = { ok: boolean; result?: T; error?: string }
 
 let child: ChildProcessWithoutNullStreams | null = null
 let pending: ((reply: Reply) => void) | null = null
+let stdoutBuffer = ''
 
 function sessionPath() { return `${process.env.MTPROTO_STATE_DIR || '/data/mtproto'}/operator.session` }
+
+function handleStdoutLine(raw: string) {
+  let parsed: Reply
+  try { parsed = JSON.parse(raw) as Reply } catch {
+    console.warn('[telegram-vc-adapter] dropping non-JSON stdout line:', raw.slice(0, 200))
+    return
+  }
+  if (pending) {
+    const resolvePending = pending
+    pending = null
+    resolvePending(parsed)
+    return
+  }
+  // No request waiting — log and drop so a stray reply can never poison the next one.
+  console.warn('[telegram-vc-adapter] dropping unmatched stdout reply:', JSON.stringify(parsed).slice(0, 200))
+}
+
+function drainStdout(chunk: string) {
+  stdoutBuffer += chunk
+  let lineEnd = stdoutBuffer.indexOf('\n')
+  while (lineEnd >= 0) {
+    const line = stdoutBuffer.slice(0, lineEnd)
+    stdoutBuffer = stdoutBuffer.slice(lineEnd + 1)
+    if (line.length > 0) handleStdoutLine(line)
+    lineEnd = stdoutBuffer.indexOf('\n')
+  }
+}
 
 function launch(): ChildProcessWithoutNullStreams {
   if (child && !child.killed) return child
@@ -21,17 +49,17 @@ function launch(): ChildProcessWithoutNullStreams {
     env: { ...process.env, STIX_TELEGRAM_API_ID: String(env.STIX_TELEGRAM_API_ID), STIX_TELEGRAM_API_HASH: env.STIX_TELEGRAM_API_HASH, STIX_MTPROTO_SESSION_PATH: sessionPath() },
     stdio: ['pipe', 'pipe', 'pipe'],
   })
-  let buffer = ''
-  next.stdout.on('data', (chunk) => {
-    buffer += String(chunk)
-    const line = buffer.indexOf('\n')
-    if (line < 0 || !pending) return
-    const resolvePending = pending
-    pending = null
-    const raw = buffer.slice(0, line); buffer = buffer.slice(line + 1)
-    try { resolvePending(JSON.parse(raw) as Reply) } catch { resolvePending({ ok: false, error: 'Telegram adapter returned an invalid response' }) }
+  stdoutBuffer = ''
+  next.stdout.on('data', (chunk) => drainStdout(String(chunk)))
+  next.stderr.on('data', (chunk) => {
+    const text = String(chunk).trim()
+    if (text) console.warn('[telegram-vc-adapter:stderr]', text)
   })
-  next.on('exit', () => { child = null; if (pending) { pending({ ok: false, error: 'Telegram adapter stopped unexpectedly' }); pending = null } })
+  next.on('exit', () => {
+    child = null
+    stdoutBuffer = ''
+    if (pending) { pending({ ok: false, error: 'Telegram adapter stopped unexpectedly' }); pending = null }
+  })
   child = next
   return next
 }
