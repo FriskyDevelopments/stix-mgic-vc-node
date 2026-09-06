@@ -113,10 +113,6 @@ export async function switchSource(
   return request('/source', { method: 'POST', body: JSON.stringify({ type, config }) })
 }
 
-export async function getParticipants(): Promise<TelegramVcParticipantsResponse> {
-  return request('/participants')
-}
-
 export async function getTelegramGroups(): Promise<{ groups: TelegramVcGroup[] }> {
   return request('/groups')
 }
@@ -137,4 +133,29 @@ export async function getRtmpPublishConfig(): Promise<RtmpPublishConfig> {
     throw new TelegramVcApiError(response.status, message)
   }
   return (await response.json()) as RtmpPublishConfig
+}
+
+export async function pause(): Promise<{ call: TelegramVcStatus['call'] }> {
+  return request('/pause', { method: 'POST' })
+}
+
+export async function resume(): Promise<{ call: TelegramVcStatus['call'] }> {
+  return request('/resume', { method: 'POST' })
+}
+
+export async function skip(): Promise<{ call: TelegramVcStatus['call'] }> {
+  return request('/skip', { method: 'POST' })
+}
+
+export async function stopVc(): Promise<{ call: TelegramVcStatus['call'] }> {
+  return request('/stop', { method: 'POST' })
+}
+
+export async function setCamera(on: boolean): Promise<{ call: TelegramVcStatus['call'] }> {
+  return request('/cam', { method: 'POST', body: JSON.stringify({ on }) })
+}
+
+export async function getParticipants(chatId?: string): Promise<{ participants: any[]; count?: number; complete?: boolean; canManageCalls?: boolean }> {
+  const qs = chatId ? `?chatId=${encodeURIComponent(chatId)}` : ''
+  return request(`/participants${qs}`)
 }

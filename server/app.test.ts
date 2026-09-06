@@ -572,6 +572,96 @@ describe('room REST API', () => {
     expect(body.identity.displayName).toBe('@linked_tg')
   })
 
+  it('handles room admin routes: mute, kick, pin, end', async () => {
+    const app = createApp()
+    const createRes = await app.request('/v1/rooms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Admin Room' }),
+    })
+    const { room } = (await createRes.json()) as { room: { id: string } }
+
+    // Pin message
+    const pinRes = await app.request(`/v1/rooms/${room.id}/admin/pin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'Welcome to the show!' }),
+    })
+    expect(pinRes.status).toBe(200)
+    expect((await pinRes.json()).pinnedMessage).toBe('Welcome to the show!')
+
+    // End room
+    const endRes = await app.request(`/v1/rooms/${room.id}/admin/end`, {
+      method: 'POST',
+    })
+    expect(endRes.status).toBe(200)
+  })
+
+  it('handles playlist routes: create, add items, play, next, prev, pause, resume', async () => {
+    const app = createApp()
+    const createRes = await app.request('/v1/playlists', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Midnight Set' }),
+    })
+    expect(createRes.status).toBe(200)
+    const { playlist } = (await createRes.json()) as { playlist: { id: string } }
+
+    const itemRes = await app.request(`/v1/playlists/${playlist.id}/items`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: 'https://example.com/video1.mp4', title: 'Track 1' }),
+    })
+    expect(itemRes.status).toBe(200)
+
+    const listRes = await app.request('/v1/playlists')
+    expect(listRes.status).toBe(200)
+    const listBody = (await listRes.json()) as { playlists: Array<{ id: string }> }
+    expect(listBody.playlists.some((p) => p.id === playlist.id)).toBe(true)
+
+    const nextRes = await app.request(`/v1/playlists/${playlist.id}/next`, { method: 'POST' })
+    expect(nextRes.status).toBe(200)
+  })
+
+  it('handles audio devices and audio source endpoints', async () => {
+    const app = createApp()
+    const devRes = await app.request('/v1/audio/devices')
+    expect(devRes.status).toBe(200)
+    const devBody = (await devRes.json()) as { devices: Array<{ kind: string }>; meter: { rmsLevel: number } }
+    expect(devBody.devices.length).toBe(4)
+    expect(devBody.meter.rmsLevel).toBeGreaterThan(0)
+
+    const setRes = await app.request('/v1/audio/source', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source: 'mic' }),
+    })
+    expect(setRes.status).toBe(200)
+    expect((await setRes.json()).activeSource).toBe('mic')
+  })
+
+  it('handles music artwork lookup endpoint', async () => {
+    const app = createApp()
+    const artRes = await app.request('/v1/music/artwork?id=1440857781')
+    expect(artRes.status).toBe(200)
+    const artBody = (await artRes.json()) as { artworkUrl: string }
+    expect(artBody.artworkUrl).toBeDefined()
+  })
+
+  it('handles media upload and listing endpoints', async () => {
+    const app = createApp()
+    const uploadRes = await app.request('/v1/media/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'test-upload.mp4', base64: Buffer.from('video-bytes').toString('base64') }),
+    })
+    expect(uploadRes.status).toBe(200)
+    const { file } = (await uploadRes.json()) as { file: { id: string; name: string; path: string } }
+    expect(file.id).toBeDefined()
+
+    const listRes = await app.request('/v1/media')
+    expect(listRes.status).toBe(200)
+  })
 })
 
 describe('room admin API (ROOM-ADMIN.md)', () => {
@@ -605,3 +695,4 @@ describe('room admin API (ROOM-ADMIN.md)', () => {
     expect(body.code).toBe('telegram_only')
   })
 })
+
