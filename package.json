@@ -16,7 +16,9 @@
                 "start": "NODE_ENV=production tsx server/index.ts",
                 "discord:register-commands": "tsx scripts/register_discord_commands.ts",
                 "test": "vitest run",
-                "test:ci": "vitest run"
+                "test:ci": "vitest run && npm run test:codepup",
+                "test:codepup": "node --test scripts/codepup-smoke.test.mjs",
+                "test:codepup:live": "node scripts/codepup-smoke.mjs"
         },
         "dependencies": {
                 "@heroicons/react": "^2.2.0",

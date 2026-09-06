@@ -1,0 +1,54 @@
+# Code Pup runs as the Northflank GitHub App, not as a GitHub Actions job.
+# Mandatory code-pup-review enforcement is configured in the service and GitHub.
+reviews:
+  auto_review:
+    enabled: true
+    skip_drafts: false
+  high_level_summary: false
+  collapse_walkthrough: false
+  # Do not enable the optional manual approval command. Critical findings are
+  # blocked independently by the required code-pup-review check.
+  request_changes_workflow: false
+  finishing_touches:
+    autofix:
+      enabled: false
+    docstrings:
+      enabled: false
+    unit_tests:
+      enabled: false
+    fix_ci:
+      enabled: false
+    resolve_merge_conflict:
+      enabled: false
+  path_instructions:
+    - path: server/telegram-vc-adapter.ts
+      instructions: >-
+        Review request/reply correlation, complete stdout line draining, child
+        exit and timeout handling. A successful join must reflect confirmed
+        transport state; dropping replies or inventing active/joined state can
+        create a ghost join. Identify a concrete changed line and suggested fix.
+    - path: scripts/telegram_vc_adapter.py
+      instructions: >-
+        Check exactly one protocol reply per request, serialized adapter state,
+        error propagation, and confirmed join/leave state. Do not infer that
+        normal Python line iteration is broken without a reproducer.
+    - path: server/**
+      instructions: >-
+        Prioritize authentication bypass, tenant or session custody regressions,
+        unscoped destructive operations, and lost persistent state. Preserve
+        beginPairing/confirmPairing and 0600 session custody. Session bytes and
+        secrets must never appear in responses or logs. Keep supported
+        self-host behavior; distinguish intentional development configuration
+        from a production auth bypass.
+    - path: src/**
+      instructions: >-
+        Pre-flight must use the real operator session in hosted mode. UI join,
+        audio, camera, and playback status must come from observed state. Do not
+        claim a transport is live based only on a button click.
+knowledge_base:
+  code_guidelines:
+    filePatterns:
+      - docs/DJ-SIMPLIFY.md
+      - docs/WARP-AGENT-BUILD.md
+      - docs/GHOST-JOIN-FIX.md
+      - MEDIA-PLANE.md
