@@ -1,6 +1,7 @@
 import { FormEvent, useMemo, useState } from 'react'
 import { WarningCircle, ArrowRight, Check, Eye, EyeSlash, Sparkle } from '@phosphor-icons/react'
 import { nebuAuthClient, type NebuSocialProvider } from '@/lib/nebu-auth-client'
+import '@/styles/nebu-motion.css'
 
 type Mode = 'signin' | 'signup'
 
@@ -10,7 +11,7 @@ const SOCIAL_PROVIDERS: Array<{ id: NebuSocialProvider; label: string; mark: str
   { id: 'apple', label: 'Continue with Apple', mark: 'A' },
 ]
 
-const NEBU_BG = '#1a0a2e'
+const NEBU_BG = '#0d081a'
 const NEBU_YELLOW = '#F5E000'
 const NEBU_PURPLE = '#9026ff'
 const NEBU_CYAN = '#6bd9ff'
@@ -116,15 +117,15 @@ export function NebuLogin({
     >
       <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
         <div
-          className="absolute -left-24 top-20 h-80 w-80 rounded-full blur-3xl opacity-40"
+          className="nebu-blob absolute -left-24 top-20 h-80 w-80 rounded-full blur-3xl opacity-40"
           style={{ backgroundColor: NEBU_PURPLE }}
         />
         <div
-          className="absolute bottom-0 right-0 h-72 w-72 translate-x-1/4 translate-y-1/4 rounded-full blur-3xl opacity-30"
+          className="nebu-blob nebu-blob-delay absolute bottom-0 right-0 h-72 w-72 translate-x-1/4 translate-y-1/4 rounded-full blur-3xl opacity-30"
           style={{ backgroundColor: NEBU_CYAN }}
         />
         <div
-          className="absolute right-1/4 top-1/3 h-40 w-40 rounded-full blur-3xl opacity-20"
+          className="nebu-blob absolute right-1/4 top-1/3 h-40 w-40 rounded-full blur-3xl opacity-20"
           style={{ backgroundColor: NEBU_YELLOW }}
         />
       </div>
@@ -132,7 +133,7 @@ export function NebuLogin({
       <div className="relative mx-auto flex min-h-screen max-w-lg flex-col justify-center px-5 py-12 sm:px-8">
         <header className="mb-8 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Sparkle size={22} weight="fill" style={{ color: NEBU_YELLOW }} />
+            <Sparkle size={22} weight="fill" className="nebu-spark" style={{ color: NEBU_YELLOW }} />
             <span className="text-2xl font-black tracking-tight uppercase">NEBU</span>
           </div>
           <span
@@ -144,7 +145,7 @@ export function NebuLogin({
         </header>
 
         <section
-          className="rounded-3xl border border-white/10 p-6 shadow-2xl sm:p-8"
+          className="nebu-rise nebu-rise-2 rounded-3xl border border-white/10 p-6 shadow-2xl sm:p-8"
           style={{ backgroundColor: 'rgba(255,255,255,0.96)', color: '#0c021a' }}
         >
           <p
@@ -307,7 +308,7 @@ export function NebuLogin({
             <button
               disabled={busy}
               type="submit"
-              className="group flex min-h-12 w-full items-center justify-between rounded-2xl px-4 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-60"
+              className="nebu-cta group flex min-h-12 w-full items-center justify-between rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-60"
               style={{ backgroundColor: NEBU_YELLOW, color: '#0c021a' }}
             >
               <span>

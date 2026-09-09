@@ -6,6 +6,8 @@ Two identity planes share this repo. They must stay separate.
 
 - **Audience:** consumer / product login for **NEBU**.
 - **UI:** `/login` (NEBU purple/yellow brand).
+- **Marketing home:** on `nebu.quest` (and `www` / `*.nebu.quest`), `/` renders `NebuLanding` — neo-brutal “Set the scene.” surface with CSS motion. Preview on any host via `/welcome`.
+- **Studio CTA:** landing CTAs open `https://vc.friskydev.com` (operator studio stays on Authentik).
 - **API:** Better Auth handler at `/api/auth/*`.
 - **Providers:** Google, Apple, Microsoft when the corresponding OAuth env vars are set; email/password also available.
 - **Secrets:** `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL=https://nebu.quest`, `DATABASE_URL`, plus provider client IDs/secrets. See `.env.example`.
