@@ -1,13 +1,31 @@
 # Code Pup reviews
 
-Code Pup runs as a native Northflank GitHub App service. `.codepup.yaml` is review
-policy; it does not launch a reviewer. The existing CI workflow remains separate.
+Code Pup uses the existing `code-pup-by-frisky` GitHub App (ID `3653175`). Its
+intended runtime is Cloudflare Containers. `.codepup.yaml` is review policy; it
+does not launch a reviewer. The existing CI workflow remains separate.
+
+## Activation status
+
+The 2026-09-09 deployment created the Worker and Container at
+`https://code-pup.hrgrrtks2p.workers.dev`. `/healthz` returns HTTP 200 with
+`setup_required`; `/readyz` returns HTTP 503 with `setup_required`.
+`GITHUB_WEBHOOK_SECRET` is present in the new runtime.
+
+A new private-key fingerprint is registered for the existing App `3653175`, but
+Chrome blocked the key download. The private-key file is not available and has
+not been uploaded to the runtime; the user's download handoff remains pending.
+The App webhook still points to the previous receiver. The required merge gate
+and dummy-PR acceptance test have not been activated.
+
+Deployment is not evidence that the new receiver reviews PRs. An App-owned
+`code-pup-state` check is also insufficient: acceptance requires the separate
+`code-pup-review` check and a passing live test on this repository.
 
 ## Why no reviews were appearing
 
 The investigation on 2026-09-06 found no Code Pup review, comment, or quality check
 on the recent PRs examined. `main` had no protection or repository rulesets.
-The current Northflank `pup-service` process was alive, but `/readyz` returned
+The legacy `pup-service` process was alive, but `/readyz` returned
 HTTP 503 with `setup_required`. A successful Northflank deployment was therefore
 not evidence that GitHub App credentials and repository access were configured.
 
@@ -17,24 +35,26 @@ be used as the required quality check. Critical findings never failed a check.
 
 ## Runtime wiring
 
-The service source lives in `FriskyDevelopments/code-pup`. Deploy the companion
-`feat/codepup-fix` change there, which adds the mandatory `code-pup-review` gate.
-Both repositories' `main` branches remain unchanged until their PRs are reviewed.
+The service source lives in `FriskyDevelopments/code-pup`. The companion
+`feat/codepup-fix` change adds the mandatory `code-pup-review` gate and Cloudflare
+delivery handling. Deploy and verify that change through its reviewed feature
+branch; this policy file alone cannot enable it.
 
-Existing service:
+Intended service configuration:
 
-- Northflank: project `code-pup`, service `pup-service`.
-- Public URL: `https://p01--pup-service--6qgbzwqz9jc9.code.run`.
+- Cloudflare Worker: `code-pup`, account `e2a7eccb24c4836847fd14d08c499bd0`.
+- Public URL: `https://code-pup.hrgrrtks2p.workers.dev`.
 - Webhook: `/webhooks/github`, with HTTPS certificate verification enabled.
-- Node 24+, one replica, persistent volume mounted at `/data`.
+- Node 24+ in a singleton Container, with webhook delivery persistence in a
+  separate SQLite Durable Object. Container files do not provide durable storage.
 - `CODE_PUP_ALLOWED_REPOSITORIES` must include
   `FriskyDevelopments/stix-mgic-vc-node` while preserving other intended entries.
 - `CODE_PUP_REQUIRED_REPOSITORIES` must include exactly
   `FriskyDevelopments/stix-mgic-vc-node`.
-- Store `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` (or its mounted-file alternative),
-  and `GITHUB_WEBHOOK_SECRET` through runtime secret controls.
-- Install the GitHub App on this repository. Its Northflank build integration is
-  a different App and does not provide reviewer access.
+- Set `GITHUB_APP_ID=3653175`. Store `GITHUB_APP_PRIVATE_KEY` and
+  `GITHUB_WEBHOOK_SECRET` through Cloudflare secret controls; never commit them.
+- Reuse and verify this App's installation on the repository. A build integration
+  or the GitHub Actions token does not establish access for this reviewer App.
 - Grant Checks write, Pull requests write, and Contents read for review operation.
   Existing optional features may require additional permissions; do not grant
   Contents write merely to enable automatic reviews.
@@ -75,8 +95,8 @@ App-pinned required rule is active, run:
 ```sh
 npm run test:codepup:live -- \
   --repo FriskyDevelopments/stix-mgic-vc-node \
-  --app-id ACTUAL_VERIFIED_APP_ID \
-  --service-url https://p01--pup-service--6qgbzwqz9jc9.code.run \
+  --app-id 3653175 \
+  --service-url https://code-pup.hrgrrtks2p.workers.dev \
   --output /tmp/codepup-live-evidence.json
 ```
 
@@ -88,6 +108,19 @@ a merge, closes its test PR, and records the result. It never changes `main`.
 Unready service, absent protection, stale results, wrong App identity, and timeout
 must fail the test. An offline fixture or a manually posted comment is not a live
 acceptance pass.
+
+`--service-url` accepts only an HTTPS origin, optionally with a trailing slash.
+A path, credentials, query, or fragment is rejected before any network request.
+If branch creation times out, cleanup first reads that exact ref and compares its
+SHA with the recorded smoke commit. It never retries the write or deletes a
+different branch. An unavailable or mismatched lookup leaves the branch recorded
+for inspection; `--keep-branch` also preserves a recovered branch.
+
+The prior feature-branch Actions fallback was reverted without rewriting history.
+It executed a scanner from PR-controlled checkout content with a token able to
+write reviews, allowing that PR to alter its own review. Its check came from
+GitHub Actions and could not satisfy the required App identity. No App-owned
+acceptance evidence can be substituted with that fallback.
 
 Deterministic checks target concrete patterns; they cannot establish that every
 possible bug has been found. Normal CI and human review remain relevant.

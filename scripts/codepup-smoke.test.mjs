@@ -86,6 +86,24 @@ test('CLI requires an explicit positive app identity and a safe HTTPS URL', () =
   assert.equal(parseArgs(['--app-id', '123', '--service-url', options.serviceUrl, '--dry-run']).dryRun, true);
 });
 
+test('service URL accepts only an origin and never silently discards a deployment path', async () => {
+  for (const suffix of ['/code-pup', '/code-pup/', '/readyz', '/%2F', '//', '?token=value', '#fragment']) {
+    const serviceUrl = `${options.serviceUrl}${suffix}`;
+    assert.throws(() => parseArgs(['--app-id', '123', '--service-url', serviceUrl]), /HTTPS origin/);
+    const { calls, deps } = fixtures();
+    let fetched = false;
+    deps.fetchReady = async () => { fetched = true; return { service: 'code-pup', status: 'ready' }; };
+    const report = await runSmoke({ ...options, serviceUrl }, deps);
+    assert.equal(report.status, 'failed');
+    assert.equal(report.serviceUrl, null);
+    assert.equal(fetched, false);
+    assert.equal(calls.length, 0);
+  }
+  for (const serviceUrl of [options.serviceUrl, `${options.serviceUrl}/`]) {
+    assert.equal(parseArgs(['--app-id', '123', '--service-url', serviceUrl]).serviceUrl, options.serviceUrl);
+  }
+});
+
 test('an unready deployment never creates Git objects, branches, or PRs', async () => {
   const { calls, deps } = fixtures();
   deps.fetchReady = async () => ({ service: 'code-pup', status: 'setup_required' });
@@ -329,6 +347,77 @@ test('ambiguous PR create is reconciled and closed, never retried', async () => 
   assert.equal(report.pull.recovered, true);
   assert.equal(report.cleanup.pullClosed, true);
   assert.equal(calls.filter((call) => call.method === 'POST' && call.endpoint.endsWith('/pulls')).length, 1);
+});
+
+test('accepted branch creation with a lost response is reconciled and cleaned without opening a PR', async () => {
+  const branch = 'test/codepup-smoke-unit-run';
+  const { calls, snapshots, deps } = fixtures({ api: async (method, endpoint) => {
+    if (method === 'POST' && endpoint.endsWith('/git/refs')) throw new Error('Simulated timeout after accepted branch creation.');
+    if (method === 'GET' && endpoint.endsWith(`/git/ref/heads/${branch}`)) return { ref: `refs/heads/${branch}`, object: { sha: unsafeSha } };
+    return undefined;
+  } });
+  const report = await runSmoke(options, deps);
+  assert.equal(report.status, 'failed');
+  assert.equal(report.cleanup.branchRecovered, true);
+  assert.equal(report.cleanup.branchDeleted, true);
+  assert.equal(calls.filter((call) => call.method === 'POST' && call.endpoint.endsWith('/git/refs')).length, 1);
+  assert.equal(calls.filter((call) => call.endpoint.endsWith('/pulls')).length, 0);
+  assert.ok(snapshots.some((saved) => saved.branchCreateAttempted && saved.criticalSha === unsafeSha));
+});
+
+test('ambiguous branch creation respects keep-branch after recovery', async () => {
+  const branch = 'test/codepup-smoke-unit-run';
+  const { calls, deps } = fixtures({ api: async (method, endpoint) => {
+    if (method === 'POST' && endpoint.endsWith('/git/refs')) throw new Error('Write response lost.');
+    if (method === 'GET' && endpoint.endsWith(`/git/ref/heads/${branch}`)) return { ref: `refs/heads/${branch}`, object: { sha: unsafeSha } };
+    return undefined;
+  } });
+  const report = await runSmoke({ ...options, keepBranch: true }, deps);
+  assert.equal(report.cleanup.branchRecovered, true);
+  assert.equal(report.cleanup.branchRetained, branch);
+  assert.equal(calls.filter((call) => call.method === 'DELETE').length, 0);
+});
+
+test('ambiguous branch creation never deletes a different ref or commit', async () => {
+  const branch = 'test/codepup-smoke-unit-run';
+  for (const recovered of [
+    { ref: `refs/heads/${branch}`, object: { sha: mainSha } },
+    { ref: 'refs/heads/main', object: { sha: unsafeSha } },
+    { ref: `refs/heads/${branch}` },
+  ]) {
+    const { calls, deps } = fixtures({ api: async (method, endpoint) => {
+      if (method === 'POST' && endpoint.endsWith('/git/refs')) throw new Error('Write response lost.');
+      if (method === 'GET' && endpoint.endsWith(`/git/ref/heads/${branch}`)) return recovered;
+      return undefined;
+    } });
+    const report = await runSmoke(options, deps);
+    assert.equal(report.status, 'failed');
+    assert.match(report.cleanup.error, /expected ref and commit/);
+    assert.equal(report.cleanup.branchRetained, branch);
+    assert.equal(calls.filter((call) => call.method === 'DELETE').length, 0);
+  }
+});
+
+test('branch reconciliation distinguishes confirmed absence from an unavailable lookup', async () => {
+  const branch = 'test/codepup-smoke-unit-run';
+  for (const status of [404, 403, 503, undefined]) {
+    const { calls, deps } = fixtures({ api: async (method, endpoint) => {
+      if (method === 'POST' && endpoint.endsWith('/git/refs')) throw new Error('Write response lost.');
+      if (method === 'GET' && endpoint.endsWith(`/git/ref/heads/${branch}`)) throw Object.assign(new Error('Lookup unavailable.'), { status });
+      return undefined;
+    } });
+    const report = await runSmoke(options, deps);
+    assert.equal(report.status, 'failed');
+    if (status === 404) {
+      assert.equal(report.cleanup.branchAbsent, true);
+      assert.equal(report.cleanup.branchRetained, undefined);
+      assert.equal(report.cleanup.error, undefined);
+    } else {
+      assert.equal(report.cleanup.branchRetained, branch);
+      assert.equal(report.cleanup.error, 'Lookup unavailable.');
+    }
+    assert.equal(calls.filter((call) => call.method === 'DELETE').length, 0);
+  }
 });
 
 test('branch is retained when PR closure cannot be confirmed', async () => {
