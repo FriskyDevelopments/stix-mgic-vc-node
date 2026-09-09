@@ -29,7 +29,7 @@ if (env.NODE_ENV === 'production') {
   app.use('/manifest.webmanifest', serveStatic({ root: distDir }))
   app.get('*', (c) => {
     const path = c.req.path
-    if (path.startsWith('/v1') || path === '/healthz') {
+    if (path.startsWith('/v1') || path.startsWith('/api') || path === '/healthz') {
       return c.json({ error: 'Not found' }, 404)
     }
     return c.html(indexHtml)

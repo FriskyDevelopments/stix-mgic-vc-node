@@ -5,13 +5,14 @@ import { Toaster } from 'sonner'
 import App from './App.tsx'
 import { DiscordCallback } from './components/DiscordCallback.tsx'
 import { SpotifyCallback } from './components/SpotifyCallback.tsx'
+import { NebuLogin } from './components/NebuLogin.tsx'
 import { ErrorFallback } from './ErrorFallback.tsx'
 import {
   getAnalyticsClient,
   initAnalytics,
   isAnalyticsEnabled,
 } from './lib/analytics'
-import { fetchPublicConfig } from './lib/public-config'
+import { fetchPublicConfig, getCachedPublicConfig } from './lib/public-config'
 
 import "./main.css"
 
@@ -43,6 +44,16 @@ function Root() {
         onAuthError={() => {
           window.location.replace('/')
         }}
+      />
+    )
+  }
+
+  if (path === '/login') {
+    const config = getCachedPublicConfig()
+    return (
+      <NebuLogin
+        authConfigured={Boolean(config?.nebuBetterAuthConfigured)}
+        socialProviders={config?.nebuSocialProviders}
       />
     )
   }

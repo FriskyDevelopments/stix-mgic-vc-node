@@ -38,6 +38,10 @@ export type PublicConfig = {
     method: 'supabase' | 'oidc'
     start?: string
   }>
+  /** NEBU Better Auth (nebu.quest) — separate from studio Authentik OIDC. */
+  nebuBetterAuthConfigured?: boolean
+  nebuSocialProviders?: Array<'google' | 'microsoft' | 'apple'>
+  nebuLoginPath?: string
   capabilities: {
     telegramAuth: RuntimeCapability
     discordAuth: RuntimeCapability
