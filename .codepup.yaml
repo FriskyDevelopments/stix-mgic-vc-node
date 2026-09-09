@@ -1,4 +1,5 @@
-# Code Pup runs as the Northflank GitHub App, not as a GitHub Actions job.
+# Code Pup uses the existing code-pup-by-frisky GitHub App with Cloudflare Containers.
+# This policy does not prove runtime activation; see docs/CODEPUP.md for acceptance.
 # Mandatory code-pup-review enforcement is configured in the service and GitHub.
 reviews:
   auto_review:

@@ -12,6 +12,15 @@ const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const SHA = /^[a-f0-9]{40}$/;
 const sleep = (ms) => new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
 
+function serviceOrigin(value) {
+  let service;
+  try { service = new URL(value); } catch { throw new Error('--service-url must be the deployed HTTPS service URL.'); }
+  if (service.protocol !== 'https:' || service.username || service.password || service.search || service.hash || service.pathname !== '/') {
+    throw new Error('--service-url must be an HTTPS origin without credentials, path, query, or fragment.');
+  }
+  return service.origin;
+}
+
 export function parseArgs(argv) {
   const options = { repo: 'FriskyDevelopments/stix-mgic-vc-node', keepBranch: false, dryRun: false };
   const values = { '--repo': 'repo', '--app-id': 'appId', '--service-url': 'serviceUrl', '--output': 'output' };
@@ -27,12 +36,7 @@ export function parseArgs(argv) {
     throw new Error('--app-id must be the verified positive GitHub App ID.');
   }
   options.appId = Number(options.appId);
-  let service;
-  try { service = new URL(options.serviceUrl); } catch { throw new Error('--service-url must be the deployed HTTPS service URL.'); }
-  if (service.protocol !== 'https:' || service.username || service.password || service.search || service.hash) {
-    throw new Error('--service-url must use HTTPS without credentials, query, or fragment.');
-  }
-  options.serviceUrl = service.origin;
+  options.serviceUrl = serviceOrigin(options.serviceUrl);
   return options;
 }
 
@@ -49,7 +53,9 @@ export function ghApi(method, endpoint, body, timeoutMs = 20_000) {
     });
   } catch (error) {
     const status = String(error.stderr || '').match(/HTTP (\d{3})/)?.[1];
-    throw new Error(`GitHub ${method} request failed${status ? ` (HTTP ${status})` : ''}; inspect GitHub before retrying a write.`);
+    const failure = new Error(`GitHub ${method} request failed${status ? ` (HTTP ${status})` : ''}; inspect GitHub before retrying a write.`);
+    if (status) failure.status = Number(status);
+    throw failure;
   }
   if (!raw.trim()) return null;
   try { return JSON.parse(raw); } catch { throw new Error('GitHub returned invalid JSON.'); }
@@ -178,15 +184,17 @@ export async function runSmoke(options, dependencies = {}) {
   const prefix = `repos/${options.repo}`;
   const fixture = `scripts/codepup-smoke-fixture-${id}.mjs`;
   const marker = `docs/codepup-smoke-${id}.md`;
-  const report = { version: 1, status: 'running', repo: options.repo, base: 'main', appId: options.appId, serviceUrl: options.serviceUrl, branch, startedAt: new Date(now()).toISOString(), triggers: [], phases: [], cleanup: {} };
+  const report = { version: 1, status: 'running', repo: options.repo, base: 'main', appId: options.appId, serviceUrl: null, branch, startedAt: new Date(now()).toISOString(), triggers: [], phases: [], cleanup: {} };
   let branchCreated = false;
+  let attemptedBranchCreate = false;
   let attemptedPrCreate = false;
   let number;
   const persist = () => save(report);
   try {
     // Fail closed before creating even a Git object when deployment or merge protection is missing.
     if (!REPO.test(options.repo) || !Number.isSafeInteger(options.appId) || options.appId <= 0) throw new Error('Verified repository and positive app ID are required.');
-    const ready = await fetchReady(new URL('/readyz', options.serviceUrl).href);
+    report.serviceUrl = serviceOrigin(options.serviceUrl);
+    const ready = await fetchReady(new URL('/readyz', report.serviceUrl).href);
     if (ready.service !== 'code-pup' || ready.status !== 'ready') throw new Error('CodePup is not ready; no smoke PR was created.');
     const required = await verifyMergeGate(api, options.repo, options.appId);
     const main = await api('GET', `${prefix}/git/ref/heads/main`);
@@ -203,6 +211,9 @@ export async function runSmoke(options, dependencies = {}) {
     const commit = await api('POST', `${prefix}/git/commits`, { message: `test: CodePup critical review smoke ${id}`, tree: tree.sha, parents: [main.object.sha] });
     if (!SHA.test(commit.sha || '')) throw new Error('GitHub did not return the smoke commit SHA.');
     report.criticalSha = commit.sha;
+    persist();
+    attemptedBranchCreate = true;
+    report.branchCreateAttempted = true;
     persist();
     await api('POST', `${prefix}/git/refs`, { ref: `refs/heads/${branch}`, sha: commit.sha });
     branchCreated = true;
@@ -238,6 +249,24 @@ export async function runSmoke(options, dependencies = {}) {
     report.status = 'failed';
     report.error = error.message;
   } finally {
+    if (attemptedBranchCreate && !branchCreated) {
+      // A timed-out write may have succeeded. Recover only this exact ref and SHA;
+      // never retry creation or delete a same-named branch with different content.
+      try {
+        const recovered = await api('GET', `${prefix}/git/ref/heads/${branch}`);
+        if (recovered.ref !== `refs/heads/${branch}` || recovered.object?.sha !== report.criticalSha) {
+          throw new Error('Attempted branch creation could not be reconciled to the expected ref and commit; branch retained for inspection.');
+        }
+        branchCreated = true;
+        report.cleanup.branchRecovered = true;
+      } catch (error) {
+        if (error.status === 404) report.cleanup.branchAbsent = true;
+        else {
+          report.cleanup.error = error.message;
+          report.cleanup.branchRetained = branch;
+        }
+      }
+    }
     if (branchCreated && !number && attemptedPrCreate) {
       // Reconcile an ambiguous POST response before cleanup; never retry PR creation.
       try {
