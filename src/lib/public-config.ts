@@ -12,6 +12,7 @@
  */
 import { useEffect, useState } from 'react'
 import { apiUrl } from '@/lib/api-client'
+import type { NebuSocialProvider } from '@/lib/nebu-auth-client'
 
 export type RuntimeCapability = {
   ready: boolean
@@ -38,6 +39,9 @@ export type PublicConfig = {
     method: 'supabase' | 'oidc'
     start?: string
   }>
+  /** NEBU Better Auth (nebu.quest) — separate from studio Authentik OIDC. */
+  nebuBetterAuthConfigured?: boolean
+  nebuSocialProviders?: NebuSocialProvider[]
   capabilities: {
     telegramAuth: RuntimeCapability
     discordAuth: RuntimeCapability

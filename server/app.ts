@@ -47,6 +47,7 @@ import { oidcCallback, oidcLogout, oidcMe, oidcStart, sessionClaimsFromCookie } 
 import { supabaseSession } from './supabase-auth'
 import { handleTelegramUpdate, isTelegramWebhookAuthorized, WEBHOOK_HEADER } from './telegram-bot'
 import { buildIdentityCatalog, publicSupabaseIdentity } from './identity-catalog'
+import { getNebuAuth, isNebuBetterAuthConfigured, listConfiguredSocialProviders } from './betterAuth'
 
 type Variables = {
   operatorId: string
@@ -61,6 +62,7 @@ function requireFriskyDev(c: { req: { header: (name: string) => string | undefin
   return verifyFriskyDevToken(token)
 }
 
+/** Builds the Hono control-plane application and registers its API routes. */
 export function createApp() {
   configureAccountStore({
     persist: process.env.NODE_ENV !== 'test',
@@ -82,6 +84,21 @@ export function createApp() {
     })
   )
 
+  // NEBU Better Auth (nebu.quest). Additive — does not replace Authentik OIDC on the studio path.
+  app.on(['GET', 'POST'], '/api/auth/*', (c) => {
+    const auth = getNebuAuth()
+    if (!auth) {
+      return c.json(
+        {
+          error: 'NEBU Better Auth is not configured',
+          hint: 'Set BETTER_AUTH_SECRET, BETTER_AUTH_URL, DATABASE_URL, and OAuth provider env vars.',
+        },
+        503
+      )
+    }
+    return auth.handler(c.req.raw)
+  })
+
   app.get('/healthz', (c) =>
     c.json({
       ok: true,
@@ -97,6 +114,8 @@ export function createApp() {
       friskydevAccounts: true,
       friskydevIdConfigured: env.oidcConfigured,
       supabaseIdentityConfigured: env.supabaseConfigured,
+      nebuBetterAuthConfigured: isNebuBetterAuthConfigured(),
+      nebuSocialProviders: listConfiguredSocialProviders(),
     })
   )
 
@@ -139,6 +158,8 @@ export function createApp() {
       identityProvider: 'supabase',
       identityReady: env.supabaseConfigured,
       identityProviders,
+      nebuBetterAuthConfigured: isNebuBetterAuthConfigured(),
+      nebuSocialProviders: listConfiguredSocialProviders(),
       capabilities: {
         telegramAuth: {
           ready: env.telegramConfigured && Boolean(env.TELEGRAM_BOT_USERNAME),
