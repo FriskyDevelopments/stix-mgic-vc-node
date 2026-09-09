@@ -26,7 +26,8 @@ describe('NebuLanding brand surface', () => {
   })
 
   it('includes donate promo copy and donation link', () => {
-    expect(source).toContain('Keep the studio lit.')
+    expect(source).toContain('Keep the scene running.')
+    expect(source).toContain('https://ko-fi.com/friskypup')
     expect(source).toContain('https://nowpayments.io/donation/Frisky')
     expect(source).toContain('id="support"')
   })
