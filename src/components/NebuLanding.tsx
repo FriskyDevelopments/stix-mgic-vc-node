@@ -9,7 +9,8 @@ const INK = '#0c021a'
 
 const STUDIO_URL = 'https://vc.friskydev.com'
 const LOGIN_URL = '/login'
-const DONATE_URL = 'https://nowpayments.io/donation/Frisky'
+const DONATE_URL = 'https://ko-fi.com/friskypup'
+const CRYPTO_DONATE_URL = 'https://nowpayments.io/donation/Frisky'
 
 const PARTS = [
   { title: 'Studio', blurb: 'Find your frame.', color: YELLOW, icon: Camera, ink: true },
@@ -225,18 +226,16 @@ export function NebuLanding() {
           <div className="mx-auto grid max-w-6xl gap-8 overflow-hidden rounded-[2rem] border-2 border-black bg-[#160b2a] p-8 shadow-[10px_10px_0_#000] lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
             <div>
               <p className="text-[11px] font-bold tracking-[0.2em] uppercase" style={{ color: CYAN }}>
-                04 / Keep the lights on
+                04 / Keep it going
               </p>
               <h2 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
-                Keep the studio lit.
+                Keep the scene running.
               </h2>
               <p className="mt-4 max-w-lg text-base leading-7 text-white/65">
-                If NEBU is useful, you can keep it going. Camera, sound, rooms, and local recording
-                stay in your browser. A tip covers hosting, domains, and the next scene.
+                Camera, sound, rooms, and a take you can keep — all in the browser. Hosting and the
+                next build still cost something. A coffee is enough.
               </p>
-              <p className="mt-3 text-sm font-bold text-white/45">
-                No ads. No install tax. Just the studio — and the people who keep it running.
-              </p>
+              <p className="mt-3 text-sm font-bold text-white/45">Optional. Always.</p>
             </div>
             <div className="flex flex-col items-start gap-4">
               <a
@@ -247,13 +246,17 @@ export function NebuLanding() {
                 style={{ backgroundColor: PURPLE, color: '#fff' }}
               >
                 <Heart size={18} weight="fill" />
-                Donate
+                Support NEBU
                 <ArrowRight size={18} weight="bold" />
               </a>
               <p className="text-xs leading-5 text-white/40">
                 Donation link:{' '}
                 <a href={DONATE_URL} className="underline underline-offset-2 hover:text-white/70">
-                  nowpayments.io/donation/Frisky
+                  ko-fi.com/friskypup
+                </a>
+                {' · '}
+                <a href={CRYPTO_DONATE_URL} className="underline underline-offset-2 hover:text-white/70">
+                  Crypto
                 </a>
               </p>
             </div>
@@ -288,7 +291,7 @@ export function NebuLanding() {
       <footer className="relative z-10 border-t border-white/10 px-5 py-8 text-center text-xs text-white/40 sm:px-8">
         NEBU · nebu.quest · Set the scene.{' '}
         <a href={DONATE_URL} className="text-white/55 underline-offset-2 hover:text-white hover:underline">
-          Donate
+          Support
         </a>
       </footer>
     </div>
