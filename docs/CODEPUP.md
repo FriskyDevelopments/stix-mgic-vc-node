@@ -6,11 +6,20 @@ does not launch a reviewer. The existing CI workflow remains separate.
 
 ## Activation status
 
-The 2026-09-09 audit verified the App identity, but the intended Cloudflare URL
-returned HTTP 404 and the new runtime's App credentials were not available.
-The wiring below is prepared configuration, not evidence of activation. A recent
-App-owned `code-pup-state` check is also insufficient: acceptance requires the
-separate `code-pup-review` check and a passing live test on this repository.
+The 2026-09-09 deployment created the Worker and Container at
+`https://code-pup.hrgrrtks2p.workers.dev`. `/healthz` returns HTTP 200 with
+`setup_required`; `/readyz` returns HTTP 503 with `setup_required`.
+`GITHUB_WEBHOOK_SECRET` is present in the new runtime.
+
+A new private-key fingerprint is registered for the existing App `3653175`, but
+Chrome blocked the key download. The private-key file is not available and has
+not been uploaded to the runtime; the user's download handoff remains pending.
+The App webhook still points to the previous receiver. The required merge gate
+and dummy-PR acceptance test have not been activated.
+
+Deployment is not evidence that the new receiver reviews PRs. An App-owned
+`code-pup-state` check is also insufficient: acceptance requires the separate
+`code-pup-review` check and a passing live test on this repository.
 
 ## Why no reviews were appearing
 
