@@ -24,4 +24,10 @@ describe('NebuLanding brand surface', () => {
   it('routes studio CTA to vc.friskydev.com', () => {
     expect(source).toContain('https://vc.friskydev.com')
   })
+
+  it('includes donate promo copy and donation link', () => {
+    expect(source).toContain('Keep the studio lit.')
+    expect(source).toContain('https://nowpayments.io/donation/Frisky')
+    expect(source).toContain('id="support"')
+  })
 })

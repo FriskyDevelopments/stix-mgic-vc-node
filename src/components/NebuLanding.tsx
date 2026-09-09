@@ -1,4 +1,4 @@
-import { Sparkle, Play, Users, Waveform, Record, ArrowRight, Camera, SpeakerHigh } from '@phosphor-icons/react'
+import { Sparkle, Play, Users, Waveform, Record, ArrowRight, Camera, SpeakerHigh, Heart } from '@phosphor-icons/react'
 import '@/styles/nebu-motion.css'
 
 const BG = '#0d081a'
@@ -9,6 +9,7 @@ const INK = '#0c021a'
 
 const STUDIO_URL = 'https://vc.friskydev.com'
 const LOGIN_URL = '/login'
+const DONATE_URL = 'https://nowpayments.io/donation/Frisky'
 
 const PARTS = [
   { title: 'Studio', blurb: 'Find your frame.', color: YELLOW, icon: Camera, ink: true },
@@ -52,6 +53,9 @@ export function NebuLanding() {
         <nav className="flex items-center gap-3 text-sm font-bold">
           <a href="#studio" className="hidden text-white/70 transition hover:text-white sm:inline">
             Look around
+          </a>
+          <a href="#support" className="hidden text-white/70 transition hover:text-white sm:inline">
+            Support
           </a>
           <a
             href={LOGIN_URL}
@@ -216,6 +220,46 @@ export function NebuLanding() {
           </div>
         </section>
 
+        {/* Support / donate promo */}
+        <section id="support" className="px-5 pb-8 sm:px-8">
+          <div className="mx-auto grid max-w-6xl gap-8 overflow-hidden rounded-[2rem] border-2 border-black bg-[#160b2a] p-8 shadow-[10px_10px_0_#000] lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
+            <div>
+              <p className="text-[11px] font-bold tracking-[0.2em] uppercase" style={{ color: CYAN }}>
+                04 / Keep the lights on
+              </p>
+              <h2 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
+                Keep the studio lit.
+              </h2>
+              <p className="mt-4 max-w-lg text-base leading-7 text-white/65">
+                If NEBU is useful, you can keep it going. Camera, sound, rooms, and local recording
+                stay in your browser. A tip covers hosting, domains, and the next scene.
+              </p>
+              <p className="mt-3 text-sm font-bold text-white/45">
+                No ads. No install tax. Just the studio — and the people who keep it running.
+              </p>
+            </div>
+            <div className="flex flex-col items-start gap-4">
+              <a
+                href={DONATE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="nebu-cta inline-flex min-h-12 items-center gap-2 rounded-full px-6 text-sm font-black uppercase tracking-wide"
+                style={{ backgroundColor: PURPLE, color: '#fff' }}
+              >
+                <Heart size={18} weight="fill" />
+                Donate
+                <ArrowRight size={18} weight="bold" />
+              </a>
+              <p className="text-xs leading-5 text-white/40">
+                Donation link:{' '}
+                <a href={DONATE_URL} className="underline underline-offset-2 hover:text-white/70">
+                  nowpayments.io/donation/Frisky
+                </a>
+              </p>
+            </div>
+          </div>
+        </section>
+
         {/* Final CTA */}
         <section className="px-5 pb-20 sm:px-8">
           <div
@@ -242,7 +286,10 @@ export function NebuLanding() {
       </main>
 
       <footer className="relative z-10 border-t border-white/10 px-5 py-8 text-center text-xs text-white/40 sm:px-8">
-        NEBU · nebu.quest · Set the scene.
+        NEBU · nebu.quest · Set the scene.{' '}
+        <a href={DONATE_URL} className="text-white/55 underline-offset-2 hover:text-white hover:underline">
+          Donate
+        </a>
       </footer>
     </div>
   )
