@@ -62,6 +62,7 @@ function requireFriskyDev(c: { req: { header: (name: string) => string | undefin
   return verifyFriskyDevToken(token)
 }
 
+/** Builds the Hono control-plane application and registers its API routes. */
 export function createApp() {
   configureAccountStore({
     persist: process.env.NODE_ENV !== 'test',

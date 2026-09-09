@@ -44,16 +44,19 @@ type NebuAuthInstance = {
 let pool: Pool | null = null
 let authInstance: NebuAuthInstance | null = null
 
+/** Reports whether the required NEBU database and auth secret are configured. */
 export function isNebuBetterAuthConfigured(): boolean {
   const secret = process.env.BETTER_AUTH_SECRET
   const databaseUrl = process.env.DATABASE_URL
   return Boolean(databaseUrl && secret && secret.length >= 32)
 }
 
+/** Lists the NEBU social providers whose required environment variables are present. */
 export function listConfiguredSocialProviders(): NebuSocialProviderId[] {
   return Object.keys(buildSocialProviders()) as NebuSocialProviderId[]
 }
 
+/** Generates the short-lived Apple OAuth client secret from the configured signing key. */
 async function generateAppleClientSecret(): Promise<string> {
   const clientId = process.env.APPLE_CLIENT_ID
   const teamId = process.env.APPLE_TEAM_ID

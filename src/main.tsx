@@ -19,6 +19,7 @@ import "./main.css"
 initAnalytics()
 await fetchPublicConfig()
 
+/** Selects the top-level application surface for the current browser path. */
 function Root() {
   const path = window.location.pathname
 

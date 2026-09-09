@@ -20,6 +20,7 @@ type NebuLoginProps = {
   socialProviders?: NebuSocialProvider[]
 }
 
+/** Renders the NEBU email and social-provider login experience. */
 export function NebuLogin({
   authConfigured = true,
   socialProviders,
