@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import {
   buildSocialProviders,
   getNebuAuth,
@@ -10,7 +10,7 @@ import { createApp } from './app'
 import { resetServerEnvCache } from './env'
 
 describe('NEBU Better Auth', () => {
-  afterEach(() => {
+  beforeEach(() => {
     resetNebuAuthCache()
     resetServerEnvCache()
     delete process.env.BETTER_AUTH_SECRET
@@ -20,6 +20,7 @@ describe('NEBU Better Auth', () => {
     delete process.env.GOOGLE_CLIENT_SECRET
     delete process.env.MICROSOFT_CLIENT_ID
     delete process.env.MICROSOFT_CLIENT_SECRET
+    delete process.env.MICROSOFT_TENANT_ID
     delete process.env.MS_CLIENT_ID
     delete process.env.MS_CLIENT_SECRET
     delete process.env.APPLE_CLIENT_ID

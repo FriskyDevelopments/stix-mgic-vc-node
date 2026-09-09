@@ -160,7 +160,6 @@ export function createApp() {
       identityProviders,
       nebuBetterAuthConfigured: isNebuBetterAuthConfigured(),
       nebuSocialProviders: listConfiguredSocialProviders(),
-      nebuLoginPath: '/login',
       capabilities: {
         telegramAuth: {
           ready: env.telegramConfigured && Boolean(env.TELEGRAM_BOT_USERNAME),

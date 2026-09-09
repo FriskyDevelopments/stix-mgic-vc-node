@@ -60,25 +60,30 @@ export function NebuLogin({
     }
 
     setIsSubmitting(true)
-    const result =
-      mode === 'signin'
-        ? await nebuAuthClient.signIn.email({ email, password, callbackURL: '/' })
-        : await nebuAuthClient.signUp.email({ name, email, password, callbackURL: '/' })
-    setIsSubmitting(false)
+    try {
+      const result =
+        mode === 'signin'
+          ? await nebuAuthClient.signIn.email({ email, password, callbackURL: '/' })
+          : await nebuAuthClient.signUp.email({ name, email, password, callbackURL: '/' })
 
-    if (result.error) {
-      setError(result.error.message ?? 'Could not complete sign-in.')
-      return
+      if (result.error) {
+        setError(result.error.message ?? 'Could not complete sign-in.')
+        return
+      }
+
+      if (mode === 'signup') {
+        setMode('signin')
+        setPassword('')
+        setNotice('Account created. You can sign in now.')
+        return
+      }
+
+      window.location.replace('/')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not complete sign-in.')
+    } finally {
+      setIsSubmitting(false)
     }
-
-    if (mode === 'signup') {
-      setMode('signin')
-      setPassword('')
-      setNotice('Account created. You can sign in now.')
-      return
-    }
-
-    window.location.replace('/')
   }
 
   const signInWithProvider = async (provider: NebuSocialProvider) => {
@@ -89,13 +94,18 @@ export function NebuLogin({
       return
     }
     setPendingProvider(provider)
-    const result = await nebuAuthClient.signIn.social({
-      provider,
-      callbackURL: '/',
-    })
-    if (result.error) {
+    try {
+      const result = await nebuAuthClient.signIn.social({
+        provider,
+        callbackURL: '/',
+      })
+      if (!result.error) return
+
       setPendingProvider(null)
       setError(result.error.message ?? 'Could not start social sign-in.')
+    } catch (cause) {
+      setPendingProvider(null)
+      setError(cause instanceof Error ? cause.message : 'Could not start social sign-in.')
     }
   }
 
@@ -174,50 +184,55 @@ export function NebuLogin({
             ))}
           </div>
 
-          <div
-            className="my-6 flex items-center gap-3 text-[11px] font-bold tracking-[0.16em] text-black/40"
-            role="separator"
-          >
-            <span className="h-px flex-1 bg-black/15" />
-            OR EMAIL
-            <span className="h-px flex-1 bg-black/15" />
+          <div className="my-6 flex items-center gap-3 text-[11px] font-bold tracking-[0.16em] text-black/40">
+            <span className="h-px flex-1 bg-black/15" aria-hidden="true" />
+            <span>OR EMAIL</span>
+            <span className="h-px flex-1 bg-black/15" aria-hidden="true" />
           </div>
 
           <div
             className="mb-6 grid grid-cols-2 rounded-2xl border border-black/10 p-1"
-            role="tablist"
+            role="radiogroup"
             aria-label="Sign-in mode"
           >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mode === 'signin'}
-              onClick={() => {
-                setMode('signin')
-                setError(null)
-              }}
-              className={`min-h-11 rounded-xl px-3 text-sm font-bold transition ${
+            <label
+              className={`grid min-h-11 cursor-pointer place-items-center rounded-xl px-3 text-sm font-bold transition focus-within:ring-2 focus-within:ring-[#9026ff]/40 ${
                 mode === 'signin' ? 'text-[#0c021a]' : 'text-black/50'
               }`}
               style={mode === 'signin' ? { backgroundColor: NEBU_YELLOW } : undefined}
             >
+              <input
+                className="sr-only"
+                type="radio"
+                name="nebu-login-mode"
+                value="signin"
+                checked={mode === 'signin'}
+                onChange={() => {
+                  setMode('signin')
+                  setError(null)
+                }}
+              />
               Sign in
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mode === 'signup'}
-              onClick={() => {
-                setMode('signup')
-                setError(null)
-              }}
-              className={`min-h-11 rounded-xl px-3 text-sm font-bold transition ${
+            </label>
+            <label
+              className={`grid min-h-11 cursor-pointer place-items-center rounded-xl px-3 text-sm font-bold transition focus-within:ring-2 focus-within:ring-[#9026ff]/40 ${
                 mode === 'signup' ? 'text-[#0c021a]' : 'text-black/50'
               }`}
               style={mode === 'signup' ? { backgroundColor: NEBU_YELLOW } : undefined}
             >
+              <input
+                className="sr-only"
+                type="radio"
+                name="nebu-login-mode"
+                value="signup"
+                checked={mode === 'signup'}
+                onChange={() => {
+                  setMode('signup')
+                  setError(null)
+                }}
+              />
               Create account
-            </button>
+            </label>
           </div>
 
           <form className="space-y-4" onSubmit={(e) => void submit(e)}>
