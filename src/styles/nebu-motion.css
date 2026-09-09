@@ -1,0 +1,104 @@
+/* NEBU brand motion — aligned to nebu-board tokens */
+:root {
+  --nebu-bg: #0d081a;
+  --nebu-bg-2: #1a0a2e;
+  --nebu-yellow: #f5e000;
+  --nebu-purple: #9026ff;
+  --nebu-cyan: #6bd9ff;
+  --nebu-ink: #0c021a;
+}
+
+@keyframes nebu-float {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50% { transform: translateY(-14px) rotate(1.5deg); }
+}
+
+@keyframes nebu-pulse-live {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55); }
+  70% { box-shadow: 0 0 0 12px rgba(34, 197, 94, 0); }
+}
+
+@keyframes nebu-blob {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(4%, -6%) scale(1.08); }
+  66% { transform: translate(-5%, 3%) scale(0.96); }
+}
+
+@keyframes nebu-spark {
+  0%, 100% { transform: scale(1) rotate(0deg); opacity: 1; }
+  50% { transform: scale(1.18) rotate(12deg); opacity: 0.85; }
+}
+
+@keyframes nebu-rise {
+  from { opacity: 0; transform: translateY(28px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.nebu-blob {
+  animation: nebu-blob 14s ease-in-out infinite;
+}
+.nebu-blob-delay {
+  animation-delay: -4s;
+}
+.nebu-float {
+  animation: nebu-float 6.5s ease-in-out infinite;
+}
+.nebu-live-pulse {
+  animation: nebu-pulse-live 2.2s ease-out infinite;
+}
+.nebu-spark {
+  animation: nebu-spark 2.8s ease-in-out infinite;
+}
+.nebu-rise {
+  animation: nebu-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.nebu-rise-1 { animation-delay: 0.05s; }
+.nebu-rise-2 { animation-delay: 0.14s; }
+.nebu-rise-3 { animation-delay: 0.24s; }
+.nebu-rise-4 { animation-delay: 0.34s; }
+
+.nebu-card {
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease, border-color 0.25s ease;
+}
+.nebu-card:hover,
+.nebu-card:focus-within {
+  transform: translateY(-6px);
+  box-shadow: 6px 6px 0 var(--nebu-ink);
+}
+
+.nebu-cta {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+.nebu-cta:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 4px 4px 0 var(--nebu-ink);
+  filter: brightness(1.05);
+}
+.nebu-cta:active {
+  transform: translateY(1px) scale(0.99);
+  box-shadow: 1px 1px 0 var(--nebu-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nebu-blob,
+  .nebu-blob-delay,
+  .nebu-float,
+  .nebu-live-pulse,
+  .nebu-spark,
+  .nebu-rise,
+  .nebu-rise-1,
+  .nebu-rise-2,
+  .nebu-rise-3,
+  .nebu-rise-4 {
+    animation: none !important;
+  }
+  .nebu-card,
+  .nebu-cta {
+    transition: none !important;
+  }
+  .nebu-card:hover,
+  .nebu-card:focus-within,
+  .nebu-cta:hover {
+    transform: none !important;
+  }
+}

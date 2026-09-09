@@ -6,7 +6,7 @@ describe('NebuLogin brand surface', () => {
   const source = readFileSync(resolve(__dirname, 'NebuLogin.tsx'), 'utf8')
 
   it('uses NEBU brand colors and copy', () => {
-    expect(source).toContain('#1a0a2e')
+    expect(source).toContain('#0d081a')
     expect(source).toContain('#F5E000')
     expect(source).toContain('NEBU')
     expect(source).toContain('nebu.quest')
