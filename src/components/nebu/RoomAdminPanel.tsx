@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { getStatus } from '@/lib/telegram-vc-api'
-import { postRoomAdmin, type RoomAdminParticipant } from '@/lib/rooms-api'
+import { postRoomAdmin, RoomsApiError, type RoomAdminParticipant } from '@/lib/rooms-api'
 import {
   roomAdminUiCan,
   type HostControlAction,
@@ -112,6 +112,29 @@ export function RoomAdminPanel({
           toast.success(`Room admin · ${action}`)
         }
       } catch (error) {
+        // Hydrate capabilities from 403 denial bodies so guests/non-hosts sync server role state.
+        if (error instanceof RoomsApiError) {
+          if (error.role || error.authPlane || typeof error.canModerate === 'boolean') {
+            dispatch({
+              type: 'set_room_admin_capabilities',
+              role: error.role ?? role,
+              authPlane: error.authPlane ?? snapshot.roomAdminAuthPlane,
+              canModerate:
+                typeof error.canModerate === 'boolean'
+                  ? error.canModerate
+                  : error.status === 403
+                    ? false
+                    : undefined,
+            })
+          } else if (error.status === 403) {
+            dispatch({
+              type: 'set_room_admin_capabilities',
+              role: 'guest',
+              authPlane: snapshot.roomAdminAuthPlane,
+              canModerate: false,
+            })
+          }
+        }
         const message = error instanceof Error ? error.message : 'Room admin failed'
         console.error('[room-admin]', action, message)
         toast.error(message)

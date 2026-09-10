@@ -22,6 +22,9 @@ Room admin honors **three auth planes**. Do **not** merge Better Auth with Authe
 
 API gate: `POST /v1/rooms/:id/admin` resolves a `RoomAdminActor` (`operatorId` + `operatorPlatform` + optional NEBU session fields), maps it through `resolveRoomAdminRole`, and returns **403** with a clear `error` / `code` / `role` / `authPlane` when denied. Never silent no-op.
 
+Auth-plane priority: **FriskyDev / Authentik (`isStudioAuthPlane`) wins over a verified NEBU session** so dual-cookie studio operators are never demoted to `nebu_host`. Denial responses include `canModerate: false` for client capability hydrate.
+
+
 ### Better Auth wiring status
 
 **STUB:** Better Auth session is **not** yet resolved inside `/v1/rooms/:id/admin`. The hook is `resolveNebuSessionForRoomAdmin` in `server/room-admin.ts` (returns `null` today). When wired, call `getNebuAuth().api.getSession` against the **NEBU cookie only**. Role matrix + gate hooks are defined and tested; dens-host enforcement activates once the stub returns a real user id.
@@ -63,7 +66,7 @@ POST /v1/rooms/:id/admin
 { "action": "end" }
 ```
 
-Responses return the updated participant list plus `role` / `authPlane` / `canModerate` so the dashboard can re-render without a poll.
+Responses return the updated participant list plus `role` / `authPlane` / `canModerate` so the dashboard can re-render without a poll. Success defaults `canModerate` **fail-closed** (`?? false`). 403 bodies also carry `canModerate: false` for capability hydrate.
 
 ---
 

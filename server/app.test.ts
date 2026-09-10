@@ -1,5 +1,5 @@
 import { createHash, createHmac } from 'node:crypto'
-import { describe, expect, it, beforeEach } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp } from './app'
 import { resetServerEnvCache } from './env'
 import { configureAccountStore, resetAccountStore } from './account-store'
@@ -603,5 +603,46 @@ describe('room admin API (ROOM-ADMIN.md)', () => {
     expect(res.status).toBe(403)
     const body = await res.json()
     expect(body.code).toBe('telegram_only')
+    expect(body.canModerate).toBe(false)
+  })
+
+  it('returns canModerate on success and hydrates canModerate:false on guest 403', async () => {
+    process.env.AUTH_REQUIRED = 'false'
+    const { createApp } = await import('./app')
+    const { createRoom, resetRooms } = await import('./rooms')
+    const { telegramVcAdapter } = await import('./telegram-vc-adapter')
+    resetRooms()
+
+    const room = createRoom({ ownerOperatorId: 'anonymous:local', platform: 'telegram' })
+    const app = createApp()
+
+    vi.spyOn(telegramVcAdapter, 'mute').mockResolvedValueOnce({
+      participants: [{ id: '1', name: 'User 1', muted: true }],
+      count: 1,
+    } as never)
+
+    const okRes = await app.request(`/v1/rooms/${room.id}/admin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'mute', target: '1' }),
+    })
+    expect(okRes.status).toBe(200)
+    const okBody = await okRes.json()
+    // Fail-closed route still returns true when caps.canModerate is defined for owners.
+    expect(okBody.canModerate).toBe(true)
+
+    // Default anonymous:local is a guest on a room owned by someone else.
+    const other = createRoom({ ownerOperatorId: 'telegram:other-owner', platform: 'telegram' })
+    const guestRes = await app.request(`/v1/rooms/${other.id}/admin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'mute', target: '1' }),
+    })
+    expect(guestRes.status).toBe(403)
+    const guestBody = await guestRes.json()
+    expect(guestBody.code).toBe('forbidden')
+    expect(guestBody.role).toBe('guest')
+    expect(guestBody.canModerate).toBe(false)
+    expect(guestBody.authPlane).toBeTruthy()
   })
 })

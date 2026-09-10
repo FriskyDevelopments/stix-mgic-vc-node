@@ -44,6 +44,7 @@ import { telegramVcAdapter } from './telegram-vc-adapter'
 import {
   executeRoomAdmin,
   httpStatusForRoomAdmin,
+  isStudioAuthPlane,
   parseRoomAdminAction,
   resolveNebuSessionForRoomAdmin,
   type RoomAdminActionName,
@@ -843,14 +844,18 @@ export function createApp() {
       )
     }
 
-    // STUB: Better Auth session is not wired into this route yet.
+    // Resolve studio (FriskyDev / Authentik) plane BEFORE the NEBU STUB session so
+    // studio operators are never misclassified as dens hosts once the STUB is wired.
     // When wired, resolveNebuSessionForRoomAdmin will call getNebuAuth().api.getSession
     // against the NEBU cookie only — never the studio Authentik/OIDC cookie.
-    const nebuSession = resolveNebuSessionForRoomAdmin(c.req.header('cookie'))
+    const operatorPlatform = c.get('operatorPlatform')
+    const nebuSession = isStudioAuthPlane(operatorPlatform)
+      ? null
+      : resolveNebuSessionForRoomAdmin(c.req.header('cookie'))
 
     const actor: RoomAdminActor = {
       operatorId: c.get('operatorId'),
-      operatorPlatform: c.get('operatorPlatform'),
+      operatorPlatform,
       nebuUserId: nebuSession?.userId ?? null,
       nebuSessionVerified: Boolean(nebuSession?.userId),
     }
@@ -862,12 +867,15 @@ export function createApp() {
     })
 
     if (!result.ok) {
+      // Capability hydrate on denial — clients sync role / canModerate from 403 bodies
+      // (never leave guests stuck with a stale "host" chrome).
       return c.json(
         {
           error: result.error,
           code: result.code,
           role: result.role ?? null,
           authPlane: result.authPlane ?? null,
+          canModerate: false,
         },
         httpStatusForRoomAdmin(result)
       )
@@ -882,7 +890,8 @@ export function createApp() {
       title: result.title ?? null,
       role: result.role ?? null,
       authPlane: result.authPlane ?? null,
-      canModerate: result.canModerate ?? true,
+      // Fail-closed: never invent moderation rights when the capability is missing.
+      canModerate: result.canModerate ?? false,
     })
   })
 

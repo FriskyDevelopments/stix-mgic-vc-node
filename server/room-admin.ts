@@ -192,8 +192,10 @@ export function actorOperatesRoom(room: Room, operatorId: string): boolean {
  * Authentik/FriskyDev is never inferred from a NEBU cookie, and vice versa.
  */
 export function resolveRoomAdminAuthPlane(actor: RoomAdminActor): RoomAdminAuthPlane {
-  if (actor.nebuSessionVerified && actor.nebuUserId) return 'nebu'
+  // Studio / Authentik first — a FriskyDev operator with a NEBU dens cookie must not
+  // be demoted to nebu_host when the Better Auth STUB is later wired.
   if (isStudioAuthPlane(actor.operatorPlatform)) return 'friskydev'
+  if (actor.nebuSessionVerified && actor.nebuUserId) return 'nebu'
   return 'telegram_guest'
 }
 

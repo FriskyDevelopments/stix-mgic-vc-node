@@ -187,7 +187,33 @@ describe('authorization matrix (three auth planes)', () => {
     }
   })
 
-  it('gives legacy telegram room owners dens-host actions but not studio title/invite', () => {
+  it('prefers FriskyDev studio plane over a verified NEBU session (no dual-cookie demotion)', () => {
+    const room = createRoom({ ownerOperatorId: FRISKY_OWNER, platform: 'telegram' })
+    const dualCookie: RoomAdminActor = {
+      operatorId: FRISKY_OWNER,
+      operatorPlatform: 'friskydev',
+      nebuUserId: 'user-42',
+      nebuSessionVerified: true,
+    }
+    expect(resolveRoomAdminAuthPlane(dualCookie)).toBe('friskydev')
+    expect(resolveRoomAdminRole(room, dualCookie)).toBe('studio_operator')
+    expect(validateRoomAdminAccess(room, dualCookie, 'title')).toBeNull()
+    expect(validateRoomAdminAccess(room, dualCookie, 'invite')).toBeNull()
+  })
+
+  it('prefers supabase studio plane over NEBU even when dens session is verified', () => {
+    const room = createRoom({ ownerOperatorId: 'supabase:acct', platform: 'telegram' })
+    const dual: RoomAdminActor = {
+      operatorId: 'supabase:acct',
+      operatorPlatform: 'supabase',
+      nebuUserId: 'user-99',
+      nebuSessionVerified: true,
+    }
+    expect(resolveRoomAdminAuthPlane(dual)).toBe('friskydev')
+    expect(resolveRoomAdminRole(room, dual)).toBe('studio_operator')
+  })
+
+    it('gives legacy telegram room owners dens-host actions but not studio title/invite', () => {
     const room = createRoom({ ownerOperatorId: OWNER, platform: 'telegram' })
     const actor: RoomAdminActor = { operatorId: OWNER, operatorPlatform: 'telegram' }
     expect(resolveRoomAdminRole(room, actor)).toBe('nebu_host')
@@ -204,6 +230,7 @@ describe('executeRoomAdmin', () => {
     if (!result.ok) return
     expect(result.participants[0]?.muted).toBe(true)
     expect(result.pendingMtproto).toContain('EditGroupCallParticipant')
+    expect(result.canModerate).toBe(true)
   })
 
   it('ends the call without a target', async () => {
@@ -225,6 +252,7 @@ describe('executeRoomAdmin', () => {
     if (result.ok) return
     expect(result.code).toBe('forbidden')
     expect(result.role).toBe('guest')
+    expect(result.authPlane).toBe('friskydev')
     expect(httpStatusForRoomAdmin(result)).toBe(403)
   })
 
