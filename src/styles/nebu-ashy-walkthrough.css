@@ -1,0 +1,435 @@
+/* NEBU Ashy mega-easy walkthrough — neo-brutal cinematic brand tokens */
+
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Manrope:wght@500;600;700;800&display=swap');
+
+.nebu-ashy {
+  --night: #0b001a;
+  --yellow: #ffd100;
+  --violet: #9d00ff;
+  --cyan: #00e5ff;
+  --lime: #b7ff2a;
+  --paper: #f7f5f2;
+  --muted: #bcb4c9;
+  --line: #4b4059;
+  --ink: #121212;
+  --panel: #191424;
+  min-height: 100vh;
+  color: var(--paper);
+  background:
+    radial-gradient(circle at 88% 8%, color-mix(in srgb, var(--violet) 34%, transparent), transparent 32%),
+    radial-gradient(circle at 8% 70%, color-mix(in srgb, var(--cyan) 18%, transparent), transparent 28%),
+    var(--night);
+  font-family: Manrope, system-ui, sans-serif;
+}
+
+.nebu-ashy * { box-sizing: border-box; }
+
+.nebu-ashy__shell {
+  width: min(1120px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 1.25rem 0 3.5rem;
+}
+
+.nebu-ashy__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.nebu-ashy__brand {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.nebu-ashy__brand strong {
+  font-family: 'Bricolage Grotesque', Manrope, sans-serif;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.nebu-ashy__brand span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.nebu-ashy__nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.nebu-ashy__chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0 0.85rem;
+  border: 2px solid #000;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 90%, transparent);
+  color: var(--paper);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  box-shadow: 3px 3px 0 #000;
+}
+
+.nebu-ashy__chip.is-yellow {
+  background: var(--yellow);
+  color: var(--ink);
+}
+
+.nebu-ashy__hero {
+  display: grid;
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+  padding: 1.5rem;
+  border: 3px solid #000;
+  border-radius: 1.5rem;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--violet) 22%, var(--panel)), var(--panel));
+  box-shadow: 8px 8px 0 #000;
+}
+
+.nebu-ashy__kicker {
+  margin: 0;
+  color: var(--cyan);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.nebu-ashy__hero h1 {
+  margin: 0.35rem 0 0;
+  max-width: 16ch;
+  font-family: 'Bricolage Grotesque', Manrope, sans-serif;
+  font-size: clamp(2.4rem, 7vw, 4.4rem);
+  font-weight: 800;
+  line-height: 0.92;
+  letter-spacing: -0.04em;
+}
+
+.nebu-ashy__hero h1 em {
+  font-style: normal;
+  color: var(--yellow);
+}
+
+.nebu-ashy__sub {
+  margin: 0;
+  max-width: 42rem;
+  color: color-mix(in srgb, var(--paper) 72%, transparent);
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+.nebu-ashy__cta-line {
+  margin: 0;
+  color: var(--lime);
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.nebu-ashy__pipes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.nebu-ashy__pipe {
+  padding: 0.9rem 1rem;
+  border: 2px solid #000;
+  border-radius: 1rem;
+  background: var(--night);
+  box-shadow: 4px 4px 0 #000;
+}
+
+.nebu-ashy__pipe[data-status='active'] {
+  background: color-mix(in srgb, var(--cyan) 16%, var(--night));
+  outline: 2px solid var(--cyan);
+  outline-offset: -2px;
+}
+
+.nebu-ashy__pipe[data-status='done'] {
+  background: color-mix(in srgb, var(--lime) 14%, var(--night));
+}
+
+.nebu-ashy__pipe[data-status='locked'] {
+  opacity: 0.55;
+}
+
+.nebu-ashy__pipe-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.nebu-ashy__pipe-status {
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.nebu-ashy__pipe[data-status='active'] .nebu-ashy__pipe-status { color: var(--cyan); }
+.nebu-ashy__pipe[data-status='done'] .nebu-ashy__pipe-status { color: var(--lime); }
+.nebu-ashy__pipe[data-status='locked'] .nebu-ashy__pipe-status { color: #7a708c; }
+
+.nebu-ashy__pipe p {
+  margin: 0.45rem 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.nebu-ashy__rule {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border: 2px solid #000;
+  border-left: 6px solid var(--yellow);
+  border-radius: 0.85rem;
+  background: color-mix(in srgb, var(--yellow) 12%, var(--night));
+  color: var(--paper);
+  font-size: 0.86rem;
+  font-weight: 700;
+  box-shadow: 4px 4px 0 #000;
+}
+
+.nebu-ashy__grid {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.9fr) minmax(280px, 1.1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.nebu-ashy__panel {
+  padding: 1.15rem;
+  border: 3px solid #000;
+  border-radius: 1.25rem;
+  background: var(--panel);
+  box-shadow: 6px 6px 0 #000;
+}
+
+.nebu-ashy__panel h2 {
+  margin: 0.2rem 0 0;
+  font-family: 'Bricolage Grotesque', Manrope, sans-serif;
+  font-size: clamp(1.7rem, 4vw, 2.4rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.nebu-ashy__meta {
+  margin: 0;
+  color: var(--violet);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.nebu-ashy__body {
+  margin: 0.85rem 0 0;
+  color: color-mix(in srgb, var(--paper) 78%, transparent);
+  font-size: 0.95rem;
+  line-height: 1.65;
+}
+
+.nebu-ashy__checklist {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.nebu-ashy__checklist li {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.7rem 0.8rem;
+  border: 2px solid #000;
+  border-radius: 0.8rem;
+  background: var(--night);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.nebu-ashy__checklist button {
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid #000;
+  border-radius: 0.3rem;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.nebu-ashy__checklist button[aria-pressed='true'] {
+  background: var(--lime);
+}
+
+.nebu-ashy__checklist small {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.nebu-ashy__progress {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 0.35rem;
+  margin: 0 0 1rem;
+}
+
+.nebu-ashy__progress span {
+  height: 0.35rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--line) 70%, transparent);
+}
+
+.nebu-ashy__progress span.is-seen { background: var(--violet); }
+.nebu-ashy__progress span.is-current {
+  background: var(--cyan);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--cyan) 70%, transparent);
+}
+
+.nebu-ashy__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1.1rem;
+}
+
+.nebu-ashy__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 2.75rem;
+  padding: 0 1.1rem;
+  border: 2px solid #000;
+  border-radius: 999px;
+  background: var(--yellow);
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 4px 4px 0 #000;
+}
+
+.nebu-ashy__btn:hover { filter: brightness(1.05); }
+.nebu-ashy__btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: none;
+}
+
+.nebu-ashy__btn.is-ghost {
+  background: transparent;
+  color: var(--paper);
+}
+
+.nebu-ashy__btn.is-violet {
+  background: var(--violet);
+  color: #fff;
+}
+
+.nebu-ashy__note {
+  margin: 0.65rem 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.nebu-ashy__tip {
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  border: 2px dashed color-mix(in srgb, var(--cyan) 55%, #000);
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, var(--cyan) 8%, transparent);
+  color: color-mix(in srgb, var(--paper) 88%, transparent);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.nebu-ashy__unit {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.nebu-ashy__unit-card {
+  padding: 0.9rem 1rem;
+  border: 2px solid #000;
+  border-radius: 0.9rem;
+  background: var(--night);
+}
+
+.nebu-ashy__unit-card strong {
+  display: block;
+  font-size: 0.95rem;
+}
+
+.nebu-ashy__unit-card span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.nebu-ashy__unit-card code {
+  display: inline-block;
+  margin-top: 0.35rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, var(--violet) 28%, transparent);
+  color: var(--paper);
+  font-size: 0.75rem;
+}
+
+.nebu-ashy__footer {
+  margin-top: 1.75rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.nebu-ashy__footer a {
+  color: var(--cyan);
+  text-decoration: none;
+  font-weight: 700;
+}
+
+@media (max-width: 860px) {
+  .nebu-ashy__pipes,
+  .nebu-ashy__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nebu-ashy__btn,
+  .nebu-ashy__chip,
+  .nebu-ashy__progress span {
+    transition: none;
+  }
+}

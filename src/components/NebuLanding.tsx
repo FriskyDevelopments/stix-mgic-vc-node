@@ -9,6 +9,7 @@ const INK = '#0c021a'
 
 const STUDIO_URL = 'https://vc.friskydev.com'
 const LOGIN_URL = '/login'
+const ASHY_WALKTHROUGH_URL = '/units/ashy'
 const DONATE_URL = 'https://ko-fi.com/friskypup'
 const CRYPTO_DONATE_URL = 'https://nowpayments.io/donation/Frisky'
 
@@ -55,6 +56,9 @@ export function NebuLanding() {
           <a href="#studio" className="hidden text-white/70 transition hover:text-white sm:inline">
             Look around
           </a>
+          <a href={ASHY_WALKTHROUGH_URL} className="hidden text-white/70 transition hover:text-white sm:inline">
+            Ashy’s walkthrough
+          </a>
           <a href="#support" className="hidden text-white/70 transition hover:text-white sm:inline">
             Support
           </a>
@@ -98,6 +102,13 @@ export function NebuLanding() {
               </a>
               <a href="#studio" className="text-sm font-bold text-white/70 underline-offset-4 hover:underline">
                 Take a look around
+              </a>
+              <a
+                href={ASHY_WALKTHROUGH_URL}
+                className="text-sm font-bold underline-offset-4 hover:underline"
+                style={{ color: YELLOW }}
+              >
+                Like Ashy’s room
               </a>
             </div>
           </div>

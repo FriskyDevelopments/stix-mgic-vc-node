@@ -31,4 +31,9 @@ describe('NebuLanding brand surface', () => {
     expect(source).toContain('https://nowpayments.io/donation/Frisky')
     expect(source).toContain('id="support"')
   })
+
+  it('links Ashy’s mega-easy walkthrough', () => {
+    expect(source).toContain('/units/ashy')
+    expect(source).toContain('Like Ashy’s room')
+  })
 })

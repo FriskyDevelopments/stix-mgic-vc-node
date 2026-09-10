@@ -145,7 +145,7 @@ export function VcMvpShell() {
     <main className="vc-shell"><div className="vc-ambient" aria-hidden="true" /><div className="vc-app">
       <header className="vc-header">
         <a className="vc-brand" href="/" aria-label="VC Node home"><img className="vc-mark" src="/vc-node-icon.png?v=2" alt="" /><span><strong>VC NODE</strong><small>FRISKY DEVELOPMENTS</small></span></a>
-        <div className="vc-header-right"><span className="vc-live"><i /> NODE ONLINE</span><button className="vc-studio-trigger" onClick={() => setStudioOpen((open) => !open)}><SlidersHorizontal size={17} /> {studioOpen ? 'Hide controls' : 'Control room'}</button></div>
+        <div className="vc-header-right"><a className="vc-studio-trigger" href="/units/ashy" style={{ textDecoration: 'none' }}>Ashy walkthrough</a><span className="vc-live"><i /> NODE ONLINE</span><button className="vc-studio-trigger" onClick={() => setStudioOpen((open) => !open)}><SlidersHorizontal size={17} /> {studioOpen ? 'Hide controls' : 'Control room'}</button></div>
       </header>
       <section className="vc-identity"><IdentityGate onChange={setAuthenticated} /></section>
       <section className="vc-stage" aria-label="Local video preview">
