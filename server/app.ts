@@ -51,12 +51,10 @@ import { getRtmpPublishConfig } from './rtmp-ingest'
 import { discordInteractions } from './discord-interactions'
 import {
   listPlaylists,
-  getPlaylist,
   createPlaylist,
   addPlaylistItem,
   playPlaylist,
   nextPlaylistItem,
-  prevPlaylistItem,
 } from './playlist-store'
 import { listStickers, saveSticker } from './stickers'
 import { getAvailableAudioDevices, setActiveAudioSource, type AudioSourceKind } from './audio-devices'
