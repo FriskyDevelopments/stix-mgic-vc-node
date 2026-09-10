@@ -7,6 +7,7 @@ import { DiscordCallback } from './components/DiscordCallback.tsx'
 import { SpotifyCallback } from './components/SpotifyCallback.tsx'
 import { NebuLogin } from './components/NebuLogin.tsx'
 import { NebuLanding } from './components/NebuLanding.tsx'
+import { NebuAshyWalkthrough } from './components/NebuAshyWalkthrough.tsx'
 import { ErrorFallback } from './ErrorFallback.tsx'
 import {
   getAnalyticsClient,
@@ -68,6 +69,11 @@ function Root() {
     host.endsWith('.nebu.quest')
   if (path === '/welcome' || (path === '/' && isNebuHost)) {
     return <NebuLanding />
+  }
+
+  // Ashy-first mega-easy walkthrough (marketing + local preview).
+  if (path === '/units/ashy' || path === '/units/ashy/') {
+    return <NebuAshyWalkthrough />
   }
 
   return <App />
