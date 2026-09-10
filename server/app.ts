@@ -52,6 +52,17 @@ import {
 } from './room-admin'
 import { getRtmpPublishConfig } from './rtmp-ingest'
 import { discordInteractions } from './discord-interactions'
+import {
+  listPlaylists,
+  createPlaylist,
+  addPlaylistItem,
+  playPlaylist,
+  nextPlaylistItem,
+} from './playlist-store'
+import { listStickers, saveSticker } from './stickers'
+import { getAvailableAudioDevices, setActiveAudioSource, type AudioSourceKind } from './audio-devices'
+import { lookupMusicArtwork } from './music-artwork'
+import { listMediaFiles, saveMediaFile } from './media-upload'
 import { oidcCallback, oidcLogout, oidcMe, oidcStart, sessionClaimsFromCookie } from './oidc'
 import { supabaseSession } from './supabase-auth'
 import { handleTelegramUpdate, isTelegramWebhookAuthorized, WEBHOOK_HEADER } from './telegram-bot'
@@ -895,12 +906,10 @@ export function createApp() {
     })
   })
 
-  // A Telegram MTProto session can control live call participants. Keep this surface
-  // behind the same operator authentication boundary as rooms. In particular, the
-  // primary Supabase social-login flow uses the HttpOnly vc_session cookie, not a
-  // browser-readable bearer token; rejecting that cookie here made the authenticated
-  // operator unable even to inspect or pair the adapter.
-  app.use('/v1/telegram-vc/*', async (c, next) => {
+
+  // Shared operator gate for live-control surfaces (Telegram VC, playlists, uploads).
+  // Accepts HttpOnly vc_session cookie, FriskyDev bearer, or operator bearer — never anonymous.
+  const requireLiveOperator = async (c: Context<{ Variables: Variables }>, next: () => Promise<void>) => {
     const header = c.req.header('authorization') || ''
     const token = header.startsWith('Bearer ') ? header.slice(7) : ''
     const cookieClaims = !token ? sessionClaimsFromCookie(c.req.header('cookie')) : null
@@ -933,7 +942,33 @@ export function createApp() {
     c.set('operatorPlatform', claims.platform)
     if (claims.accountId) c.set('friskyAccountId', claims.accountId)
     await next()
-  })
+  }
+
+  const tenantFrom = (c: Context<{ Variables: Variables }>) => {
+    const tenant = c.get('friskyAccountId') || c.get('operatorId')
+    if (!tenant) throw new Error('Operator identity required')
+    return tenant
+  }
+
+  // A Telegram MTProto session can control live call participants. Keep this surface
+  // behind the same operator authentication boundary as rooms. In particular, the
+  // primary Supabase social-login flow uses the HttpOnly vc_session cookie, not a
+  // browser-readable bearer token; rejecting that cookie here made the authenticated
+  // operator unable even to inspect or pair the adapter.
+  app.use('/v1/telegram-vc/*', requireLiveOperator)
+
+  // DJ simplify live-control / upload surfaces — same privilege as telegram-vc.
+  // Unauthenticated callers must not mutate shared playlists or drive adapter.source.
+  app.use('/v1/playlists/*', requireLiveOperator)
+  app.use('/v1/playlists', requireLiveOperator)
+  app.use('/v1/stickers/*', requireLiveOperator)
+  app.use('/v1/stickers', requireLiveOperator)
+  app.use('/v1/media/*', requireLiveOperator)
+  app.use('/v1/media', requireLiveOperator)
+  app.use('/v1/audio/*', requireLiveOperator)
+  app.use('/v1/audio', requireLiveOperator)
+  app.use('/v1/music/*', requireLiveOperator)
+  app.use('/v1/music', requireLiveOperator)
 
   // RTMP credentials are the keys to publish into the live pipeline. They follow the
   // same social-session/operator-token boundary as the Telegram VC controls.
@@ -978,8 +1013,15 @@ export function createApp() {
       adapter: 'telegram-vc',
       client: { connected: result.paired, userId: null, username: null },
       call: {
-        state: result.active ? 'active' : 'idle', chatId: result.chatId ? String(result.chatId) : null,
-        ssrc: null, activeSource: result.source ? 'rtmp' : null, error: null, joinedAt: null, hasTransport: result.active,
+        state: result.active ? 'active' : 'idle',
+        chatId: result.chatId ? String(result.chatId) : null,
+        ssrc: null,
+        activeSource: result.source ? 'rtmp' : null,
+        error: null,
+        joinedAt: null,
+        hasTransport: result.active,
+        camera: result.camera ?? false,
+        paused: result.paused ?? false,
       },
     }
   }
@@ -987,9 +1029,12 @@ export function createApp() {
     try { return c.json(await telegramStatus()) } catch (error) { return c.json({ error: error instanceof Error ? error.message : 'Telegram adapter unavailable' }, 503) }
   })
   app.post('/v1/telegram-vc/join', async (c) => {
-    const body: { chatId?: string; source?: string } = await c.req.json<{ chatId?: string; source?: string }>().catch(() => ({}))
-    try { await telegramVcAdapter.join(body.chatId || '', body.source || ''); return c.json({ call: (await telegramStatus()).call }) }
-    catch (error) { return c.json({ error: error instanceof Error ? error.message : 'Could not join Telegram group call' }, 503) }
+    const body: { chatId?: string; source?: string; camera?: boolean } = await c.req.json<{ chatId?: string; source?: string; camera?: boolean }>().catch(() => ({}))
+    try {
+      const cam = body.camera !== false // default true for cam auto-on (Bug 5)
+      await telegramVcAdapter.join(body.chatId || '', body.source || '', cam)
+      return c.json({ call: (await telegramStatus()).call })
+    } catch (error) { return c.json({ error: error instanceof Error ? error.message : 'Could not join Telegram group call' }, 503) }
   })
   app.post('/v1/telegram-vc/leave', async (c) => {
     try { await telegramVcAdapter.leave(); return c.json({ call: (await telegramStatus()).call }) }
@@ -1000,34 +1045,195 @@ export function createApp() {
     try { await telegramVcAdapter.source(body.config?.url || body.config?.path || ''); return c.json({ call: (await telegramStatus()).call }) }
     catch (error) { return c.json({ error: error instanceof Error ? error.message : 'Could not switch Telegram source' }, 503) }
   })
+
+  // Playback controls (Bug 2)
+  app.post('/v1/telegram-vc/pause', async (c) => {
+    try { await telegramVcAdapter.pause(); return c.json({ call: (await telegramStatus()).call }) }
+    catch (error) { return c.json({ error: error instanceof Error ? error.message : 'Could not pause' }, 503) }
+  })
+  app.post('/v1/telegram-vc/resume', async (c) => {
+    try { await telegramVcAdapter.resume(); return c.json({ call: (await telegramStatus()).call }) }
+    catch (error) { return c.json({ error: error instanceof Error ? error.message : 'Could not resume' }, 503) }
+  })
+  app.post('/v1/telegram-vc/skip', async (c) => {
+    try { await telegramVcAdapter.skip(); return c.json({ call: (await telegramStatus()).call }) }
+    catch (error) { return c.json({ error: error instanceof Error ? error.message : 'Could not skip' }, 503) }
+  })
+  app.post('/v1/telegram-vc/stop', async (c) => {
+    try { await telegramVcAdapter.stop(); return c.json({ call: (await telegramStatus()).call }) }
+    catch (error) { return c.json({ error: error instanceof Error ? error.message : 'Could not stop' }, 503) }
+  })
+  app.post('/v1/telegram-vc/cam', async (c) => {
+    const body: { on?: boolean } = await c.req.json<{ on?: boolean }>().catch(() => ({}))
+    try { await telegramVcAdapter.setCamera(!!body.on); return c.json({ call: (await telegramStatus()).call }) }
+    catch (error) { return c.json({ error: error instanceof Error ? error.message : 'Could not toggle camera' }, 503) }
+  })
+
   app.get('/v1/telegram-vc/groups', async (c) => {
     try { return c.json(await telegramVcAdapter.groups()) }
     catch (error) { return c.json({ error: error instanceof Error ? error.message : 'Could not load Telegram groups' }, 503) }
   })
   app.get('/v1/telegram-vc/participants', async (c) => {
+    const chatId = c.req.query('chatId')
     try {
+      if (chatId) {
+        return c.json(await telegramVcAdapter.participants(chatId))
+      }
       const result = await telegramVcAdapter.participants()
       return c.json({
         participants: result.participants ?? [],
         count: result.count ?? 0,
         pendingMtproto: result.pendingMtproto ?? null,
+        active: result.active,
+        chatId: result.chatId ?? null,
+        source: result.source ?? null,
+        title: result.title ?? null,
       })
     } catch (error) {
       return c.json({ error: error instanceof Error ? error.message : 'Could not load participants' }, 503)
     }
   })
   app.post('/v1/telegram-vc/mute', async (c) => {
-    const body: { participantId?: string; target?: string } = await c.req
-      .json<{ participantId?: string; target?: string }>()
-      .catch(() => ({}))
+    const body = await c.req
+      .json<{
+        chatId?: string
+        participantId?: string
+        target?: string
+        expectedCallId?: string
+        onlyIfCameraOff?: boolean
+      }>()
+      .catch(() => ({} as {
+        chatId?: string
+        participantId?: string
+        target?: string
+        expectedCallId?: string
+        onlyIfCameraOff?: boolean
+      }))
     const target = (body.target || body.participantId || '').trim()
+    if (body.chatId && body.participantId) {
+      try {
+        const res = await telegramVcAdapter.mute(
+          body.chatId,
+          body.participantId,
+          body.expectedCallId || '',
+          { onlyIfCameraOff: !!body.onlyIfCameraOff }
+        )
+        return c.json({ ok: true, ...res })
+      } catch (error) {
+        return c.json({ error: error instanceof Error ? error.message : 'Mute failed' }, 503)
+      }
+    }
     if (!target) return c.json({ error: 'target user id is required' }, 400)
     try {
       const result = await telegramVcAdapter.mute(target)
-      return c.json({ ok: true, participants: result.participants, count: result.count, pendingMtproto: result.pendingMtproto ?? null })
+      return c.json({
+        ok: true,
+        participants: result.participants,
+        count: result.count,
+        pendingMtproto: result.pendingMtproto ?? null,
+      })
     } catch (error) {
       return c.json({ error: error instanceof Error ? error.message : 'Could not mute participant' }, 503)
     }
+  })
+
+  // Playlists / queue (Bug 3)
+  app.get('/v1/playlists', (c) => {
+    // In real multi-tenant, derive tenant from operator; here use a default or frisky account
+    const tenant = tenantFrom(c)
+    return c.json({ playlists: listPlaylists(tenant) })
+  })
+  app.post('/v1/playlists', async (c) => {
+    const body = await c.req.json<{ name?: string }>().catch(() => ({} as { name?: string }))
+    const tenant = tenantFrom(c)
+    const pl = createPlaylist(tenant, body.name || 'New Playlist')
+    return c.json({ playlist: pl })
+  })
+  app.post('/v1/playlists/:id/items', async (c) => {
+    const body = await c.req.json<{ url?: string; title?: string; duration?: number }>().catch(() => ({} as { url?: string; title?: string; duration?: number }))
+    const tenant = tenantFrom(c)
+    const url = (body.url || '').trim()
+    if (!url) return c.json({ error: 'url is required' }, 400)
+    if (!/^https?:\/\//i.test(url) && !url.startsWith('/') && !url.startsWith('file:')) {
+      return c.json({ error: 'url must be http(s), file, or absolute path' }, 400)
+    }
+    const pl = addPlaylistItem(tenant, c.req.param('id'), { url, title: body.title, duration: body.duration })
+    return pl ? c.json({ playlist: pl }) : c.json({ error: 'Playlist not found' }, 404)
+  })
+  app.post('/v1/playlists/:id/play', async (c) => {
+    const tenant = tenantFrom(c)
+    try {
+      const pl = await playPlaylist(tenant, c.req.param('id'))
+      return pl ? c.json({ playlist: pl }) : c.json({ error: 'Playlist not found or empty' }, 404)
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : 'Could not play playlist' }, 503)
+    }
+  })
+  app.post('/v1/playlists/:id/next', async (c) => {
+    const tenant = tenantFrom(c)
+    try {
+      const pl = await nextPlaylistItem(tenant, c.req.param('id'))
+      return pl ? c.json({ playlist: pl }) : c.json({ error: 'Playlist not found' }, 404)
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : 'Could not advance playlist' }, 503)
+    }
+  })
+
+  // Stickers (Bug 4)
+  app.get('/v1/stickers', (c) => {
+    const tenant = tenantFrom(c)
+    return c.json({ stickers: listStickers(tenant) })
+  })
+  app.post('/v1/stickers/upload', async (c) => {
+    const body = await c.req.json<{ name?: string; data?: string }>().catch(() => ({} as { name?: string; data?: string }))
+    if (!body.data) return c.json({ error: 'data (base64) required' }, 400)
+    if (body.data.length > 11_000_000) return c.json({ error: 'Sticker too large (max ~8MB)' }, 413)
+    const tenant = tenantFrom(c)
+    const buf = Buffer.from(body.data, 'base64')
+    if (buf.length > 8 * 1024 * 1024) return c.json({ error: 'Sticker too large (max 8MB)' }, 413)
+    const sticker = saveSticker(tenant, body.name || 'upload.png', buf)
+    return c.json({ sticker })
+  })
+
+  // Audio source + real levels (Bug 6)
+  app.get('/v1/audio/devices', (c) => c.json(getAvailableAudioDevices()))
+  app.post('/v1/audio/source', async (c) => {
+    const body = await c.req.json<{ source?: AudioSourceKind }>().catch(() => ({} as { source?: AudioSourceKind }))
+    const src = body.source || 'file'
+    return c.json(setActiveAudioSource(src))
+  })
+
+  // Media upload for clipflow file picker (Bug 10)
+  app.get('/v1/media/files', (c) => {
+    const tenant = tenantFrom(c)
+    return c.json({ files: listMediaFiles(tenant) })
+  })
+  app.get('/v1/media', (c) => {
+    const tenant = tenantFrom(c)
+    return c.json({ files: listMediaFiles(tenant) })
+  })
+  // POST /v1/media/upload would use multipart; simplified JSON for now
+  app.post('/v1/media/upload', async (c) => {
+    const body = await c.req.json<{ name?: string; data?: string; base64?: string }>().catch(
+      () => ({} as { name?: string; data?: string; base64?: string })
+    )
+    const tenant = tenantFrom(c)
+    const payload = body.data || body.base64
+    if (!payload) return c.json({ error: 'data required' }, 400)
+    if (payload.length > 45_000_000) return c.json({ error: 'Media too large (max ~32MB)' }, 413)
+    const buf = Buffer.from(payload, 'base64')
+    if (buf.length > 32 * 1024 * 1024) return c.json({ error: 'Media too large (max 32MB)' }, 413)
+    const f = saveMediaFile(tenant, body.name || 'clip.bin', buf)
+    return c.json({ file: f })
+  })
+
+  // Apple music artwork (Bug 9) - simple lookup
+  app.get('/v1/music/artwork', async (c) => {
+    const id = c.req.query('id')
+    if (!id) return c.json({ error: 'id required' }, 400)
+    const art = await lookupMusicArtwork(id)
+    return c.json(art)
+
   })
 
   return app

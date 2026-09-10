@@ -94,6 +94,7 @@ class LiveSessionApi implements SessionApi {
     if (existing) return existing
 
     if (getAppEnv().authRequired) {
+      // Bug 7 fix: never attempt anonymous when AUTH_REQUIRED. Caller must have real token.
       return null
     }
 
@@ -112,7 +113,11 @@ class LiveSessionApi implements SessionApi {
 
   async startSession(request: StartSessionRequest): Promise<SessionSnapshot> {
     log.info('session', 'Live startSession', request)
-    await this.ensureOperatorToken()
+    const token = await this.ensureOperatorToken()
+    if (getAppEnv().authRequired && !token) {
+      // Bug 7: surface clear sign-in message instead of letting it 401/403 deep in preflight
+      throw new Error('Sign in with your operator account first (AUTH_REQUIRED is enabled)')
+    }
     const snapshot = await liveRequest<SessionSnapshot>('/v1/sessions/start', {
       method: 'POST',
       body: JSON.stringify(request),
