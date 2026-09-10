@@ -9,6 +9,7 @@ import {
 import { BusyNote } from '@/components/nebu/BusyNote'
 import { CameraRequestPrompt } from '@/components/nebu/CameraRequestPrompt'
 import { HostTransmission } from '@/components/nebu/HostTransmission'
+import { RoomAdminPanel } from '@/components/nebu/RoomAdminPanel'
 import '@/styles/nebu-motion.css'
 import '@/styles/nebu-host-controls.css'
 
@@ -17,6 +18,8 @@ export type HostControlsProps = {
   dispatch: (action: HostControlAction) => void
   /** Progressive disclosure — quiet until the host opens it. */
   defaultOpen?: boolean
+  /** Studio room id for POST /v1/rooms/:id/admin (ROOM-ADMIN.md). */
+  roomId?: string | null
 }
 
 const NUDGE_OPTIONS: Array<{ kind: HostNudgeKind; label: string }> = [
@@ -29,7 +32,7 @@ const NUDGE_OPTIONS: Array<{ kind: HostNudgeKind; label: string }> = [
   { kind: 'host_needs_attention', label: 'Host needs attention' },
 ]
 
-export function HostControls({ snapshot, dispatch, defaultOpen = false }: HostControlsProps) {
+export function HostControls({ snapshot, dispatch, defaultOpen = false, roomId = null }: HostControlsProps) {
   const [open, setOpen] = useState(defaultOpen)
   const [customNotice, setCustomNotice] = useState('')
   const [confirmEnd, setConfirmEnd] = useState(false)
@@ -105,6 +108,8 @@ export function HostControls({ snapshot, dispatch, defaultOpen = false }: HostCo
       )}
 
       <HostTransmission nudges={snapshot.nudges} />
+
+      <RoomAdminPanel roomId={roomId} snapshot={snapshot} dispatch={dispatch} density="full" />
 
       {open && snapshot.isHost && (
         <div className="nebu-hc-details">

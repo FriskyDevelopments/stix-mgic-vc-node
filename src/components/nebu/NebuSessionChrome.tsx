@@ -18,6 +18,8 @@ export type NebuSessionChromeProps = {
   onToggleLocalCamera?: () => void
   onEndSession?: () => void
   onCopyInvite?: () => void
+  /** Studio room id for Telegram room-admin API. */
+  roomId?: string | null
   /** Optional: parent registers wire handler when CallStage constructs the client. */
   hostControlHandlerRef?: MutableRefObject<
     ((payload: HostControlWirePayload, from: string) => void) | null
@@ -44,7 +46,7 @@ export function NebuSessionChrome(props: NebuSessionChromeProps) {
     <>
       {session.snapshot.chromeMode === 'full' && (
         <div className="nebu-hc-expand">
-          <HostControls snapshot={session.snapshot} dispatch={session.dispatch} />
+          <HostControls snapshot={session.snapshot} dispatch={session.dispatch} roomId={props.roomId} />
         </div>
       )}
       <MiniControlWidget
@@ -52,6 +54,7 @@ export function NebuSessionChrome(props: NebuSessionChromeProps) {
         dispatch={session.dispatch}
         onToggleMic={props.onToggleLocalMic}
         onToggleCamera={props.onToggleLocalCamera}
+        roomId={props.roomId}
       />
     </>
   )

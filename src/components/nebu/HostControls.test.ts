@@ -6,6 +6,7 @@ describe('Nebu host controls surface copy', () => {
   const host = readFileSync(resolve(__dirname, 'HostControls.tsx'), 'utf8')
   const cam = readFileSync(resolve(__dirname, 'CameraRequestPrompt.tsx'), 'utf8')
   const mini = readFileSync(resolve(__dirname, 'MiniControlWidget.tsx'), 'utf8')
+  const roomAdmin = readFileSync(resolve(__dirname, 'RoomAdminPanel.tsx'), 'utf8')
   const css = readFileSync(resolve(__dirname, '../../styles/nebu-host-controls.css'), 'utf8')
 
   it('keeps consent-forward camera request copy', () => {
@@ -36,5 +37,22 @@ describe('Nebu host controls surface copy', () => {
   it('does not redefine NebuLanding marketing identity', () => {
     expect(host).not.toContain('Set the scene')
     expect(host).not.toContain('Open your studio')
+  })
+
+  it('ships ROOM-ADMIN.md controls with confirm end and per-row mute/kick', () => {
+    expect(roomAdmin).toContain('Telegram · Room admin')
+    expect(roomAdmin).toContain("run('mute'")
+    expect(roomAdmin).toContain("run('kick'")
+    expect(roomAdmin).toContain("run('pin'")
+    expect(roomAdmin).toContain('Confirm end call')
+    expect(roomAdmin).toContain('postRoomAdmin')
+    expect(host).toContain('RoomAdminPanel')
+    expect(mini).toContain('RoomAdminPanel')
+  })
+
+  it('uses Nebu night / yellow / violet brand tokens for room-admin chrome', () => {
+    expect(css).toContain('#0b001a')
+    expect(css).toContain('#ffd100')
+    expect(css).toContain('#9d00ff')
   })
 })

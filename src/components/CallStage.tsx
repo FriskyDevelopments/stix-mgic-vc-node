@@ -240,6 +240,7 @@ export function CallStage({
           onToggleLocalCamera={onToggleLocalCamera}
           onEndSession={onEndSession}
           onCopyInvite={onCopyInvite}
+          roomId={roomId}
           hostControlHandlerRef={hostControlHandlerRef}
         />
       )}

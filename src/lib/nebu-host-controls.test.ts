@@ -8,6 +8,7 @@ import {
   deriveAttention,
   micLabel,
   peersToHostParticipants,
+  mergeRoomAdminParticipants,
 } from './nebu-host-controls'
 
 describe('nebu host controls state', () => {
@@ -104,5 +105,73 @@ describe('nebu host controls state', () => {
     })
     expect(snap.room.ended).toBe(true)
     expect(snap.callLive).toBe(false)
+  })
+})
+
+describe('room admin host actions (ROOM-ADMIN.md)', () => {
+  const baseParticipant = {
+    id: 'tg-1',
+    name: 'DJ',
+    role: 'guest' as const,
+    connection: 'connected' as const,
+    cameraOn: true,
+    micState: 'live' as const,
+    cameraRequest: 'camera_live' as const,
+    isActiveSpeaker: true,
+    isSpotlighted: false,
+    isPinned: false,
+  }
+
+  it('mutes, unmutes, kicks, pins, and ends via room_admin_* actions', () => {
+    let snap = createInitialHostSnapshot({
+      callLive: true,
+      telegramVcLive: true,
+      participants: [baseParticipant],
+      roomAdminParticipants: [{ id: 'tg-1', name: 'DJ', muted: false, speaking: true }],
+    })
+
+    snap = applyHostAction(snap, { type: 'room_admin_mute', participantId: 'tg-1' })
+    expect(snap.roomAdminParticipants[0]?.muted).toBe(true)
+    expect(snap.participants[0]?.micState).toBe('host_muted')
+
+    snap = applyHostAction(snap, { type: 'room_admin_unmute', participantId: 'tg-1' })
+    expect(snap.roomAdminParticipants[0]?.muted).toBe(false)
+
+    snap = applyHostAction(snap, { type: 'room_admin_pin', participantId: 'tg-1' })
+    expect(snap.roomAdminParticipants[0]?.pinned).toBe(true)
+    expect(snap.participants[0]?.isPinned).toBe(true)
+
+    snap = applyHostAction(snap, { type: 'room_admin_kick', participantId: 'tg-1' })
+    expect(snap.roomAdminParticipants).toHaveLength(0)
+    expect(snap.participants).toHaveLength(0)
+
+    snap = applyHostAction(
+      createInitialHostSnapshot({ callLive: true, telegramVcLive: true }),
+      { type: 'room_admin_end' }
+    )
+    expect(snap.room.ended).toBe(true)
+    expect(snap.telegramVcLive).toBe(false)
+    expect(snap.callLive).toBe(false)
+  })
+
+  it('merges telegram room-admin rows into host participant views', () => {
+    const merged = mergeRoomAdminParticipants(
+      [],
+      [{ id: '9', name: 'Guest', muted: true, pinned: true }]
+    )
+    expect(merged[0]?.micState).toBe('host_muted')
+    expect(merged[0]?.isPinned).toBe(true)
+  })
+
+  it('clears room-admin overlay when telegram VC goes offline', () => {
+    let snap = createInitialHostSnapshot({
+      telegramVcLive: true,
+      roomAdminParticipants: [{ id: '1', name: 'A', muted: false }],
+      roomAdminPendingMtproto: 'phone.EditGroupCallParticipant',
+    })
+    snap = applyHostAction(snap, { type: 'set_telegram_vc_live', live: false })
+    expect(snap.telegramVcLive).toBe(false)
+    expect(snap.roomAdminParticipants).toHaveLength(0)
+    expect(snap.roomAdminPendingMtproto).toBeNull()
   })
 })

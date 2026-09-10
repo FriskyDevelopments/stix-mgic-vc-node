@@ -87,6 +87,14 @@ export type AttentionItem = {
   participantId?: string
 }
 
+export type RoomAdminParticipantView = {
+  id: string
+  name: string
+  muted: boolean
+  speaking?: boolean
+  pinned?: boolean
+}
+
 export type HostControlAction =
   | { type: 'request_camera'; participantId: string }
   | { type: 'remind_camera'; participantId: string }
@@ -113,6 +121,18 @@ export type HostControlAction =
   | { type: 'set_busy_note'; note: BusyNoteState }
   | { type: 'dismiss_attention'; id: string }
   | { type: 'resolve_attention'; id: string }
+  | { type: 'set_telegram_vc_live'; live: boolean }
+  | {
+      type: 'set_room_admin_participants'
+      participants: RoomAdminParticipantView[]
+      pendingMtproto?: string | null
+      title?: string | null
+    }
+  | { type: 'room_admin_unmute'; participantId: string }
+  | { type: 'room_admin_kick'; participantId: string }
+  | { type: 'room_admin_mute'; participantId: string }
+  | { type: 'room_admin_pin'; participantId: string }
+  | { type: 'room_admin_end' }
 
 /** Wire payload relayed over signaling when both peers are online. */
 export type HostControlWirePayload =
@@ -192,6 +212,12 @@ export type HostSessionSnapshot = {
   localMicEnabled: boolean
   localCameraEnabled: boolean
   callLive: boolean
+  /** True when the Telegram VC adapter reports an active group call. */
+  telegramVcLive: boolean
+  /** Participants returned from POST /v1/rooms/:id/admin (Telegram overlay). */
+  roomAdminParticipants: RoomAdminParticipantView[]
+  roomAdminPendingMtproto: string | null
+  roomAdminTitle: string | null
   /** Actions that only update local UI until the signaling relay lands. */
   stubbedActionKinds: readonly string[]
 }
@@ -235,6 +261,10 @@ export function createInitialHostSnapshot(partial?: Partial<HostSessionSnapshot>
     localMicEnabled: true,
     localCameraEnabled: true,
     callLive: false,
+    telegramVcLive: false,
+    roomAdminParticipants: [],
+    roomAdminPendingMtproto: null,
+    roomAdminTitle: null,
     stubbedActionKinds: STUB_BACKEND_ACTIONS,
     ...partial,
   }
@@ -510,6 +540,52 @@ export function applyHostAction(
     case 'resolve_attention':
       if (next.attention?.id === action.id) next.attention = null
       break
+    case 'set_telegram_vc_live':
+      next.telegramVcLive = action.live
+      if (!action.live) {
+        next.roomAdminParticipants = []
+        next.roomAdminPendingMtproto = null
+      }
+      break
+    case 'set_room_admin_participants':
+      next.roomAdminParticipants = action.participants.map((p) => ({ ...p }))
+      if (action.pendingMtproto !== undefined) next.roomAdminPendingMtproto = action.pendingMtproto
+      if (action.title !== undefined) next.roomAdminTitle = action.title
+      break
+    case 'room_admin_mute':
+      next.roomAdminParticipants = next.roomAdminParticipants.map((p) =>
+        p.id === action.participantId ? { ...p, muted: true, speaking: false } : p
+      )
+      touch(action.participantId, { micState: 'host_muted', isActiveSpeaker: false })
+      break
+    case 'room_admin_unmute':
+      next.roomAdminParticipants = next.roomAdminParticipants.map((p) =>
+        p.id === action.participantId ? { ...p, muted: false } : p
+      )
+      touch(action.participantId, { micState: 'live' })
+      break
+    case 'room_admin_kick':
+      next.roomAdminParticipants = next.roomAdminParticipants.filter((p) => p.id !== action.participantId)
+      next.participants = next.participants.filter((p) => p.id !== action.participantId)
+      if (next.selectedParticipantId === action.participantId) next.selectedParticipantId = null
+      break
+    case 'room_admin_pin':
+      next.roomAdminParticipants = next.roomAdminParticipants.map((p) => ({
+        ...p,
+        pinned: p.id === action.participantId,
+      }))
+      next.participants = next.participants.map((p) => ({
+        ...p,
+        isPinned: p.id === action.participantId,
+      }))
+      break
+    case 'room_admin_end':
+      next.room.ended = true
+      next.callLive = false
+      next.telegramVcLive = false
+      next.roomAdminParticipants = []
+      next.chromeMode = 'full'
+      break
   }
 
   next.attention = deriveAttention(next)
@@ -568,4 +644,29 @@ export function peersToHostParticipants(
 export function newRequestId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
   return `req-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+/** Merge Telegram room-admin participants into host views for the widget list. */
+export function mergeRoomAdminParticipants(
+  existing: HostParticipantView[],
+  admin: RoomAdminParticipantView[]
+): HostParticipantView[] {
+  if (admin.length === 0) return existing
+  const byId = new Map(existing.map((p) => [p.id, p]))
+  for (const row of admin) {
+    const prev = byId.get(row.id)
+    byId.set(row.id, {
+      id: row.id,
+      name: row.name || prev?.name || `User ${row.id}`,
+      role: prev?.role ?? 'guest',
+      connection: prev?.connection ?? 'connected',
+      cameraOn: prev?.cameraOn ?? false,
+      micState: row.muted ? 'host_muted' : prev?.micState === 'host_muted' ? 'muted' : prev?.micState ?? 'live',
+      cameraRequest: prev?.cameraRequest ?? 'idle',
+      isActiveSpeaker: Boolean(row.speaking),
+      isSpotlighted: prev?.isSpotlighted ?? false,
+      isPinned: Boolean(row.pinned) || (prev?.isPinned ?? false),
+    })
+  }
+  return [...byId.values()]
 }

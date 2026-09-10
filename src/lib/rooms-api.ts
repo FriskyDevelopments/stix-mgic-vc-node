@@ -112,3 +112,34 @@ export async function scheduleRoomAt(roomId: string, scheduledFor: number): Prom
 export async function getMediaPlaneStatus(): Promise<MediaPlaneStatus> {
   return request('/v1/media/status')
 }
+
+export type RoomAdminActionName = 'mute' | 'unmute' | 'kick' | 'pin' | 'end' | 'title' | 'invite'
+
+export type RoomAdminParticipant = {
+  id: string
+  name: string
+  muted: boolean
+  volume?: number
+  speaking?: boolean
+  pinned?: boolean
+}
+
+export type RoomAdminResponse = {
+  ok: true
+  action: RoomAdminActionName
+  participants: RoomAdminParticipant[]
+  count: number
+  pendingMtproto: string | null
+  title: string | null
+}
+
+/** ROOM-ADMIN.md — mute / unmute / kick / pin / end (+ optional title / invite). */
+export async function postRoomAdmin(
+  roomId: string,
+  input: { action: RoomAdminActionName; target?: string; title?: string }
+): Promise<RoomAdminResponse> {
+  return request(`/v1/rooms/${encodeURIComponent(roomId)}/admin`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}

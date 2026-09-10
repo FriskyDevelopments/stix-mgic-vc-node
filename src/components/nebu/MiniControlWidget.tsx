@@ -8,6 +8,7 @@ import {
 } from '@phosphor-icons/react'
 import type { HostControlAction, HostSessionSnapshot, MiniWidgetSize } from '@/lib/nebu-host-controls'
 import { BusyNote } from '@/components/nebu/BusyNote'
+import { RoomAdminPanel } from '@/components/nebu/RoomAdminPanel'
 import '@/styles/nebu-motion.css'
 import '@/styles/nebu-host-controls.css'
 
@@ -17,6 +18,7 @@ export type MiniControlWidgetProps = {
   onToggleMic?: () => void
   onToggleCamera?: () => void
   onOpenHostControls?: () => void
+  roomId?: string | null
 }
 
 const SIZES: MiniWidgetSize[] = ['compact', 'standard', 'expanded_mini']
@@ -31,6 +33,7 @@ export function MiniControlWidget({
   onToggleMic,
   onToggleCamera,
   onOpenHostControls,
+  roomId = null,
 }: MiniControlWidgetProps) {
   if (snapshot.chromeMode !== 'mini' || snapshot.room.ended) return null
 
@@ -160,6 +163,10 @@ export function MiniControlWidget({
             </button>
           </div>
         </div>
+      )}
+
+      {snapshot.miniSize !== 'compact' && (
+        <RoomAdminPanel roomId={roomId} snapshot={snapshot} dispatch={dispatch} density="compact" />
       )}
     </aside>
   )
