@@ -44,8 +44,11 @@ import { telegramVcAdapter } from './telegram-vc-adapter'
 import {
   executeRoomAdmin,
   httpStatusForRoomAdmin,
+  isStudioAuthPlane,
   parseRoomAdminAction,
+  resolveNebuSessionForRoomAdmin,
   type RoomAdminActionName,
+  type RoomAdminActor,
 } from './room-admin'
 import { getRtmpPublishConfig } from './rtmp-ingest'
 import { discordInteractions } from './discord-interactions'
@@ -821,8 +824,9 @@ export function createApp() {
   })
 
 
-  // ROOM-ADMIN.md — Telegram VC moderation for the live Studio room.
-  // Destructive `end` is confirmed in the UI; the API still requires the owner token.
+  // ROOM-ADMIN.md — Telegram VC moderation for the live Studio / NEBU dens room.
+  // Auth planes stay separate: FriskyDev Authentik (full), NEBU Better Auth dens host
+  // (limited — STUB session hook), Telegram guests (no moderation). Never silent no-op.
   app.post('/v1/rooms/:id/admin', async (c) => {
     const body = await c.req.json<{
       action?: string
@@ -840,14 +844,41 @@ export function createApp() {
       )
     }
 
-    const result = await executeRoomAdmin(c.req.param('id'), c.get('operatorId'), {
+    // Resolve studio (FriskyDev / Authentik) plane BEFORE the NEBU STUB session so
+    // studio operators are never misclassified as dens hosts once the STUB is wired.
+    // When wired, resolveNebuSessionForRoomAdmin will call getNebuAuth().api.getSession
+    // against the NEBU cookie only — never the studio Authentik/OIDC cookie.
+    const operatorPlatform = c.get('operatorPlatform')
+    const nebuSession = isStudioAuthPlane(operatorPlatform)
+      ? null
+      : resolveNebuSessionForRoomAdmin(c.req.header('cookie'))
+
+    const actor: RoomAdminActor = {
+      operatorId: c.get('operatorId'),
+      operatorPlatform,
+      nebuUserId: nebuSession?.userId ?? null,
+      nebuSessionVerified: Boolean(nebuSession?.userId),
+    }
+
+    const result = await executeRoomAdmin(c.req.param('id'), actor, {
       action: action as RoomAdminActionName,
       target: body.target,
       title: body.title,
     })
 
     if (!result.ok) {
-      return c.json({ error: result.error, code: result.code }, httpStatusForRoomAdmin(result))
+      // Capability hydrate on denial — clients sync role / canModerate from 403 bodies
+      // (never leave guests stuck with a stale "host" chrome).
+      return c.json(
+        {
+          error: result.error,
+          code: result.code,
+          role: result.role ?? null,
+          authPlane: result.authPlane ?? null,
+          canModerate: false,
+        },
+        httpStatusForRoomAdmin(result)
+      )
     }
 
     return c.json({
@@ -857,6 +888,10 @@ export function createApp() {
       count: result.count,
       pendingMtproto: result.pendingMtproto ?? null,
       title: result.title ?? null,
+      role: result.role ?? null,
+      authPlane: result.authPlane ?? null,
+      // Fail-closed: never invent moderation rights when the capability is missing.
+      canModerate: result.canModerate ?? false,
     })
   })
 

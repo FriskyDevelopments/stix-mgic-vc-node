@@ -48,13 +48,31 @@ export type MediaPlaneStatus = {
   maxParticipants?: number
 }
 
+export type RoomsApiErrorBody = {
+  error?: string
+  code?: string
+  role?: 'studio_operator' | 'nebu_host' | 'guest' | null
+  authPlane?: 'friskydev' | 'nebu' | 'telegram_guest' | null
+  canModerate?: boolean | null
+}
+
 export class RoomsApiError extends Error {
+  readonly code?: string
+  readonly role?: RoomsApiErrorBody['role']
+  readonly authPlane?: RoomsApiErrorBody['authPlane']
+  readonly canModerate?: boolean | null
+
   constructor(
     readonly status: number,
-    message: string
+    message: string,
+    extras: Omit<RoomsApiErrorBody, 'error'> = {}
   ) {
     super(message)
     this.name = 'RoomsApiError'
+    this.code = extras.code
+    this.role = extras.role
+    this.authPlane = extras.authPlane
+    this.canModerate = extras.canModerate
   }
 }
 
@@ -66,15 +84,22 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   if (!response.ok) {
     // Surface the node's own message: "Only the room owner can close it" is more use to an
-    // operator than a bare status code.
+    // operator than a bare status code. Room-admin 403s also carry capability hydrate fields.
     let message = `Request failed with ${response.status}`
+    let extras: Omit<RoomsApiErrorBody, 'error'> = {}
     try {
-      const body = (await response.json()) as { error?: string }
+      const body = (await response.json()) as RoomsApiErrorBody
       if (body?.error) message = body.error
+      extras = {
+        code: body?.code,
+        role: body?.role,
+        authPlane: body?.authPlane,
+        canModerate: body?.canModerate,
+      }
     } catch {
       // Non-JSON error body; keep the status line.
     }
-    throw new RoomsApiError(response.status, message)
+    throw new RoomsApiError(response.status, message, extras)
   }
 
   return (await response.json()) as T
@@ -131,6 +156,9 @@ export type RoomAdminResponse = {
   count: number
   pendingMtproto: string | null
   title: string | null
+  role?: 'studio_operator' | 'nebu_host' | 'guest' | null
+  authPlane?: 'friskydev' | 'nebu' | 'telegram_guest' | null
+  canModerate?: boolean | null
 }
 
 /** ROOM-ADMIN.md — mute / unmute / kick / pin / end (+ optional title / invite). */
