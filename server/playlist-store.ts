@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { telegramVcAdapter } from './telegram-vc-adapter'
 
@@ -74,7 +74,27 @@ function saveTenantPlaylists(tenantId: string): void {
 }
 
 export function resetPlaylistStore(): void {
+  // Drop in-memory maps and wipe on-disk tenant files so tests cannot leak across runs.
+  for (const tenantId of [...memoryStore.keys()]) {
+    try {
+      const path = getStoragePath(tenantId)
+      if (existsSync(path)) unlinkSync(path)
+    } catch {
+      /* ignore */
+    }
+  }
   memoryStore.clear()
+  try {
+    const baseDir = process.env.PLAYLIST_DIR || '/data/playlists'
+    const dir = existsSync(baseDir) ? baseDir : resolve(process.cwd(), 'data/playlists')
+    if (existsSync(dir)) {
+      for (const file of readdirSync(dir)) {
+        if (file.endsWith('.json')) unlinkSync(resolve(dir, file))
+      }
+    }
+  } catch {
+    /* ignore */
+  }
 }
 
 export function listPlaylists(tenantId: string): Playlist[] {
@@ -145,7 +165,9 @@ export async function playPlaylist(
     try {
       await telegramVcAdapter.source(currentItem.url)
     } catch (err) {
-      console.warn('[playlist-store] Adapter source switch failed:', err)
+      playlist.playing = false
+      saveTenantPlaylists(tenantId)
+      throw err instanceof Error ? err : new Error('Could not switch Telegram source')
     }
   }
 
@@ -172,7 +194,9 @@ export async function nextPlaylistItem(tenantId: string, playlistId: string): Pr
     try {
       await telegramVcAdapter.source(nextItem.url)
     } catch (err) {
-      console.warn('[playlist-store] Adapter source switch failed:', err)
+      playlist.playing = false
+      saveTenantPlaylists(tenantId)
+      throw err instanceof Error ? err : new Error('Could not switch Telegram source')
     }
   }
 
@@ -198,7 +222,9 @@ export async function prevPlaylistItem(tenantId: string, playlistId: string): Pr
     try {
       await telegramVcAdapter.source(prevItem.url)
     } catch (err) {
-      console.warn('[playlist-store] Adapter source switch failed:', err)
+      playlist.playing = false
+      saveTenantPlaylists(tenantId)
+      throw err instanceof Error ? err : new Error('Could not switch Telegram source')
     }
   }
 

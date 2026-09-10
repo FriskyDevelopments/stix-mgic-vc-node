@@ -873,12 +873,10 @@ export function createApp() {
     })
   })
 
-  // A Telegram MTProto session can control live call participants. Keep this surface
-  // behind the same operator authentication boundary as rooms. In particular, the
-  // primary Supabase social-login flow uses the HttpOnly vc_session cookie, not a
-  // browser-readable bearer token; rejecting that cookie here made the authenticated
-  // operator unable even to inspect or pair the adapter.
-  app.use('/v1/telegram-vc/*', async (c, next) => {
+
+  // Shared operator gate for live-control surfaces (Telegram VC, playlists, uploads).
+  // Accepts HttpOnly vc_session cookie, FriskyDev bearer, or operator bearer — never anonymous.
+  const requireLiveOperator = async (c: Context<{ Variables: Variables }>, next: () => Promise<void>) => {
     const header = c.req.header('authorization') || ''
     const token = header.startsWith('Bearer ') ? header.slice(7) : ''
     const cookieClaims = !token ? sessionClaimsFromCookie(c.req.header('cookie')) : null
@@ -911,7 +909,33 @@ export function createApp() {
     c.set('operatorPlatform', claims.platform)
     if (claims.accountId) c.set('friskyAccountId', claims.accountId)
     await next()
-  })
+  }
+
+  const tenantFrom = (c: Context<{ Variables: Variables }>) => {
+    const tenant = c.get('friskyAccountId') || c.get('operatorId')
+    if (!tenant) throw new Error('Operator identity required')
+    return tenant
+  }
+
+  // A Telegram MTProto session can control live call participants. Keep this surface
+  // behind the same operator authentication boundary as rooms. In particular, the
+  // primary Supabase social-login flow uses the HttpOnly vc_session cookie, not a
+  // browser-readable bearer token; rejecting that cookie here made the authenticated
+  // operator unable even to inspect or pair the adapter.
+  app.use('/v1/telegram-vc/*', requireLiveOperator)
+
+  // DJ simplify live-control / upload surfaces — same privilege as telegram-vc.
+  // Unauthenticated callers must not mutate shared playlists or drive adapter.source.
+  app.use('/v1/playlists/*', requireLiveOperator)
+  app.use('/v1/playlists', requireLiveOperator)
+  app.use('/v1/stickers/*', requireLiveOperator)
+  app.use('/v1/stickers', requireLiveOperator)
+  app.use('/v1/media/*', requireLiveOperator)
+  app.use('/v1/media', requireLiveOperator)
+  app.use('/v1/audio/*', requireLiveOperator)
+  app.use('/v1/audio', requireLiveOperator)
+  app.use('/v1/music/*', requireLiveOperator)
+  app.use('/v1/music', requireLiveOperator)
 
   // RTMP credentials are the keys to publish into the live pipeline. They follow the
   // same social-session/operator-token boundary as the Telegram VC controls.
@@ -1083,43 +1107,57 @@ export function createApp() {
   // Playlists / queue (Bug 3)
   app.get('/v1/playlists', (c) => {
     // In real multi-tenant, derive tenant from operator; here use a default or frisky account
-    const tenant = c.get('friskyAccountId') || c.get('operatorId') || 'default'
+    const tenant = tenantFrom(c)
     return c.json({ playlists: listPlaylists(tenant) })
   })
   app.post('/v1/playlists', async (c) => {
     const body = await c.req.json<{ name?: string }>().catch(() => ({} as { name?: string }))
-    const tenant = c.get('friskyAccountId') || c.get('operatorId') || 'default'
+    const tenant = tenantFrom(c)
     const pl = createPlaylist(tenant, body.name || 'New Playlist')
     return c.json({ playlist: pl })
   })
   app.post('/v1/playlists/:id/items', async (c) => {
     const body = await c.req.json<{ url?: string; title?: string; duration?: number }>().catch(() => ({} as { url?: string; title?: string; duration?: number }))
-    const tenant = c.get('friskyAccountId') || c.get('operatorId') || 'default'
-    const url = body.url || ''
+    const tenant = tenantFrom(c)
+    const url = (body.url || '').trim()
+    if (!url) return c.json({ error: 'url is required' }, 400)
+    if (!/^https?:\/\//i.test(url) && !url.startsWith('/') && !url.startsWith('file:')) {
+      return c.json({ error: 'url must be http(s), file, or absolute path' }, 400)
+    }
     const pl = addPlaylistItem(tenant, c.req.param('id'), { url, title: body.title, duration: body.duration })
     return pl ? c.json({ playlist: pl }) : c.json({ error: 'Playlist not found' }, 404)
   })
   app.post('/v1/playlists/:id/play', async (c) => {
-    const tenant = c.get('friskyAccountId') || c.get('operatorId') || 'default'
-    const pl = await playPlaylist(tenant, c.req.param('id'))
-    return pl ? c.json({ playlist: pl }) : c.json({ error: 'Playlist not found or empty' }, 404)
+    const tenant = tenantFrom(c)
+    try {
+      const pl = await playPlaylist(tenant, c.req.param('id'))
+      return pl ? c.json({ playlist: pl }) : c.json({ error: 'Playlist not found or empty' }, 404)
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : 'Could not play playlist' }, 503)
+    }
   })
   app.post('/v1/playlists/:id/next', async (c) => {
-    const tenant = c.get('friskyAccountId') || c.get('operatorId') || 'default'
-    const pl = await nextPlaylistItem(tenant, c.req.param('id'))
-    return pl ? c.json({ playlist: pl }) : c.json({ error: 'Playlist not found' }, 404)
+    const tenant = tenantFrom(c)
+    try {
+      const pl = await nextPlaylistItem(tenant, c.req.param('id'))
+      return pl ? c.json({ playlist: pl }) : c.json({ error: 'Playlist not found' }, 404)
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : 'Could not advance playlist' }, 503)
+    }
   })
 
   // Stickers (Bug 4)
   app.get('/v1/stickers', (c) => {
-    const tenant = c.get('friskyAccountId') || c.get('operatorId') || 'default'
+    const tenant = tenantFrom(c)
     return c.json({ stickers: listStickers(tenant) })
   })
   app.post('/v1/stickers/upload', async (c) => {
     const body = await c.req.json<{ name?: string; data?: string }>().catch(() => ({} as { name?: string; data?: string }))
     if (!body.data) return c.json({ error: 'data (base64) required' }, 400)
-    const tenant = c.get('friskyAccountId') || c.get('operatorId') || 'default'
+    if (body.data.length > 11_000_000) return c.json({ error: 'Sticker too large (max ~8MB)' }, 413)
+    const tenant = tenantFrom(c)
     const buf = Buffer.from(body.data, 'base64')
+    if (buf.length > 8 * 1024 * 1024) return c.json({ error: 'Sticker too large (max 8MB)' }, 413)
     const sticker = saveSticker(tenant, body.name || 'upload.png', buf)
     return c.json({ sticker })
   })
@@ -1134,11 +1172,11 @@ export function createApp() {
 
   // Media upload for clipflow file picker (Bug 10)
   app.get('/v1/media/files', (c) => {
-    const tenant = c.get('friskyAccountId') || c.get('operatorId') || 'default'
+    const tenant = tenantFrom(c)
     return c.json({ files: listMediaFiles(tenant) })
   })
   app.get('/v1/media', (c) => {
-    const tenant = c.get('friskyAccountId') || c.get('operatorId') || 'default'
+    const tenant = tenantFrom(c)
     return c.json({ files: listMediaFiles(tenant) })
   })
   // POST /v1/media/upload would use multipart; simplified JSON for now
@@ -1146,10 +1184,12 @@ export function createApp() {
     const body = await c.req.json<{ name?: string; data?: string; base64?: string }>().catch(
       () => ({} as { name?: string; data?: string; base64?: string })
     )
-    const tenant = c.get('friskyAccountId') || c.get('operatorId') || 'default'
+    const tenant = tenantFrom(c)
     const payload = body.data || body.base64
     if (!payload) return c.json({ error: 'data required' }, 400)
+    if (payload.length > 45_000_000) return c.json({ error: 'Media too large (max ~32MB)' }, 413)
     const buf = Buffer.from(payload, 'base64')
+    if (buf.length > 32 * 1024 * 1024) return c.json({ error: 'Media too large (max 32MB)' }, 413)
     const f = saveMediaFile(tenant, body.name || 'clip.bin', buf)
     return c.json({ file: f })
   })

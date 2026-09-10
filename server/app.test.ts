@@ -572,36 +572,64 @@ describe('room REST API', () => {
     expect(body.identity.displayName).toBe('@linked_tg')
   })
 
-  it('handles room admin routes: mute, kick, pin, end', async () => {
+  it('exposes unified room admin action endpoint (ROOM-ADMIN.md)', async () => {
     const app = createApp()
     const createRes = await app.request('/v1/rooms', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'Admin Room' }),
     })
+    expect(createRes.status).toBe(200)
     const { room } = (await createRes.json()) as { room: { id: string } }
 
-    // Pin message
-    const pinRes = await app.request(`/v1/rooms/${room.id}/admin/pin`, {
+    const bad = await app.request(`/v1/rooms/${room.id}/admin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: 'Welcome to the show!' }),
+      body: JSON.stringify({ action: 'ban' }),
     })
-    expect(pinRes.status).toBe(200)
-    expect((await pinRes.json()).pinnedMessage).toBe('Welcome to the show!')
+    expect(bad.status).toBe(400)
 
-    // End room
-    const endRes = await app.request(`/v1/rooms/${room.id}/admin/end`, {
+    // Default room platform is web — Telegram-only admin gate.
+    const endRes = await app.request(`/v1/rooms/${room.id}/admin`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'end' }),
     })
-    expect(endRes.status).toBe(200)
+    expect(endRes.status).toBe(403)
+    const body = await endRes.json() as { code?: string }
+    expect(body.code).toBe('telegram_only')
   })
 
-  it('handles playlist routes: create, add items, play, next, prev, pause, resume', async () => {
+  it('requires operator auth on DJ live-control and upload routes', async () => {
     const app = createApp()
+    const paths: Array<{ path: string; method?: string; body?: Record<string, unknown> }> = [
+      { path: '/v1/playlists' },
+      { path: '/v1/playlists', method: 'POST', body: { name: 'x' } },
+      { path: '/v1/stickers' },
+      { path: '/v1/media' },
+      { path: '/v1/media/files' },
+      { path: '/v1/media/upload', method: 'POST', body: { name: 'a.mp4', data: Buffer.from('x').toString('base64') } },
+      { path: '/v1/audio/devices' },
+      { path: '/v1/audio/source', method: 'POST', body: { source: 'mic' } },
+      { path: '/v1/music/artwork?id=1' },
+    ]
+    for (const entry of paths) {
+      const res = await app.request(entry.path, {
+        method: entry.method || 'GET',
+        headers: entry.body ? { 'Content-Type': 'application/json' } : undefined,
+        body: entry.body ? JSON.stringify(entry.body) : undefined,
+      })
+      expect(res.status, entry.path).toBe(401)
+    }
+  })
+
+  it('handles playlist routes: create, add items, list (auth required)', async () => {
+    const app = createApp()
+    const token = mintOperatorToken({ sub: 'dj-op', platform: 'friskydev', name: 'DJ' })
+    const auth = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
     const createRes = await app.request('/v1/playlists', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: auth,
       body: JSON.stringify({ name: 'Midnight Set' }),
     })
     expect(createRes.status).toBe(200)
@@ -609,23 +637,29 @@ describe('room REST API', () => {
 
     const itemRes = await app.request(`/v1/playlists/${playlist.id}/items`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: auth,
       body: JSON.stringify({ url: 'https://example.com/video1.mp4', title: 'Track 1' }),
     })
     expect(itemRes.status).toBe(200)
 
-    const listRes = await app.request('/v1/playlists')
+    const listRes = await app.request('/v1/playlists', { headers: { Authorization: `Bearer ${token}` } })
     expect(listRes.status).toBe(200)
     const listBody = (await listRes.json()) as { playlists: Array<{ id: string }> }
     expect(listBody.playlists.some((p) => p.id === playlist.id)).toBe(true)
 
-    const nextRes = await app.request(`/v1/playlists/${playlist.id}/next`, { method: 'POST' })
-    expect(nextRes.status).toBe(200)
+    // play/next drive the live adapter — without MTProto they must fail closed (not 200)
+    const nextRes = await app.request(`/v1/playlists/${playlist.id}/next`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    expect([503, 404]).toContain(nextRes.status)
   })
 
   it('handles audio devices and audio source endpoints', async () => {
     const app = createApp()
-    const devRes = await app.request('/v1/audio/devices')
+    const token = mintOperatorToken({ sub: 'audio-op', platform: 'friskydev', name: 'Audio' })
+    const auth = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+    const devRes = await app.request('/v1/audio/devices', { headers: { Authorization: `Bearer ${token}` } })
     expect(devRes.status).toBe(200)
     const devBody = (await devRes.json()) as { devices: Array<{ kind: string }>; meter: { rmsLevel: number } }
     expect(devBody.devices.length).toBe(4)
@@ -633,7 +667,7 @@ describe('room REST API', () => {
 
     const setRes = await app.request('/v1/audio/source', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: auth,
       body: JSON.stringify({ source: 'mic' }),
     })
     expect(setRes.status).toBe(200)
@@ -642,7 +676,10 @@ describe('room REST API', () => {
 
   it('handles music artwork lookup endpoint', async () => {
     const app = createApp()
-    const artRes = await app.request('/v1/music/artwork?id=1440857781')
+    const token = mintOperatorToken({ sub: 'music-op', platform: 'friskydev', name: 'Music' })
+    const artRes = await app.request('/v1/music/artwork?id=1440857781', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
     expect(artRes.status).toBe(200)
     const artBody = (await artRes.json()) as { artworkUrl: string }
     expect(artBody.artworkUrl).toBeDefined()
@@ -650,17 +687,21 @@ describe('room REST API', () => {
 
   it('handles media upload and listing endpoints', async () => {
     const app = createApp()
+    const token = mintOperatorToken({ sub: 'media-op', platform: 'friskydev', name: 'Media' })
+    const auth = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
     const uploadRes = await app.request('/v1/media/upload', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'test-upload.mp4', base64: Buffer.from('video-bytes').toString('base64') }),
+      headers: auth,
+      body: JSON.stringify({ name: 'test-upload.mp4', data: Buffer.from('video-bytes').toString('base64') }),
     })
     expect(uploadRes.status).toBe(200)
     const { file } = (await uploadRes.json()) as { file: { id: string; name: string; path: string } }
     expect(file.id).toBeDefined()
 
-    const listRes = await app.request('/v1/media')
+    const listRes = await app.request('/v1/media', { headers: { Authorization: `Bearer ${token}` } })
     expect(listRes.status).toBe(200)
+    const listFiles = await app.request('/v1/media/files', { headers: { Authorization: `Bearer ${token}` } })
+    expect(listFiles.status).toBe(200)
   })
 })
 

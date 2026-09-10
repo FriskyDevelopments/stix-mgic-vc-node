@@ -137,6 +137,16 @@ async function performRequest<T = TelegramVcStatusResult>(payload: Record<string
   const id = randomUUID()
   const reply = await new Promise<Reply>((resolveReply, reject) => {
     const timer = setTimeout(() => {
+      // Hung Python must not wedge the control plane: clear the slot and kill the child
+      // so drainRequests / a fresh launch can proceed without waiting for process exit.
+      if (bridge.pending?.id === id) bridge.pending = null
+      try {
+        bridge.process.kill('SIGKILL')
+      } catch {
+        /* already exited */
+      }
+      if (child === bridge) child = null
+      bridge.failure = 'Telegram adapter timed out'
       reject(new Error('Telegram adapter timed out'))
     }, 20_000)
     bridge.pending = {
@@ -211,6 +221,77 @@ function request<T = TelegramVcStatusResult>(payload: Record<string, string>, si
   })
 }
 
+function participants(): Promise<TelegramVcAdminResult>
+function participants(chatId: string): Promise<TelegramVcParticipants>
+function participants(chatId?: string): Promise<TelegramVcAdminResult | TelegramVcParticipants> {
+  return chatId
+    ? request<TelegramVcParticipants>({ action: 'participants', chatId })
+    : request<TelegramVcAdminResult>({ action: 'participants' })
+}
+
+function mute(target: string): Promise<TelegramVcAdminResult>
+function mute(
+  chatId: string,
+  participantId: string,
+  expectedCallId: string,
+  options?: { signal?: AbortSignal; onlyIfCameraOff?: boolean }
+): Promise<TelegramVcMuteResult>
+function mute(
+  chatIdOrTarget: string,
+  participantId?: string,
+  expectedCallId?: string,
+  options?: { signal?: AbortSignal; onlyIfCameraOff?: boolean }
+): Promise<TelegramVcAdminResult | TelegramVcMuteResult> {
+  if (participantId !== undefined) {
+    return request<TelegramVcMuteResult>(
+      {
+        action: 'mute',
+        chatId: chatIdOrTarget,
+        participantId,
+        expectedCallId: expectedCallId || '',
+        onlyIfCameraOff: options?.onlyIfCameraOff ? 'true' : 'false',
+      },
+      options?.signal
+    )
+  }
+  return request<TelegramVcAdminResult>({ action: 'mute', target: chatIdOrTarget })
+}
+
+function kick(target: string): Promise<TelegramVcAdminResult>
+function kick(
+  chatId: string,
+  participantId: string
+): Promise<{ chatId: string; participantId: string; kicked: boolean }>
+function kick(
+  chatIdOrTarget: string,
+  participantId?: string
+): Promise<TelegramVcAdminResult | { chatId: string; participantId: string; kicked: boolean }> {
+  if (participantId !== undefined) {
+    return request<{ chatId: string; participantId: string; kicked: boolean }>({
+      action: 'kick',
+      chatId: chatIdOrTarget,
+      participantId,
+    })
+  }
+  return request<TelegramVcAdminResult>({ action: 'kick', target: chatIdOrTarget })
+}
+
+function pin(target: string): Promise<TelegramVcAdminResult>
+function pin(chatId: string, messageId: string | number): Promise<{ chatId: string; pinned: boolean }>
+function pin(
+  chatIdOrTarget: string,
+  messageId?: string | number
+): Promise<TelegramVcAdminResult | { chatId: string; pinned: boolean }> {
+  if (messageId !== undefined) {
+    return request<{ chatId: string; pinned: boolean }>({
+      action: 'pin',
+      chatId: chatIdOrTarget,
+      messageId: String(messageId),
+    })
+  }
+  return request<TelegramVcAdminResult>({ action: 'pin', target: chatIdOrTarget })
+}
+
 export const telegramVcAdapter = {
   status: () => request<TelegramVcStatusResult>({ action: 'status' }),
   join: (chatId: string, source: string, camera: boolean = true) =>
@@ -223,52 +304,11 @@ export const telegramVcAdapter = {
   stop: () => request<TelegramVcStatusResult>({ action: 'stop' }),
   setCamera: (on: boolean) => request<TelegramVcStatusResult>({ action: 'cam', on: on ? 'true' : 'false' }),
   groups: () => request<{ groups: TelegramVcGroup[] }>({ action: 'groups' }),
-  /** Room-admin overlay (no chatId) or live MTProto snapshot when chatId is provided. */
-  participants: (chatId?: string) =>
-    chatId
-      ? request<TelegramVcParticipants>({ action: 'participants', chatId })
-      : request<TelegramVcAdminResult>({ action: 'participants' }),
-  mute(
-    chatIdOrTarget: string,
-    participantId?: string,
-    expectedCallId?: string,
-    options?: { signal?: AbortSignal; onlyIfCameraOff?: boolean }
-  ) {
-    if (participantId !== undefined) {
-      return request<TelegramVcMuteResult>(
-        {
-          action: 'mute',
-          chatId: chatIdOrTarget,
-          participantId,
-          expectedCallId: expectedCallId || '',
-          onlyIfCameraOff: options?.onlyIfCameraOff ? 'true' : 'false',
-        },
-        options?.signal
-      )
-    }
-    return request<TelegramVcAdminResult>({ action: 'mute', target: chatIdOrTarget })
-  },
+  participants,
+  mute,
   unmute: (target: string) => request<TelegramVcAdminResult>({ action: 'unmute', target }),
-  kick(chatIdOrTarget: string, participantId?: string) {
-    if (participantId !== undefined) {
-      return request<{ chatId: string; participantId: string; kicked: boolean }>({
-        action: 'kick',
-        chatId: chatIdOrTarget,
-        participantId,
-      })
-    }
-    return request<TelegramVcAdminResult>({ action: 'kick', target: chatIdOrTarget })
-  },
-  pin(chatIdOrTarget: string, messageId?: string | number) {
-    if (messageId !== undefined) {
-      return request<{ chatId: string; pinned: boolean }>({
-        action: 'pin',
-        chatId: chatIdOrTarget,
-        messageId: String(messageId),
-      })
-    }
-    return request<TelegramVcAdminResult>({ action: 'pin', target: chatIdOrTarget })
-  },
+  kick,
+  pin,
   end: () => request<TelegramVcAdminResult>({ action: 'end' }),
   title: (title: string) => request<TelegramVcAdminResult>({ action: 'title', title }),
   invite: (target: string) => request<TelegramVcAdminResult>({ action: 'invite', target }),

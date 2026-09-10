@@ -82,17 +82,22 @@ class Adapter:
             raise AdapterError("Choose an RTMP URL or media source before going live")
         self.ensure_client()
         numeric_chat_id = int(chat_id)
+        camera_on = False
         if camera:
+            stream = source
             try:
                 from pytgcalls.types import AudioVideoPiped
-                self.calls.play(numeric_chat_id, AudioVideoPiped(source))
-            except Exception:
-                self.calls.play(numeric_chat_id, source)
+                stream = AudioVideoPiped(source)
+                camera_on = True
+            except ImportError:
+                stream = source
+                camera_on = False
+            self.calls.play(numeric_chat_id, stream)
         else:
             self.calls.play(numeric_chat_id, source)
         self.chat_id = numeric_chat_id
         self.source = source
-        self.camera = bool(camera)
+        self.camera = camera_on
         self.paused = False
         return self.status()
 
@@ -163,7 +168,23 @@ class Adapter:
     def set_camera(self, on: bool) -> dict[str, Any]:
         if self.chat_id is None:
             raise AdapterError("Join a Telegram group call first")
-        self.camera = bool(on)
+        if not self.source:
+            raise AdapterError("No media source is active for camera changes")
+        if on:
+            try:
+                from pytgcalls.types import AudioVideoPiped
+                self.calls.play(self.chat_id, AudioVideoPiped(self.source))
+            except ImportError as error:
+                raise AdapterError("Camera output is not available in this Telegram build") from error
+            except Exception as error:
+                raise AdapterError("Could not enable camera on the Telegram call") from error
+            self.camera = True
+        else:
+            try:
+                self.calls.play(self.chat_id, self.source)
+            except Exception as error:
+                raise AdapterError("Could not disable camera on the Telegram call") from error
+            self.camera = False
         return self.status()
 
     def groups(self) -> dict[str, Any]:
@@ -344,23 +365,25 @@ class Adapter:
             raise AdapterError("The Telegram operator needs Manage video chats permission")
         assert self.client is not None
         peer = self.client.get_input_entity(int(participant_id))
+        fn = getattr(self.client, "kick_participant", None)
+        if not callable(fn):
+            raise AdapterError("Kick is not available in this Telegram build")
         try:
-            fn = getattr(self.client, "kick_participant", None)
-            if callable(fn):
-                fn(entity, peer)
-        except Exception:
-            pass
+            fn(entity, peer)
+        except Exception as error:
+            raise AdapterError("Telegram did not confirm the kick. Refresh participants") from error
         return {"chatId": chat_id, "participantId": participant_id, "kicked": True}
 
     def pin_live(self, chat_id: str, message_id: Any) -> dict[str, Any]:
         entity, _, _ = self._resolve_call(chat_id)
         assert self.client is not None
+        fn = getattr(self.client, "pin_message", None)
+        if not callable(fn):
+            raise AdapterError("Pin is not available in this Telegram build")
         try:
-            fn = getattr(self.client, "pin_message", None)
-            if callable(fn):
-                fn(entity, int(message_id))
-        except Exception:
-            pass
+            fn(entity, int(message_id))
+        except Exception as error:
+            raise AdapterError("Telegram did not confirm the pin") from error
         return {"chatId": chat_id, "pinned": True}
 
 

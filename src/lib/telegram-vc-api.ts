@@ -117,8 +117,20 @@ export async function getTelegramGroups(): Promise<{ groups: TelegramVcGroup[] }
   return request('/groups')
 }
 
-export async function muteParticipant(participantId: string): Promise<{ ok: boolean }> {
-  return request('/mute', { method: 'POST', body: JSON.stringify({ participantId }) })
+export async function muteParticipant(
+  participantId: string,
+  options?: { chatId?: string; expectedCallId?: string; onlyIfCameraOff?: boolean; target?: string }
+): Promise<{ ok: boolean }> {
+  return request('/mute', {
+    method: 'POST',
+    body: JSON.stringify({
+      participantId,
+      target: options?.target || participantId,
+      chatId: options?.chatId,
+      expectedCallId: options?.expectedCallId,
+      onlyIfCameraOff: options?.onlyIfCameraOff,
+    }),
+  })
 }
 
 export async function getRtmpPublishConfig(): Promise<RtmpPublishConfig> {

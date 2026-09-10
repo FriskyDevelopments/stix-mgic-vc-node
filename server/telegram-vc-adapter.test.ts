@@ -142,27 +142,20 @@ describe('Telegram VC subprocess bridge', () => {
     await expect(result).resolves.toEqual(confirmed)
   })
 
-  it('holds later dispatch after timeout until the original reply drains', async () => {
+  it('kills a hung Python child on timeout so queued work can respawn', async () => {
     const { telegramVcAdapter } = await import('./telegram-vc-adapter')
     const first = expect(telegramVcAdapter.status()).rejects.toThrow('Telegram adapter timed out')
     await vi.advanceTimersByTimeAsync(20_000)
     await first
+    expect(child.kill).toHaveBeenCalledWith('SIGKILL')
 
+    const replacement = fakeChild()
+    spawnMock.mockReturnValue(replacement)
     const second = telegramVcAdapter.leave()
-    expect(child.writes).toHaveLength(1)
-    await vi.advanceTimersByTimeAsync(20_000)
-    expect(child.writes).toHaveLength(1)
-    // Unrelated SDK output cannot release the execution slot.
-    child.stdout.emit('data', '{"id":"unrelated","ok":true,"result":{}}\n')
-    expect(child.writes).toHaveLength(1)
-    child.stdout.emit('data', reply(child, 0, active))
-    expect(child.writes).toHaveLength(2)
-    expect(child.writes[1].id).not.toBe(child.writes[0].id)
-    // A duplicate stale response cannot complete the new request.
-    child.stdout.emit('data', reply(child, 0, active) + reply(child, 1))
+    expect(spawnMock).toHaveBeenCalledTimes(2)
+    expect(replacement.writes[0]).toMatchObject({ action: 'leave' })
+    replacement.stdout.emit('data', reply(replacement, 0, idle))
     await expect(second).resolves.toEqual(idle)
-    expect(child.kill).not.toHaveBeenCalled()
-    expect(spawnMock).toHaveBeenCalledTimes(1)
   })
 
   it('can cancel a moderation job queued behind a timed-out Python operation', async () => {
@@ -170,26 +163,23 @@ describe('Telegram VC subprocess bridge', () => {
     const first = expect(telegramVcAdapter.status()).rejects.toThrow('Telegram adapter timed out')
     const controller = new AbortController()
     const mute = expect(telegramVcAdapter.mute('-100123', '7', '987', { signal: controller.signal, onlyIfCameraOff: true })).rejects.toThrow('Telegram action cancelled')
+    controller.abort()
     await vi.advanceTimersByTimeAsync(20_000)
     await first
-    expect(child.writes).toHaveLength(1)
-    controller.abort()
     await mute
-    child.stdout.emit('data', reply(child, 0))
-    expect(child.writes).toHaveLength(1)
-    expect(child.writes.some(write => write.action === 'mute')).toBe(false)
+    expect(child.kill).toHaveBeenCalledWith('SIGKILL')
+    expect(child.writes.some((write: { action?: string }) => write.action === 'mute')).toBe(false)
   })
 
-  it('releases a timed-out execution slot after process exit and resumes queued work on a replacement', async () => {
+  it('resumes queued work on a replacement process after timeout kill', async () => {
     const { telegramVcAdapter } = await import('./telegram-vc-adapter')
     const first = expect(telegramVcAdapter.status()).rejects.toThrow('Telegram adapter timed out')
-    await vi.advanceTimersByTimeAsync(20_000)
-    await first
     const second = telegramVcAdapter.groups()
-    expect(child.writes).toHaveLength(1)
     const replacement = fakeChild()
     spawnMock.mockReturnValue(replacement)
-    child.emit('exit', 1)
+    await vi.advanceTimersByTimeAsync(20_000)
+    await first
+    expect(child.kill).toHaveBeenCalledWith('SIGKILL')
     expect(spawnMock).toHaveBeenCalledTimes(2)
     expect(replacement.writes[0]).toMatchObject({ action: 'groups' })
     const groups = { groups: [] }
