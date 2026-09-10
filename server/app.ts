@@ -41,6 +41,12 @@ import { issueAltchaChallenge, isAltchaReady, verifyAltcha } from './altcha'
 import { SIGNALING_PATH } from './signaling'
 import { beginPairing, confirmPairing, pairingStatus } from './telegram-vc-pair'
 import { telegramVcAdapter } from './telegram-vc-adapter'
+import {
+  executeRoomAdmin,
+  httpStatusForRoomAdmin,
+  parseRoomAdminAction,
+  type RoomAdminActionName,
+} from './room-admin'
 import { getRtmpPublishConfig } from './rtmp-ingest'
 import { discordInteractions } from './discord-interactions'
 import { oidcCallback, oidcLogout, oidcMe, oidcStart, sessionClaimsFromCookie } from './oidc'
@@ -814,6 +820,46 @@ export function createApp() {
     return c.json(recorded)
   })
 
+
+  // ROOM-ADMIN.md — Telegram VC moderation for the live Studio room.
+  // Destructive `end` is confirmed in the UI; the API still requires the owner token.
+  app.post('/v1/rooms/:id/admin', async (c) => {
+    const body = await c.req.json<{
+      action?: string
+      target?: string
+      title?: string
+    }>().catch(() => ({} as { action?: string; target?: string; title?: string }))
+
+    const action = parseRoomAdminAction(body.action)
+    if (!action) {
+      return c.json(
+        {
+          error: 'Invalid action. Expected mute|unmute|kick|pin|end|title|invite',
+        },
+        400
+      )
+    }
+
+    const result = await executeRoomAdmin(c.req.param('id'), c.get('operatorId'), {
+      action: action as RoomAdminActionName,
+      target: body.target,
+      title: body.title,
+    })
+
+    if (!result.ok) {
+      return c.json({ error: result.error, code: result.code }, httpStatusForRoomAdmin(result))
+    }
+
+    return c.json({
+      ok: true,
+      action: result.action,
+      participants: result.participants,
+      count: result.count,
+      pendingMtproto: result.pendingMtproto ?? null,
+      title: result.title ?? null,
+    })
+  })
+
   // A Telegram MTProto session can control live call participants. Keep this surface
   // behind the same operator authentication boundary as rooms. In particular, the
   // primary Supabase social-login flow uses the HttpOnly vc_session cookie, not a
@@ -923,8 +969,31 @@ export function createApp() {
     try { return c.json(await telegramVcAdapter.groups()) }
     catch (error) { return c.json({ error: error instanceof Error ? error.message : 'Could not load Telegram groups' }, 503) }
   })
-  app.get('/v1/telegram-vc/participants', (c) => c.json({ participants: [], count: 0 }))
-  app.post('/v1/telegram-vc/mute', (c) => c.json({ error: 'Participant moderation is not available in the Telegram adapter yet' }, 501))
+  app.get('/v1/telegram-vc/participants', async (c) => {
+    try {
+      const result = await telegramVcAdapter.participants()
+      return c.json({
+        participants: result.participants ?? [],
+        count: result.count ?? 0,
+        pendingMtproto: result.pendingMtproto ?? null,
+      })
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : 'Could not load participants' }, 503)
+    }
+  })
+  app.post('/v1/telegram-vc/mute', async (c) => {
+    const body: { participantId?: string; target?: string } = await c.req
+      .json<{ participantId?: string; target?: string }>()
+      .catch(() => ({}))
+    const target = (body.target || body.participantId || '').trim()
+    if (!target) return c.json({ error: 'target user id is required' }, 400)
+    try {
+      const result = await telegramVcAdapter.mute(target)
+      return c.json({ ok: true, participants: result.participants, count: result.count, pendingMtproto: result.pendingMtproto ?? null })
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : 'Could not mute participant' }, 503)
+    }
+  })
 
   return app
 }

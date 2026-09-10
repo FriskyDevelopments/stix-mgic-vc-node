@@ -573,3 +573,35 @@ describe('room REST API', () => {
   })
 
 })
+
+describe('room admin API (ROOM-ADMIN.md)', () => {
+  it('rejects invalid admin actions', async () => {
+    const { createApp } = await import('./app')
+    const { createRoom, resetRooms } = await import('./rooms')
+    resetRooms()
+    const room = createRoom({ ownerOperatorId: 'anonymous:local', platform: 'telegram' })
+    const app = createApp()
+    const res = await app.request(`/v1/rooms/${room.id}/admin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'ban' }),
+    })
+    expect(res.status).toBe(400)
+  })
+
+  it('refuses room admin on non-telegram rooms', async () => {
+    const { createApp } = await import('./app')
+    const { createRoom, resetRooms } = await import('./rooms')
+    resetRooms()
+    const room = createRoom({ ownerOperatorId: 'anonymous:local', platform: 'web' })
+    const app = createApp()
+    const res = await app.request(`/v1/rooms/${room.id}/admin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'mute', target: '1' }),
+    })
+    expect(res.status).toBe(403)
+    const body = await res.json()
+    expect(body.code).toBe('telegram_only')
+  })
+})

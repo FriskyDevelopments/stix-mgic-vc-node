@@ -62,3 +62,19 @@ Errors (target not in call, permission denied) surface as toast + log entry, nev
 - Not a full Telegram admin console. No ban-from-group, no slow-mode, no topic management — those stay in Telegram.
 - Not cross-platform. Discord voice has no equivalent moderation surface for bots; this panel is Telegram-only in v1.
 - Not a replacement for the playlist pipeline. Admin commands control *people*, the playlist controls *media*.
+
+---
+
+## Implementation status (Nebu mini widget)
+
+Studio surfaces room admin inside `RoomAdminPanel` (Host Controls + Mini Widget) when Telegram VC is live.
+
+| Action | Node (`telegram-vc-adapter.ts`) | Python bridge | MTProto |
+|---|---|---|---|
+| mute / unmute | `mute` / `unmute` | overlay + pending flag | `phone.EditGroupCallParticipant` **pending** |
+| kick | `kick` | overlay remove | editParticipant remove **pending** |
+| pin | `pin` | overlay pin | primary source raise **pending** |
+| end | `end` | calls `leave_call` | `phone.DiscardGroupCall` **pending** (leave stand-in) |
+| title / invite | `title` / `invite` | local title / no-op invite | EditGroupCall / AddChatUser **pending** |
+
+API: `POST /v1/rooms/:id/admin` — owner-only, Telegram platform rooms. Errors toast + log, never silent.

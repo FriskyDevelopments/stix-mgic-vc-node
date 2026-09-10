@@ -26,6 +26,9 @@ class Adapter:
         self.calls: Any = None
         self.chat_id: int | None = None
         self.source: str | None = None
+        # Local overlay until phone.GetGroupParticipants is wired.
+        self._participant_overlay: dict[str, dict[str, Any]] = {}
+        self._call_title: str | None = None
 
     def ensure_client(self, start_calls: bool = True) -> None:
         """Connect MTProto on demand; only start the call engine when required."""
@@ -68,6 +71,8 @@ class Adapter:
             self.calls.leave_call(self.chat_id)
         self.chat_id = None
         self.source = None
+        self._participant_overlay.clear()
+        self._call_title = None
         return self.status()
 
     def switch_source(self, source: str) -> dict[str, Any]:
@@ -100,6 +105,147 @@ class Adapter:
         return {"groups": groups}
 
 
+    def participants(self) -> dict[str, Any]:
+        """Return call participants when MTProto mapping lands; empty overlay until then."""
+        if self.chat_id is None:
+            raise RuntimeError("Join a Telegram group call first")
+        # PENDING MTProto: phone.GetGroupCall + phone.GetGroupParticipants
+        return {
+            "participants": list(self._participant_overlay.values()),
+            "count": len(self._participant_overlay),
+            "pendingMtproto": "phone.GetGroupCall / phone.GetGroupParticipants",
+            "active": True,
+            "chatId": self.chat_id,
+            "source": self.source,
+            "title": self._call_title,
+        }
+
+    def mute(self, target: str) -> dict[str, Any]:
+        return self._admin_participant("mute", target, muted=True)
+
+    def unmute(self, target: str) -> dict[str, Any]:
+        return self._admin_participant("unmute", target, muted=False)
+
+    def kick(self, target: str) -> dict[str, Any]:
+        if self.chat_id is None:
+            raise RuntimeError("Join a Telegram group call first")
+        if not target.strip():
+            raise RuntimeError("target user id is required")
+        # PENDING MTProto: phone.EditGroupCallParticipant(left=True) / remove
+        self._participant_overlay.pop(target, None)
+        return {
+            "participants": list(self._participant_overlay.values()),
+            "count": len(self._participant_overlay),
+            "pendingMtproto": "phone.EditGroupCallParticipant remove / kick",
+            "active": True,
+            "chatId": self.chat_id,
+            "source": self.source,
+            "title": self._call_title,
+        }
+
+    def pin(self, target: str) -> dict[str, Any]:
+        if self.chat_id is None:
+            raise RuntimeError("Join a Telegram group call first")
+        if not target.strip():
+            raise RuntimeError("target user id is required")
+        # PENDING MTProto: raise video source / set primary presentation
+        for pid, row in self._participant_overlay.items():
+            row["pinned"] = pid == target
+        if target not in self._participant_overlay:
+            self._participant_overlay[target] = {
+                "id": target,
+                "name": f"User {target}",
+                "muted": False,
+                "pinned": True,
+                "speaking": False,
+            }
+        return {
+            "participants": list(self._participant_overlay.values()),
+            "count": len(self._participant_overlay),
+            "pendingMtproto": "pin primary video/screen source",
+            "active": True,
+            "chatId": self.chat_id,
+            "source": self.source,
+            "title": self._call_title,
+        }
+
+    def end(self) -> dict[str, Any]:
+        """End maps to leave_call today; discard GroupCall MTProto still pending."""
+        status = self.leave()
+        self._participant_overlay.clear()
+        self._call_title = None
+        return {
+            "participants": [],
+            "count": 0,
+            "pendingMtproto": "phone.DiscardGroupCall (leave_call used as stand-in)",
+            "active": False,
+            "chatId": None,
+            "source": None,
+            "title": None,
+            **{k: status.get(k) for k in ("paired",) if k in status},
+        }
+
+    def title(self, title: str) -> dict[str, Any]:
+        if self.chat_id is None:
+            raise RuntimeError("Join a Telegram group call first")
+        cleaned = title.strip()
+        if not cleaned:
+            raise RuntimeError("title is required")
+        # PENDING MTProto: phone.EditGroupCall(title=...)
+        self._call_title = cleaned[:128]
+        return {
+            "participants": list(self._participant_overlay.values()),
+            "count": len(self._participant_overlay),
+            "pendingMtproto": "phone.EditGroupCall title",
+            "active": True,
+            "chatId": self.chat_id,
+            "source": self.source,
+            "title": self._call_title,
+        }
+
+    def invite(self, target: str) -> dict[str, Any]:
+        if self.chat_id is None:
+            raise RuntimeError("Join a Telegram group call first")
+        if not target.strip():
+            raise RuntimeError("invite target username/id is required")
+        # PENDING MTProto: messages.AddChatUser / InviteToChannel / importChatInvite
+        return {
+            "participants": list(self._participant_overlay.values()),
+            "count": len(self._participant_overlay),
+            "pendingMtproto": "invite via messages.AddChatUser / InviteToChannel",
+            "active": True,
+            "chatId": self.chat_id,
+            "source": self.source,
+            "title": self._call_title,
+        }
+
+    def _admin_participant(self, action: str, target: str, *, muted: bool) -> dict[str, Any]:
+        if self.chat_id is None:
+            raise RuntimeError("Join a Telegram group call first")
+        if not target.strip():
+            raise RuntimeError("target user id is required")
+        # PENDING MTProto: phone.EditGroupCallParticipant(muted=...)
+        row = self._participant_overlay.get(target) or {
+            "id": target,
+            "name": f"User {target}",
+            "muted": muted,
+            "pinned": False,
+            "speaking": False,
+        }
+        row = {**row, "muted": muted, "speaking": False if muted else row.get("speaking", False)}
+        self._participant_overlay[target] = row
+        return {
+            "participants": list(self._participant_overlay.values()),
+            "count": len(self._participant_overlay),
+            "pendingMtproto": f"phone.EditGroupCallParticipant ({action})",
+            "active": True,
+            "chatId": self.chat_id,
+            "source": self.source,
+            "title": self._call_title,
+        }
+
+
+
 adapter = Adapter()
 
 for line in sys.stdin:
@@ -116,6 +262,22 @@ for line in sys.stdin:
             result = adapter.switch_source(str(request.get("source", "")))
         elif action == "groups":
             result = adapter.groups()
+        elif action == "participants":
+            result = adapter.participants()
+        elif action == "mute":
+            result = adapter.mute(str(request.get("target", "")))
+        elif action == "unmute":
+            result = adapter.unmute(str(request.get("target", "")))
+        elif action == "kick":
+            result = adapter.kick(str(request.get("target", "")))
+        elif action == "pin":
+            result = adapter.pin(str(request.get("target", "")))
+        elif action == "end":
+            result = adapter.end()
+        elif action == "title":
+            result = adapter.title(str(request.get("title", "")))
+        elif action == "invite":
+            result = adapter.invite(str(request.get("target", "")))
         else:
             raise RuntimeError("Unknown Telegram VC action")
         output({"ok": True, "result": result})

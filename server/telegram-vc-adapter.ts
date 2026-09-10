@@ -64,7 +64,27 @@ function launch(): ChildProcessWithoutNullStreams {
   return next
 }
 
-async function request<T = Result>(payload: Record<string, string>): Promise<T> {
+export type TelegramVcAdminParticipant = {
+  id: string
+  name: string
+  muted: boolean
+  volume?: number
+  speaking?: boolean
+  pinned?: boolean
+}
+
+export type TelegramVcAdminResult = {
+  participants: TelegramVcAdminParticipant[]
+  count: number
+  /** Set when the action is accepted locally but MTProto mapping is still pending. */
+  pendingMtproto?: string
+  active?: boolean
+  chatId?: number | null
+  source?: string | null
+  title?: string | null
+}
+
+async function request<T = Result>(payload: Record<string, unknown>): Promise<T> {
   const process = launch()
   if (pending) throw new Error('Telegram adapter is busy')
   const reply = await new Promise<Reply>((resolveReply, reject) => {
@@ -82,4 +102,19 @@ export const telegramVcAdapter = {
   leave: () => request({ action: 'leave' }),
   source: (source: string) => request({ action: 'source', source }),
   groups: () => request<{ groups: TelegramVcGroup[] }>({ action: 'groups' }),
+  participants: () =>
+    request<TelegramVcAdminResult>({ action: 'participants' }),
+  mute: (target: string) =>
+    request<TelegramVcAdminResult>({ action: 'mute', target }),
+  unmute: (target: string) =>
+    request<TelegramVcAdminResult>({ action: 'unmute', target }),
+  kick: (target: string) =>
+    request<TelegramVcAdminResult>({ action: 'kick', target }),
+  pin: (target: string) =>
+    request<TelegramVcAdminResult>({ action: 'pin', target }),
+  end: () => request<TelegramVcAdminResult>({ action: 'end' }),
+  title: (title: string) =>
+    request<TelegramVcAdminResult>({ action: 'title', title }),
+  invite: (target: string) =>
+    request<TelegramVcAdminResult>({ action: 'invite', target }),
 }

@@ -174,6 +174,11 @@ export function VcMvpShell() {
             onRoomChange={setRoomId}
             sinkId={speakerDeviceId}
             onClientReady={(client) => { callClientRef.current = client }}
+            localMicEnabled={micEnabled}
+            localCameraEnabled={cameraEnabled}
+            onToggleLocalMic={toggleMic}
+            onToggleLocalCamera={toggleCamera}
+            isHost
           />
         ) : (
           <div className="vc-locked">
