@@ -3,6 +3,8 @@ import { CallClient, type CallState, type RemotePeer } from '@/lib/webrtc-client
 import { GlassCard } from '@/components/GlassCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { NebuSessionChrome } from '@/components/nebu'
+import type { HostControlWirePayload } from '@/lib/nebu-host-controls'
 
 /**
  * CallStage — the remote side of a call.
@@ -15,6 +17,9 @@ import { Button } from '@/components/ui/button'
  * It is deliberately blunt about failure. A black tile with no explanation is the worst
  * possible outcome for an operator mid-session, so a connection that fails says so, and
  * says that a missing TURN relay is the usual cause.
+ *
+ * Nebu Host Controls + Mini Widget attach here so live session chrome stays on the call
+ * surface without redesigning marketing NebuLanding.
  */
 
 export type CallStageProps = {
@@ -26,6 +31,18 @@ export type CallStageProps = {
   sinkId?: string
   /** Hands the live CallClient up so the shell can switch camera/mic mid-call. */
   onClientReady?: (client: CallClient | null) => void
+  /** Local media chrome for Host Controls / Mini Widget. */
+  localMicEnabled?: boolean
+  localCameraEnabled?: boolean
+  onToggleLocalMic?: () => void
+  onToggleLocalCamera?: () => void
+  inviteUrl?: string | null
+  sessionHealth?: 'healthy' | 'degraded' | 'unknown'
+  isHost?: boolean
+  onEndSession?: () => void
+  onCopyInvite?: () => void
+  /** When false, hide Nebu host chrome (e.g. embedded previews). Default true. */
+  showNebuChrome?: boolean
 }
 
 const STATE_LABEL: Record<CallState, string> = {
@@ -36,7 +53,17 @@ const STATE_LABEL: Record<CallState, string> = {
   error: 'Failed',
 }
 
-function RemoteTile({ peer, sinkId }: { peer: RemotePeer; sinkId?: string }) {
+function RemoteTile({
+  peer,
+  sinkId,
+  spotlighted,
+  pinned,
+}: {
+  peer: RemotePeer
+  sinkId?: string
+  spotlighted?: boolean
+  pinned?: boolean
+}) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
 
   useEffect(() => {
@@ -57,7 +84,11 @@ function RemoteTile({ peer, sinkId }: { peer: RemotePeer; sinkId?: string }) {
   const connected = peer.connectionState === 'connected'
 
   return (
-    <div className="relative overflow-hidden rounded-lg border border-border bg-black/60 aspect-video">
+    <div
+      className={`relative overflow-hidden rounded-lg border bg-black/60 aspect-video ${
+        spotlighted || pinned ? 'border-accent ring-1 ring-accent/40 sm:col-span-2' : 'border-border'
+      }`}
+    >
       <video
         ref={videoRef}
         autoPlay
@@ -83,8 +114,27 @@ function RemoteTile({ peer, sinkId }: { peer: RemotePeer; sinkId?: string }) {
   )
 }
 
-export function CallStage({ roomId, localStream, onStateChange, sinkId, onClientReady }: CallStageProps) {
+export function CallStage({
+  roomId,
+  localStream,
+  onStateChange,
+  sinkId,
+  onClientReady,
+  localMicEnabled = true,
+  localCameraEnabled = true,
+  onToggleLocalMic,
+  onToggleLocalCamera,
+  inviteUrl = null,
+  sessionHealth = 'unknown',
+  isHost = true,
+  onEndSession,
+  onCopyInvite,
+  showNebuChrome = true,
+}: CallStageProps) {
   const clientRef = useRef<CallClient | null>(null)
+  const hostControlHandlerRef = useRef<((payload: HostControlWirePayload, from: string) => void) | null>(
+    null
+  )
   const [state, setState] = useState<CallState>('idle')
   const [peers, setPeers] = useState<RemotePeer[]>([])
   const [error, setError] = useState<{ code: string; message: string } | null>(null)
@@ -105,6 +155,9 @@ export function CallStage({ roomId, localStream, onStateChange, sinkId, onClient
         },
         onPeersChange: setPeers,
         onError: setError,
+        onHostControl: (payload, from) => {
+          hostControlHandlerRef.current?.(payload, from)
+        },
       },
     })
     clientRef.current = client
@@ -122,54 +175,74 @@ export function CallStage({ roomId, localStream, onStateChange, sinkId, onClient
   }, [roomId])
 
   return (
-    <GlassCard className="p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Call stage</span>
-          <Badge
-            variant="outline"
-            className={`font-mono text-[10px] ${
-              state === 'joined' ? 'border-accent text-accent' : 'border-muted text-muted-foreground'
-            }`}
-          >
-            {STATE_LABEL[state]}
-          </Badge>
-        </div>
-        <span className="font-mono text-[10px] text-muted-foreground">
-          {peers.length} {peers.length === 1 ? 'peer' : 'peers'}
-        </span>
-      </div>
-
-      {error && (
-        <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2">
-          <p className="font-mono text-[10px] uppercase tracking-wider text-destructive">{error.code}</p>
-          <p className="mt-1 text-xs text-destructive-foreground/90">{error.message}</p>
-          {error.code === 'peer_connection_failed' && (
-            <Button
+    <div className="space-y-3">
+      <GlassCard className="p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Call stage</span>
+            <Badge
               variant="outline"
-              size="sm"
-              className="mt-2 h-7 font-mono text-[10px]"
-              onClick={() => setError(null)}
+              className={`font-mono text-[10px] ${
+                state === 'joined' ? 'border-accent text-accent' : 'border-muted text-muted-foreground'
+              }`}
             >
-              Dismiss
-            </Button>
-          )}
+              {STATE_LABEL[state]}
+            </Badge>
+          </div>
+          <span className="font-mono text-[10px] text-muted-foreground">
+            {peers.length} {peers.length === 1 ? 'peer' : 'peers'}
+          </span>
         </div>
-      )}
 
-      {peers.length === 0 ? (
-        <p className="py-6 text-center font-mono text-[11px] text-muted-foreground">
-          {state === 'joined'
-            ? 'Nobody else has joined this room yet.'
-            : 'Not connected to a room.'}
-        </p>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {peers.map((peer) => (
-            <RemoteTile key={peer.participant.id} peer={peer} sinkId={sinkId} />
-          ))}
-        </div>
+        {error && (
+          <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2">
+            <p className="font-mono text-[10px] uppercase tracking-wider text-destructive">{error.code}</p>
+            <p className="mt-1 text-xs text-destructive-foreground/90">{error.message}</p>
+            {error.code === 'peer_connection_failed' && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2 h-7 font-mono text-[10px]"
+                onClick={() => setError(null)}
+              >
+                Dismiss
+              </Button>
+            )}
+          </div>
+        )}
+
+        {peers.length === 0 ? (
+          <p className="py-6 text-center font-mono text-[11px] text-muted-foreground">
+            {state === 'joined'
+              ? 'Nobody else has joined this room yet.'
+              : 'Not connected to a room.'}
+          </p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {peers.map((peer) => (
+              <RemoteTile key={peer.participant.id} peer={peer} sinkId={sinkId} />
+            ))}
+          </div>
+        )}
+      </GlassCard>
+
+      {showNebuChrome && (
+        <NebuSessionChrome
+          callClient={clientRef.current}
+          peers={peers}
+          callLive={state === 'joined'}
+          isHost={isHost}
+          inviteUrl={inviteUrl}
+          sessionHealth={sessionHealth}
+          localMicEnabled={localMicEnabled}
+          localCameraEnabled={localCameraEnabled}
+          onToggleLocalMic={onToggleLocalMic}
+          onToggleLocalCamera={onToggleLocalCamera}
+          onEndSession={onEndSession}
+          onCopyInvite={onCopyInvite}
+          hostControlHandlerRef={hostControlHandlerRef}
+        />
       )}
-    </GlassCard>
+    </div>
   )
 }

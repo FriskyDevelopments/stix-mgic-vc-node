@@ -3,6 +3,7 @@ import { apiHeaders, apiUrl } from '@/lib/api-client'
 import { getClientId } from '@/lib/client-id'
 import { log } from '@/lib/log'
 import { getOperatorToken } from '@/lib/operator-token'
+import type { HostControlWirePayload } from '@/lib/nebu-host-controls'
 
 /**
  * webrtc-client.ts — the browser half of the media plane.
@@ -54,6 +55,8 @@ export type CallEvents = {
   onPeersChange?: (peers: RemotePeer[]) => void
   /** Surfaced to the operator; the client keeps running unless the state also goes `error`. */
   onError?: (error: { code: string; message: string }) => void
+  /** Host-control / Nebu transmission payloads relayed through signaling. */
+  onHostControl?: (payload: HostControlWirePayload, fromParticipantId: string) => void
 }
 
 /** Minimal structural view of what this client uses, so a test can supply a double. */
@@ -182,6 +185,20 @@ export class CallClient {
       stream: entry.stream,
       connectionState: entry.connection.connectionState,
     }))
+  }
+
+  getSelfId(): string | null {
+    return this.selfId
+  }
+
+  /**
+   * Relay a Nebu host-control payload through signaling.
+   * `to` targets one participant; omit to broadcast to everyone else in the room.
+   */
+  sendHostControl(payload: HostControlWirePayload, to?: string): boolean {
+    if (!this.socket || this.state !== 'joined') return false
+    this.send({ type: 'host-control', to, payload })
+    return true
   }
 
   /**
@@ -417,6 +434,15 @@ export class CallClient {
           this.setState('error')
         }
         return
+
+      case 'host-control': {
+        const from = String(message.from ?? '')
+        const payload = message.payload as HostControlWirePayload
+        if (from && payload && typeof payload === 'object' && 'kind' in payload) {
+          this.options.events?.onHostControl?.(payload, from)
+        }
+        return
+      }
 
       default:
         return

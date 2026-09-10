@@ -1053,6 +1053,9 @@ function LegacyControlPlane() {
                   <RoomPanel
                     localStream={cameraStream || screenStream}
                     onRoomChange={setRoomId}
+                    localMicEnabled={audioSync !== 'muted'}
+                    localCameraEnabled={Boolean(cameraStream)}
+                    isHost
                   />
                 ) : (
                   <GlassCard className="p-5 text-center text-sm text-muted-foreground">

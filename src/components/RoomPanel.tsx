@@ -32,6 +32,11 @@ export type RoomPanelProps = {
   sinkId?: string
   /** Surfaces the live CallClient so the shell can switch devices mid-call. */
   onClientReady?: (client: import('@/lib/webrtc-client').CallClient | null) => void
+  localMicEnabled?: boolean
+  localCameraEnabled?: boolean
+  onToggleLocalMic?: () => void
+  onToggleLocalCamera?: () => void
+  isHost?: boolean
 }
 
 function adapterTone(state: MediaPlaneStatus['adapters'][number]['state']): string {
@@ -45,7 +50,17 @@ function adapterTone(state: MediaPlaneStatus['adapters'][number]['state']): stri
   }
 }
 
-export function RoomPanel({ localStream, onRoomChange, sinkId, onClientReady }: RoomPanelProps) {
+export function RoomPanel({
+  localStream,
+  onRoomChange,
+  sinkId,
+  onClientReady,
+  localMicEnabled = true,
+  localCameraEnabled = true,
+  onToggleLocalMic,
+  onToggleLocalCamera,
+  isHost = true,
+}: RoomPanelProps) {
   const [room, setRoom] = useState<RoomView | null>(null)
   const [joinId, setJoinId] = useState(() => new URLSearchParams(window.location.search).get('room') || '')
   const [busy, setBusy] = useState(false)
@@ -199,6 +214,21 @@ export function RoomPanel({ localStream, onRoomChange, sinkId, onClientReady }: 
           localStream={localStream}
           sinkId={sinkId}
           onClientReady={onClientReady}
+          localMicEnabled={localMicEnabled}
+          localCameraEnabled={localCameraEnabled}
+          onToggleLocalMic={onToggleLocalMic}
+          onToggleLocalCamera={onToggleLocalCamera}
+          isHost={isHost}
+          inviteUrl={`${window.location.origin}/?room=${encodeURIComponent(room.id)}`}
+          sessionHealth={webrtc?.state === 'ready' ? 'healthy' : webrtc ? 'degraded' : 'unknown'}
+          onCopyInvite={() => {
+            const invite = `${window.location.origin}/?room=${encodeURIComponent(room.id)}`
+            void navigator.clipboard?.writeText(invite)
+            toast.success('Invite link copied')
+          }}
+          onEndSession={() => {
+            void handleLeave()
+          }}
         />
       )}
     </div>
