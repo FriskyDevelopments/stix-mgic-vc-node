@@ -171,3 +171,62 @@ export async function getParticipants(chatId?: string): Promise<{ participants: 
   const qs = chatId ? `?chatId=${encodeURIComponent(chatId)}` : ''
   return request(`/participants${qs}`)
 }
+
+async function studioRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const env = getAppEnv()
+  const token = getOperatorToken()
+  const response = await fetch(`${env.apiBaseUrl}${path}`, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init.headers ?? {}),
+    },
+  })
+  if (!response.ok) {
+    let message = `Request failed with ${response.status}`
+    try {
+      const body = (await response.json()) as { error?: string }
+      if (body?.error) message = body.error
+    } catch { /* non-JSON */ }
+    throw new TelegramVcApiError(response.status, message)
+  }
+  return (await response.json()) as T
+}
+
+export type StudioPlaylist = {
+  id: string
+  name: string
+  items: Array<{ id: string; url: string; title: string }>
+  currentIndex: number
+  playing: boolean
+}
+
+export type StudioMediaFile = { id: string; name: string; url: string; path: string }
+
+export async function listPlaylists(): Promise<{ playlists: StudioPlaylist[] }> {
+  return studioRequest('/v1/playlists')
+}
+
+export async function createPlaylist(name: string): Promise<{ playlist: StudioPlaylist }> {
+  return studioRequest('/v1/playlists', { method: 'POST', body: JSON.stringify({ name }) })
+}
+
+export async function addPlaylistItem(id: string, item: { url: string; title?: string }) {
+  return studioRequest(`/v1/playlists/${id}/items`, { method: 'POST', body: JSON.stringify(item) })
+}
+
+export async function playPlaylist(id: string) {
+  return studioRequest(`/v1/playlists/${id}/play`, { method: 'POST' })
+}
+
+export async function listMediaFiles(): Promise<{ files: StudioMediaFile[] }> {
+  return studioRequest('/v1/media/files')
+}
+
+export async function uploadMediaFile(name: string, dataBase64: string): Promise<{ file: StudioMediaFile }> {
+  return studioRequest('/v1/media/upload', {
+    method: 'POST',
+    body: JSON.stringify({ name, data: dataBase64 }),
+  })
+}

@@ -16,10 +16,18 @@ import {
   getTelegramGroups,
   muteParticipant,
   getRtmpPublishConfig,
+  listPlaylists,
+  createPlaylist,
+  addPlaylistItem,
+  playPlaylist,
+  listMediaFiles,
+  uploadMediaFile,
   type TelegramVcStatus,
   type TelegramVcParticipant,
   type TelegramVcGroup,
   type TelegramPairStatus,
+  type StudioPlaylist,
+  type StudioMediaFile,
 } from '@/lib/telegram-vc-api'
 
 /**
@@ -57,6 +65,10 @@ export function TelegramVcPanel({ accessGranted = true }: { accessGranted?: bool
   const [pairPhone, setPairPhone] = useState('')
   const [pairCode, setPairCode] = useState('')
   const [pairPassword, setPairPassword] = useState('')
+  const [playlists, setPlaylists] = useState<StudioPlaylist[]>([])
+  const [playlistId, setPlaylistId] = useState('')
+  const [mediaFiles, setMediaFiles] = useState<StudioMediaFile[]>([])
+  const [showAdvanced, setShowAdvanced] = useState(false)
 
   // Telegram VC adapter — polls /v1/telegram-vc/status; if the server returns 503
   // (which it always does until a real MTProto user session is wired), show
@@ -114,6 +126,77 @@ export function TelegramVcPanel({ accessGranted = true }: { accessGranted?: bool
     } catch (err) {
       toast.error('Could not load Telegram groups', { description: err instanceof Error ? err.message : 'Unknown error' })
     } finally { setGroupsLoading(false) }
+  }
+
+  async function loadStudioAssets() {
+    try {
+      const [pl, media] = await Promise.all([listPlaylists(), listMediaFiles()])
+      setPlaylists(pl.playlists)
+      setMediaFiles(media.files)
+      if (!playlistId && pl.playlists[0]) setPlaylistId(pl.playlists[0].id)
+    } catch (err) {
+      // Auth required — surface softly; Advanced still works with raw URLs when entitled later.
+      console.warn('Studio assets unavailable', err)
+    }
+  }
+
+  async function handleUploadMedia(file: File) {
+    setBusy(true)
+    try {
+      const buf = await file.arrayBuffer()
+      const bytes = new Uint8Array(buf)
+      let binary = ''
+      const chunk = 0x8000
+      for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
+      }
+      const b64 = btoa(binary)
+      const { file: uploaded } = await uploadMediaFile(file.name, b64)
+      let targetId = playlistId
+      if (!targetId) {
+        const created = await createPlaylist(file.name.replace(/\.[^.]+$/, '') || 'Studio set')
+        targetId = created.playlist.id
+        setPlaylistId(targetId)
+      }
+      await addPlaylistItem(targetId, { url: uploaded.url || uploaded.path, title: uploaded.name })
+      await loadStudioAssets()
+      setJoinSource(uploaded.url || uploaded.path)
+      toast.success('Media added to playlist')
+    } catch (err) {
+      toast.error('Upload failed', { description: err instanceof Error ? err.message : 'Unknown error' })
+    } finally { setBusy(false) }
+  }
+
+  async function handleGoLive() {
+    if (!chatId.trim()) {
+      toast.error('Pick a Telegram group first')
+      return
+    }
+    setBusy(true)
+    try {
+      let source = joinSource.trim()
+      if (playlistId) {
+        try {
+          await playPlaylist(playlistId)
+        } catch {
+          /* play may 503 without live adapter; still join with selected source */
+        }
+        const selected = playlists.find((p) => p.id === playlistId)
+        const item = selected?.items[selected.currentIndex] || selected?.items[0]
+        if (item?.url) source = item.url
+      }
+      if (!source) {
+        toast.error('Pick a playlist item or upload a file first')
+        setBusy(false)
+        return
+      }
+      const result = await joinCall(chatId.trim(), source)
+      if (result.call.error) toast.error('Go Live failed', { description: result.call.error })
+      else toast.success('Go Live')
+      await refresh()
+    } catch (err) {
+      toast.error('Go Live failed', { description: err instanceof Error ? err.message : 'Unknown error' })
+    } finally { setBusy(false) }
   }
 
   async function applyVcNodeRtmp() {
@@ -265,7 +348,7 @@ export function TelegramVcPanel({ accessGranted = true }: { accessGranted?: bool
       <GlassCard className="p-4">
         <div className="mb-3 flex items-center justify-between gap-2">
 <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
-              Step 3 · Select group & join VC
+              Studio · 3-step Go Live
             </span>
           {call && (
             <Badge variant="outline" className={`font-mono text-[10px] ${stateColor(call.state)}`}>
@@ -310,46 +393,130 @@ export function TelegramVcPanel({ accessGranted = true }: { accessGranted?: bool
             </Button>
           </div>
         ) : (
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" className="h-8 font-mono text-[10px]" disabled={busy || groupsLoading} onClick={() => void loadGroups()}>
-              {groupsLoading ? 'Loading groups…' : 'Choose group'}
-            </Button>
-            {groups.length > 0 && <select aria-label="Telegram group" value={chatId} onChange={(event) => setChatId(event.target.value)} className="h-8 max-w-[240px] rounded border border-white/15 bg-black px-2 font-mono text-[11px]"><option value="">Select a Telegram group</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.title}</option>)}</select>}
-            <Input
-              value={chatId}
-              onChange={(e) => setChatId(e.target.value)}
-              placeholder="Chat ID (e.g. 3446305734)"
-              className="h-8 max-w-[200px] font-mono text-[11px]"
-            />
-            <select
-              aria-label="Broadcast source"
-              value={sourceKind}
-              onChange={(event) => setSourceKind(event.target.value as 'screen' | 'clipsflow' | 'rtmp')}
-              className="h-8 rounded border border-white/15 bg-black px-2 font-mono text-[11px]"
-            >
-              <option value="screen">Screen / OBS</option>
-              <option value="clipsflow">ClipsFlow</option>
-              <option value="rtmp">RTMP / IR stream</option>
-            </select>
-            <Input
-              value={joinSource}
-              onChange={(event) => setJoinSource(event.target.value)}
-              placeholder={sourceKind === 'screen' ? 'OBS / screen relay URL' : sourceKind === 'clipsflow' ? 'ClipsFlow media URL' : 'RTMP / IR stream URL'}
-              className="h-8 max-w-[240px] font-mono text-[11px]"
-            />
-            {sourceKind === 'rtmp' && (
-              <Button variant="outline" size="sm" className="h-8 font-mono text-[10px]" disabled={busy} onClick={() => void applyVcNodeRtmp()}>
-                Use VC Node RTMP
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <p className="font-mono text-[10px] uppercase tracking-wider text-cyan-300/80">1 · Pick group</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="outline" size="sm" className="h-8 font-mono text-[10px]" disabled={busy || groupsLoading} onClick={() => void loadGroups()}>
+                  {groupsLoading ? 'Loading groups…' : 'Load groups'}
+                </Button>
+                {groups.length > 0 && (
+                  <select
+                    aria-label="Telegram group"
+                    value={chatId}
+                    onChange={(event) => setChatId(event.target.value)}
+                    className="h-8 max-w-[280px] rounded border border-white/15 bg-black px-2 font-mono text-[11px]"
+                  >
+                    <option value="">Select a Telegram group</option>
+                    {groups.map((group) => (
+                      <option key={group.id} value={group.id}>{group.title}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="font-mono text-[10px] uppercase tracking-wider text-cyan-300/80">2 · Pick playlist</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="outline" size="sm" className="h-8 font-mono text-[10px]" disabled={busy} onClick={() => void loadStudioAssets()}>
+                  Refresh playlists
+                </Button>
+                <select
+                  aria-label="Playlist"
+                  value={playlistId}
+                  onChange={(event) => {
+                    setPlaylistId(event.target.value)
+                    const pl = playlists.find((p) => p.id === event.target.value)
+                    const item = pl?.items[0]
+                    if (item?.url) setJoinSource(item.url)
+                  }}
+                  className="h-8 max-w-[240px] rounded border border-white/15 bg-black px-2 font-mono text-[11px]"
+                >
+                  <option value="">Select playlist</option>
+                  {playlists.map((pl) => (
+                    <option key={pl.id} value={pl.id}>{pl.name} ({pl.items.length})</option>
+                  ))}
+                </select>
+                <label className="inline-flex h-8 cursor-pointer items-center rounded border border-white/15 px-2 font-mono text-[10px] text-muted-foreground hover:border-cyan-400/40 hover:text-cyan-200">
+                  Upload file
+                  <input
+                    type="file"
+                    accept="video/*,audio/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) void handleUploadMedia(file)
+                      e.currentTarget.value = ''
+                    }}
+                  />
+                </label>
+                {mediaFiles.length > 0 && (
+                  <span className="font-mono text-[10px] text-muted-foreground">{mediaFiles.length} file(s) on node</span>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="font-mono text-[10px] uppercase tracking-wider text-cyan-300/80">3 · Go Live</p>
+              <Button
+                size="sm"
+                className="h-9 font-mono text-[11px] bg-green-600 hover:bg-green-500"
+                disabled={busy || !chatId.trim()}
+                onClick={() => void handleGoLive()}
+              >
+                GO LIVE
               </Button>
-            )}
-            <Button
-              size="sm"
-              className="h-8 font-mono text-[10px]"
-              disabled={busy || !chatId.trim() || !joinSource.trim()}
-              onClick={() => void handleJoin()}
-            >
-              Join VC
-            </Button>
+            </div>
+
+            <div>
+              <button
+                type="button"
+                className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                onClick={() => setShowAdvanced((v) => !v)}
+              >
+                {showAdvanced ? 'Hide Advanced' : 'Advanced · RTMP / OBS / raw URLs'}
+              </button>
+              {showAdvanced && (
+                <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-white/10 bg-black/40 p-3">
+                  <Input
+                    value={chatId}
+                    onChange={(e) => setChatId(e.target.value)}
+                    placeholder="Chat ID override"
+                    className="h-8 max-w-[200px] font-mono text-[11px]"
+                  />
+                  <select
+                    aria-label="Broadcast source"
+                    value={sourceKind}
+                    onChange={(event) => setSourceKind(event.target.value as 'screen' | 'clipsflow' | 'rtmp')}
+                    className="h-8 rounded border border-white/15 bg-black px-2 font-mono text-[11px]"
+                  >
+                    <option value="screen">Screen / OBS</option>
+                    <option value="clipsflow">ClipsFlow</option>
+                    <option value="rtmp">RTMP / IR stream</option>
+                  </select>
+                  <Input
+                    value={joinSource}
+                    onChange={(event) => setJoinSource(event.target.value)}
+                    placeholder={sourceKind === 'screen' ? 'OBS / screen relay URL' : sourceKind === 'clipsflow' ? 'ClipsFlow media URL' : 'RTMP / IR stream URL'}
+                    className="h-8 max-w-[240px] font-mono text-[11px]"
+                  />
+                  {sourceKind === 'rtmp' && (
+                    <Button variant="outline" size="sm" className="h-8 font-mono text-[10px]" disabled={busy} onClick={() => void applyVcNodeRtmp()}>
+                      Use VC Node RTMP
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    className="h-8 font-mono text-[10px]"
+                    disabled={busy || !chatId.trim() || !joinSource.trim()}
+                    onClick={() => void handleJoin()}
+                  >
+                    Join VC
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </GlassCard>
