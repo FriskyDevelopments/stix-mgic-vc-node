@@ -131,6 +131,9 @@ export type RoomAdminResponse = {
   count: number
   pendingMtproto: string | null
   title: string | null
+  role?: 'studio_operator' | 'nebu_host' | 'guest' | null
+  authPlane?: 'friskydev' | 'nebu' | 'telegram_guest' | null
+  canModerate?: boolean | null
 }
 
 /** ROOM-ADMIN.md — mute / unmute / kick / pin / end (+ optional title / invite). */

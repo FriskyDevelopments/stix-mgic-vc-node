@@ -26,3 +26,14 @@ NEBU needs a branded consumer SSO surface. Studio already has a working Authenti
 ## Deploy note
 
 Live `nebu.quest` may return Hostinger 503 until hosting/DNS is fixed. Ship the feature anyway; deploy once the origin is healthy and env vars are injected.
+
+
+## Room admin — three auth planes
+
+`POST /v1/rooms/:id/admin` honors the same separation:
+
+1. **FriskyDev / Authentik** (`friskydev` / `supabase`) — full studio room admin when owning or operating the room.
+2. **NEBU Better Auth** — limited dens-host moderation only for NEBU-linked room owners. Session resolution into the admin route is still **STUB** (`resolveNebuSessionForRoomAdmin`); do not reuse studio cookies.
+3. **Telegram guest** — no moderation.
+
+Details and the action matrix live in `ROOM-ADMIN.md` / `docs/ROOM-ADMIN.md`. Bot split (ops): NEBU hosted unit uses `@kimi_Friskydev_bot` (`8888816358`) only; FriskyClaw OpenClaw uses `@ClawFriskybot` with a separate token.

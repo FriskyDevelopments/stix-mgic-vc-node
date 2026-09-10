@@ -133,6 +133,12 @@ export type HostControlAction =
   | { type: 'room_admin_mute'; participantId: string }
   | { type: 'room_admin_pin'; participantId: string }
   | { type: 'room_admin_end' }
+  | {
+      type: 'set_room_admin_capabilities'
+      role: RoomAdminUiRole
+      authPlane: RoomAdminUiAuthPlane
+      canModerate?: boolean
+    }
 
 /** Wire payload relayed over signaling when both peers are online. */
 export type HostControlWirePayload =
@@ -192,9 +198,45 @@ export type HostControlWirePayload =
       fromParticipantId: string
     }
 
+/** Room-admin capability role — mirrors server/room-admin.ts (planes stay separate). */
+export type RoomAdminUiRole = 'studio_operator' | 'nebu_host' | 'guest'
+
+export type RoomAdminUiAuthPlane = 'friskydev' | 'nebu' | 'telegram_guest'
+
+export type RoomAdminUiAction =
+  | 'mute'
+  | 'unmute'
+  | 'kick'
+  | 'pin'
+  | 'end'
+  | 'title'
+  | 'invite'
+
+export const ROOM_ADMIN_UI_ACTIONS: Record<RoomAdminUiRole, readonly RoomAdminUiAction[]> = {
+  studio_operator: ['mute', 'unmute', 'kick', 'pin', 'end', 'title', 'invite'],
+  nebu_host: ['mute', 'unmute', 'kick', 'pin', 'end'],
+  guest: [],
+}
+
+export function roomAdminUiCan(role: RoomAdminUiRole, action: RoomAdminUiAction): boolean {
+  return ROOM_ADMIN_UI_ACTIONS[role].includes(action)
+}
+
+export function roomAdminUiCanModerate(role: RoomAdminUiRole): boolean {
+  return ROOM_ADMIN_UI_ACTIONS[role].length > 0
+}
+
 export type HostSessionSnapshot = {
   selfId: string | null
   isHost: boolean
+  /**
+   * Capability mirror of server room-admin role.
+   * Host UI roles remain operator|guest on participants; canModerate gates moderation chrome.
+   */
+  roomAdminRole: RoomAdminUiRole
+  roomAdminAuthPlane: RoomAdminUiAuthPlane
+  /** Derived from roomAdminRole — false for telegram guests / non-hosts. */
+  canModerate: boolean
   participants: HostParticipantView[]
   selectedParticipantId: string | null
   room: RoomHostState
@@ -240,9 +282,13 @@ export const NUDGE_COPY: Record<Exclude<HostNudgeKind, 'custom'>, string> = {
 }
 
 export function createInitialHostSnapshot(partial?: Partial<HostSessionSnapshot>): HostSessionSnapshot {
+  const role = partial?.roomAdminRole ?? (partial?.isHost ? 'nebu_host' : 'guest')
   return {
     selfId: null,
     isHost: false,
+    roomAdminRole: role,
+    roomAdminAuthPlane: partial?.roomAdminAuthPlane ?? 'telegram_guest',
+    canModerate: partial?.canModerate ?? roomAdminUiCanModerate(role),
     participants: [],
     selectedParticipantId: null,
     room: {
@@ -585,6 +631,13 @@ export function applyHostAction(
       next.telegramVcLive = false
       next.roomAdminParticipants = []
       next.chromeMode = 'full'
+      break
+    case 'set_room_admin_capabilities':
+      next.roomAdminRole = action.role
+      next.roomAdminAuthPlane = action.authPlane
+      next.canModerate =
+        action.canModerate ?? roomAdminUiCanModerate(action.role)
+      next.isHost = next.canModerate
       break
   }
 

@@ -45,7 +45,9 @@ import {
   executeRoomAdmin,
   httpStatusForRoomAdmin,
   parseRoomAdminAction,
+  resolveNebuSessionForRoomAdmin,
   type RoomAdminActionName,
+  type RoomAdminActor,
 } from './room-admin'
 import { getRtmpPublishConfig } from './rtmp-ingest'
 import { discordInteractions } from './discord-interactions'
@@ -821,8 +823,9 @@ export function createApp() {
   })
 
 
-  // ROOM-ADMIN.md — Telegram VC moderation for the live Studio room.
-  // Destructive `end` is confirmed in the UI; the API still requires the owner token.
+  // ROOM-ADMIN.md — Telegram VC moderation for the live Studio / NEBU dens room.
+  // Auth planes stay separate: FriskyDev Authentik (full), NEBU Better Auth dens host
+  // (limited — STUB session hook), Telegram guests (no moderation). Never silent no-op.
   app.post('/v1/rooms/:id/admin', async (c) => {
     const body = await c.req.json<{
       action?: string
@@ -840,14 +843,34 @@ export function createApp() {
       )
     }
 
-    const result = await executeRoomAdmin(c.req.param('id'), c.get('operatorId'), {
+    // STUB: Better Auth session is not wired into this route yet.
+    // When wired, resolveNebuSessionForRoomAdmin will call getNebuAuth().api.getSession
+    // against the NEBU cookie only — never the studio Authentik/OIDC cookie.
+    const nebuSession = resolveNebuSessionForRoomAdmin(c.req.header('cookie'))
+
+    const actor: RoomAdminActor = {
+      operatorId: c.get('operatorId'),
+      operatorPlatform: c.get('operatorPlatform'),
+      nebuUserId: nebuSession?.userId ?? null,
+      nebuSessionVerified: Boolean(nebuSession?.userId),
+    }
+
+    const result = await executeRoomAdmin(c.req.param('id'), actor, {
       action: action as RoomAdminActionName,
       target: body.target,
       title: body.title,
     })
 
     if (!result.ok) {
-      return c.json({ error: result.error, code: result.code }, httpStatusForRoomAdmin(result))
+      return c.json(
+        {
+          error: result.error,
+          code: result.code,
+          role: result.role ?? null,
+          authPlane: result.authPlane ?? null,
+        },
+        httpStatusForRoomAdmin(result)
+      )
     }
 
     return c.json({
@@ -857,6 +880,9 @@ export function createApp() {
       count: result.count,
       pendingMtproto: result.pendingMtproto ?? null,
       title: result.title ?? null,
+      role: result.role ?? null,
+      authPlane: result.authPlane ?? null,
+      canModerate: result.canModerate ?? true,
     })
   })
 

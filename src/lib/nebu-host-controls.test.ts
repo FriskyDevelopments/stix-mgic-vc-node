@@ -9,6 +9,8 @@ import {
   micLabel,
   peersToHostParticipants,
   mergeRoomAdminParticipants,
+  roomAdminUiCan,
+  roomAdminUiCanModerate,
 } from './nebu-host-controls'
 
 describe('nebu host controls state', () => {
@@ -173,5 +175,41 @@ describe('room admin host actions (ROOM-ADMIN.md)', () => {
     expect(snap.telegramVcLive).toBe(false)
     expect(snap.roomAdminParticipants).toHaveLength(0)
     expect(snap.roomAdminPendingMtproto).toBeNull()
+  })
+})
+
+describe('room admin role capabilities (UI matrix)', () => {
+  it('gates moderation by role without merging auth planes', () => {
+    expect(roomAdminUiCanModerate('studio_operator')).toBe(true)
+    expect(roomAdminUiCanModerate('nebu_host')).toBe(true)
+    expect(roomAdminUiCanModerate('guest')).toBe(false)
+    expect(roomAdminUiCan('studio_operator', 'title')).toBe(true)
+    expect(roomAdminUiCan('nebu_host', 'title')).toBe(false)
+    expect(roomAdminUiCan('nebu_host', 'mute')).toBe(true)
+    expect(roomAdminUiCan('guest', 'kick')).toBe(false)
+  })
+
+  it('stores canModerate on the host snapshot and updates via action', () => {
+    let snap = createInitialHostSnapshot({ isHost: true })
+    expect(snap.canModerate).toBe(true)
+    expect(snap.roomAdminRole).toBe('nebu_host')
+
+    snap = applyHostAction(snap, {
+      type: 'set_room_admin_capabilities',
+      role: 'guest',
+      authPlane: 'telegram_guest',
+    })
+    expect(snap.canModerate).toBe(false)
+    expect(snap.roomAdminRole).toBe('guest')
+    expect(snap.isHost).toBe(false)
+
+    snap = applyHostAction(snap, {
+      type: 'set_room_admin_capabilities',
+      role: 'studio_operator',
+      authPlane: 'friskydev',
+    })
+    expect(snap.canModerate).toBe(true)
+    expect(snap.roomAdminAuthPlane).toBe('friskydev')
+    expect(snap.isHost).toBe(true)
   })
 })

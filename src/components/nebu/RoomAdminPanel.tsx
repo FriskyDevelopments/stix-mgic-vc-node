@@ -2,7 +2,12 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { getStatus } from '@/lib/telegram-vc-api'
 import { postRoomAdmin, type RoomAdminParticipant } from '@/lib/rooms-api'
-import type { HostControlAction, HostSessionSnapshot } from '@/lib/nebu-host-controls'
+import {
+  roomAdminUiCan,
+  type HostControlAction,
+  type HostSessionSnapshot,
+  type RoomAdminUiAction,
+} from '@/lib/nebu-host-controls'
 import '@/styles/nebu-host-controls.css'
 
 export type RoomAdminPanelProps = {
@@ -15,7 +20,8 @@ export type RoomAdminPanelProps = {
 
 /**
  * ROOM-ADMIN.md surface — visible only while a Telegram VC is live.
- * Mute / unmute / kick / pin / end (confirm). Optional title + invite in full density.
+ * Actions the current role cannot perform are hidden/disabled; API 403s toast clearly
+ * (never silent no-op). Guests see the participant list only.
  */
 export function RoomAdminPanel({
   roomId,
@@ -28,6 +34,10 @@ export function RoomAdminPanel({
   const [confirmKick, setConfirmKick] = useState<string | null>(null)
   const [titleDraft, setTitleDraft] = useState('')
   const [inviteDraft, setInviteDraft] = useState('')
+
+  const role = snapshot.roomAdminRole
+  const can = (action: RoomAdminUiAction) => roomAdminUiCan(role, action)
+  const canModerate = snapshot.canModerate && roomAdminUiCanModerateSafe(snapshot)
 
   useEffect(() => {
     let cancelled = false
@@ -54,10 +64,16 @@ export function RoomAdminPanel({
 
   const run = useCallback(
     async (
-      action: 'mute' | 'unmute' | 'kick' | 'pin' | 'end' | 'title' | 'invite',
+      action: RoomAdminUiAction,
       target?: string,
       title?: string
     ) => {
+      if (!roomAdminUiCan(role, action)) {
+        const message = `Not allowed for role ${role} — ${action} requires a higher auth plane`
+        console.error('[room-admin]', message)
+        toast.error(message)
+        return
+      }
       if (!roomId) {
         toast.error('Open a room before using Telegram room admin')
         console.error('[room-admin] missing roomId for', action)
@@ -67,6 +83,14 @@ export function RoomAdminPanel({
       setBusy(key)
       try {
         const res = await postRoomAdmin(roomId, { action, target, title })
+        if (res.role || res.authPlane || typeof res.canModerate === 'boolean') {
+          dispatch({
+            type: 'set_room_admin_capabilities',
+            role: res.role ?? role,
+            authPlane: res.authPlane ?? snapshot.roomAdminAuthPlane,
+            canModerate: typeof res.canModerate === 'boolean' ? res.canModerate : undefined,
+          })
+        }
         dispatch({
           type: 'set_room_admin_participants',
           participants: res.participants,
@@ -95,7 +119,7 @@ export function RoomAdminPanel({
         setBusy(null)
       }
     },
-    [dispatch, roomId]
+    [dispatch, roomId, role, snapshot.roomAdminAuthPlane]
   )
 
   if (!snapshot.telegramVcLive || snapshot.room.ended) {
@@ -113,21 +137,35 @@ export function RoomAdminPanel({
           pinned: p.isPinned,
         }))
 
+  const roleLabel =
+    role === 'studio_operator'
+      ? 'FriskyDev operator'
+      : role === 'nebu_host'
+        ? 'NEBU dens host'
+        : 'Guest (read-only)'
+
   return (
     <div
       className={`nebu-room-admin ${density === 'compact' ? 'is-compact' : ''}`}
       aria-label="Telegram room admin"
+      data-room-admin-role={role}
+      data-can-moderate={canModerate ? 'true' : 'false'}
     >
       <div className="nebu-hc-person-head">
         <div>
           <div className="nebu-hc-kicker">Telegram · Room admin</div>
           {density === 'full' && (
             <p className="nebu-room-admin-blurb">
-              Moderate the live group call — mute chaos, pin the DJ, end cleanly.
+              {canModerate
+                ? 'Moderate the live group call — mute chaos, pin the DJ, end cleanly.'
+                : 'Participant view only — guests cannot mute, kick, or end the call.'}
             </p>
           )}
         </div>
         <span className="nebu-hc-chip is-live">{rows.length} live</span>
+        <span className="nebu-hc-chip" title={`Auth plane: ${snapshot.roomAdminAuthPlane}`}>
+          {roleLabel}
+        </span>
       </div>
 
       <div className="nebu-hc-list">
@@ -140,139 +178,162 @@ export function RoomAdminPanel({
               <span className="nebu-hc-person-name">{p.name}</span>
               <span className="nebu-hc-chip">{p.muted ? 'MUTED' : p.speaking ? 'SPEAKING' : 'LIVE'}</span>
             </div>
-            <div className="nebu-hc-row" style={{ marginTop: 0 }}>
-              {p.muted ? (
-                <button
-                  type="button"
-                  className="nebu-hc-btn"
-                  disabled={busy !== null}
-                  onClick={() => void run('unmute', p.id)}
-                >
-                  Unmute
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="nebu-hc-btn"
-                  disabled={busy !== null}
-                  onClick={() => void run('mute', p.id)}
-                >
-                  Mute
-                </button>
-              )}
-              <button
-                type="button"
-                className="nebu-hc-btn is-quiet"
-                disabled={busy !== null}
-                onClick={() => void run('pin', p.id)}
-              >
-                {p.pinned ? 'Pinned' : 'Pin'}
-              </button>
-              {confirmKick === p.id ? (
-                <>
+            {canModerate && (
+              <div className="nebu-hc-row" style={{ marginTop: 0 }}>
+                {p.muted ? (
                   <button
                     type="button"
-                    className="nebu-hc-btn is-danger"
-                    disabled={busy !== null}
-                    onClick={() => {
-                      void run('kick', p.id)
-                      setConfirmKick(null)
-                    }}
+                    className="nebu-hc-btn"
+                    disabled={busy !== null || !can('unmute')}
+                    title={!can('unmute') ? 'Unmute not allowed for your role' : undefined}
+                    onClick={() => void run('unmute', p.id)}
                   >
-                    Confirm kick
+                    Unmute
                   </button>
-                  <button type="button" className="nebu-hc-btn is-quiet" onClick={() => setConfirmKick(null)}>
-                    Cancel
+                ) : (
+                  <button
+                    type="button"
+                    className="nebu-hc-btn"
+                    disabled={busy !== null || !can('mute')}
+                    title={!can('mute') ? 'Mute not allowed for your role' : undefined}
+                    onClick={() => void run('mute', p.id)}
+                  >
+                    Mute
                   </button>
-                </>
-              ) : (
+                )}
                 <button
                   type="button"
-                  className="nebu-hc-btn is-danger"
-                  disabled={busy !== null}
-                  onClick={() => setConfirmKick(p.id)}
+                  className="nebu-hc-btn is-quiet"
+                  disabled={busy !== null || !can('pin')}
+                  title={!can('pin') ? 'Pin not allowed for your role' : undefined}
+                  onClick={() => void run('pin', p.id)}
                 >
-                  Kick
+                  {p.pinned ? 'Pinned' : 'Pin'}
                 </button>
-              )}
-            </div>
+                {can('kick') &&
+                  (confirmKick === p.id ? (
+                    <>
+                      <button
+                        type="button"
+                        className="nebu-hc-btn is-danger"
+                        disabled={busy !== null}
+                        onClick={() => {
+                          void run('kick', p.id)
+                          setConfirmKick(null)
+                        }}
+                      >
+                        Confirm kick
+                      </button>
+                      <button
+                        type="button"
+                        className="nebu-hc-btn is-quiet"
+                        onClick={() => setConfirmKick(null)}
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      className="nebu-hc-btn is-danger"
+                      disabled={busy !== null}
+                      onClick={() => setConfirmKick(p.id)}
+                    >
+                      Kick
+                    </button>
+                  ))}
+              </div>
+            )}
           </div>
         ))}
       </div>
 
-      {density === 'full' && (
+      {density === 'full' && canModerate && (can('title') || can('invite')) && (
         <div className="nebu-hc-details">
-          <div className="nebu-hc-kicker">Optional · title / invite</div>
-          <div className="nebu-hc-row">
-            <input
-              value={titleDraft}
-              onChange={(e) => setTitleDraft(e.target.value)}
-              placeholder={snapshot.roomAdminTitle || 'Call title'}
-              className="nebu-room-admin-input"
-            />
-            <button
-              type="button"
-              className="nebu-hc-btn is-quiet"
-              disabled={busy !== null || !titleDraft.trim()}
-              onClick={() => {
-                void run('title', undefined, titleDraft.trim())
-                setTitleDraft('')
-              }}
-            >
-              Set title
-            </button>
-          </div>
-          <div className="nebu-hc-row">
-            <input
-              value={inviteDraft}
-              onChange={(e) => setInviteDraft(e.target.value)}
-              placeholder="@username or user id"
-              className="nebu-room-admin-input"
-            />
-            <button
-              type="button"
-              className="nebu-hc-btn is-quiet"
-              disabled={busy !== null || !inviteDraft.trim()}
-              onClick={() => {
-                void run('invite', inviteDraft.trim())
-                setInviteDraft('')
-              }}
-            >
-              Invite
-            </button>
-          </div>
+          <div className="nebu-hc-kicker">Optional · title / invite (studio operator)</div>
+          {can('title') && (
+            <div className="nebu-hc-row">
+              <input
+                value={titleDraft}
+                onChange={(e) => setTitleDraft(e.target.value)}
+                placeholder={snapshot.roomAdminTitle || 'Call title'}
+                className="nebu-room-admin-input"
+              />
+              <button
+                type="button"
+                className="nebu-hc-btn is-quiet"
+                disabled={busy !== null || !titleDraft.trim()}
+                onClick={() => {
+                  void run('title', undefined, titleDraft.trim())
+                  setTitleDraft('')
+                }}
+              >
+                Set title
+              </button>
+            </div>
+          )}
+          {can('invite') && (
+            <div className="nebu-hc-row">
+              <input
+                value={inviteDraft}
+                onChange={(e) => setInviteDraft(e.target.value)}
+                placeholder="@username or user id"
+                className="nebu-room-admin-input"
+              />
+              <button
+                type="button"
+                className="nebu-hc-btn is-quiet"
+                disabled={busy !== null || !inviteDraft.trim()}
+                onClick={() => {
+                  void run('invite', inviteDraft.trim())
+                  setInviteDraft('')
+                }}
+              >
+                Invite
+              </button>
+            </div>
+          )}
         </div>
       )}
 
-      <div className="nebu-hc-row">
-        {confirmEnd ? (
-          <>
+      {can('end') && (
+        <div className="nebu-hc-row">
+          {confirmEnd ? (
+            <>
+              <button
+                type="button"
+                className="nebu-hc-btn is-danger"
+                disabled={busy !== null}
+                onClick={() => {
+                  void run('end')
+                  setConfirmEnd(false)
+                }}
+              >
+                Confirm end call
+              </button>
+              <button type="button" className="nebu-hc-btn is-quiet" onClick={() => setConfirmEnd(false)}>
+                Cancel
+              </button>
+            </>
+          ) : (
             <button
               type="button"
               className="nebu-hc-btn is-danger"
               disabled={busy !== null}
-              onClick={() => {
-                void run('end')
-                setConfirmEnd(false)
-              }}
+              onClick={() => setConfirmEnd(true)}
             >
-              Confirm end call
+              End call
             </button>
-            <button type="button" className="nebu-hc-btn is-quiet" onClick={() => setConfirmEnd(false)}>
-              Cancel
-            </button>
-          </>
-        ) : (
-          <button
-            type="button"
-            className="nebu-hc-btn is-danger"
-            disabled={busy !== null}
-            onClick={() => setConfirmEnd(true)}
-          >
-            End call
-          </button>
-        )}
-      </div>
+          )}
+        </div>
+      )}
+
+      {!canModerate && density === 'full' && (
+        <p className="nebu-room-admin-pending" role="status">
+          Moderation locked for guests. FriskyDev operators and NEBU dens hosts use separate auth
+          planes — studio Authentik cookies are never reused as NEBU Better Auth sessions.
+        </p>
+      )}
 
       {snapshot.roomAdminPendingMtproto && density === 'full' && (
         <p className="nebu-room-admin-pending">
@@ -281,4 +342,8 @@ export function RoomAdminPanel({
       )}
     </div>
   )
+}
+
+function roomAdminUiCanModerateSafe(snapshot: HostSessionSnapshot): boolean {
+  return snapshot.canModerate === true
 }
