@@ -1,9 +1,12 @@
 # Deploying VC node
 
-`render.yaml` and `vercel.json` are **not** how production runs. Production is a Docker
-container on the `hermes` box, published through a cloudflared tunnel. Reading `render.yaml`
-and assuming a git-push deploy will waste your time — its `MEDIA_PLANE_ENABLED: "false"`
-disagrees with live, and `stix-mgic-vc-node.onrender.com` returns 404.
+Production is **only** the Docker `vc-node` container on the `hermes` box, published
+through a cloudflared tunnel to `vc.friskydev.com`.
+
+Do **not** deploy this repo with Vercel or Render. There is no `vercel.json`. `render.yaml`
+(if present) is not live — its `MEDIA_PLANE_ENABLED: "false"` disagrees with production, and
+`stix-mgic-vc-node.onrender.com` returns 404. Merge to `main` does not auto-deploy; follow the
+hermes rsync + docker rebuild steps below.
 
 ## What actually serves vc.friskydev.com
 
