@@ -93,7 +93,7 @@ silently.
 The media plane is **stateful**: an in-process room registry plus long-lived WebSocket
 connections. That shapes where it can run.
 
-- **Static UI** → Cloudflare Pages or Vercel (already wired: `vercel.json`). Fine on the
+- **Static UI** → hermes Docker (see `DEPLOY.md`). Fine on the
   Cloudflare account (`e2a7eccb`).
 - **Signaling node** → needs a persistent Node process with WebSocket support. Plain
   Cloudflare **Workers cannot** run this `ws` server as-is; a Workers port would mean
@@ -104,7 +104,7 @@ connections. That shapes where it can run.
 - **TURN (coturn)** → same host as the node, credentials from the Secret Center.
 
 Suggested first target: Node server + coturn on hermes/Ragnar, Cloudflare-proxied hostname,
-static UI on Cloudflare Pages/Vercel. Ship to prod only after owner approval.
+static UI from hermes `vc-node` (see `DEPLOY.md`). Ship to prod only after owner approval.
 
 ## What changed in this branch
 
