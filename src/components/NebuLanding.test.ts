@@ -19,10 +19,13 @@ describe('NebuLanding brand surface', () => {
     expect(source).toContain('nebu-live-pulse')
     expect(source).toContain('nebu-card')
     expect(motion).toContain('prefers-reduced-motion')
+    expect(motion).toContain('nebu-panel-in')
+    expect(motion).toContain('animation: none')
   })
 
-  it('routes studio CTA to vc.friskydev.com', () => {
-    expect(source).toContain('https://vc.friskydev.com')
+  it('routes studio CTA to NEBU /login (not vc.friskydev.com)', () => {
+    expect(source).toContain("const STUDIO_URL = '/login'")
+    expect(source).not.toContain('https://vc.friskydev.com')
   })
 
   it('includes donate promo copy and donation link', () => {

@@ -1867,7 +1867,7 @@ function LegacyControlPlane() {
             <Broadcast size={12} />
             <span className="font-mono">FRISKY DEVELOPMENTS</span>
           </div>
-          <p>Verified-provider session control • Telegram + Discord • vc.friskydev.com</p>
+          <p>Verified-provider session control • Telegram + Discord • NEBU / nebu.quest</p>
         </footer>
       </div>
       

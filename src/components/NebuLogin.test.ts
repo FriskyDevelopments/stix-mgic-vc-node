@@ -4,13 +4,16 @@ import { resolve } from 'node:path'
 
 describe('NebuLogin brand surface', () => {
   const source = readFileSync(resolve(__dirname, 'NebuLogin.tsx'), 'utf8')
+  const motion = readFileSync(resolve(__dirname, '../styles/nebu-motion.css'), 'utf8')
 
   it('uses NEBU brand colors and copy', () => {
     expect(source).toContain('#0d081a')
     expect(source).toContain('#F5E000')
+    expect(source).toContain('#9026ff')
     expect(source).toContain('NEBU')
     expect(source).toContain('nebu.quest')
     expect(source).toContain('Welcome back.')
+    expect(source).toContain('NEBU product login')
   })
 
   it('wires Google, Apple, and Microsoft social buttons', () => {
@@ -20,8 +23,12 @@ describe('NebuLogin brand surface', () => {
     expect(source).toContain('Continue with Google')
   })
 
-  it('keeps studio Authentik out of the NEBU login CTA path', () => {
-    expect(source).toContain('Authentik')
+  it('keeps studio Authentik / OIDC out of the NEBU login CTA path', () => {
     expect(source).not.toContain('/v1/auth/oidc/start')
+    expect(source).not.toContain('https://vc.friskydev.com')
+    expect(source).toContain('nebu-login-panel')
+    expect(source).toContain('nebu-rise')
+    expect(motion).toContain('nebu-login-panel')
+    expect(motion).toContain('prefers-reduced-motion')
   })
 })
