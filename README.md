@@ -11,7 +11,7 @@ STIX MΛGIC VC NODE — production control-plane for multi-platform session oper
 | Discord OAuth code exchange (server secret) | **Ready** when `DISCORD_CLIENT_*` set |
 | Telegram Login Widget HMAC verify + signed `/vc` bot webhook | **Ready** when `TELEGRAM_BOT_TOKEN` + `TELEGRAM_WEBHOOK_SECRET` are set |
 | Operator session tokens (HMAC) | **Ready** |
-| Static deploy (Vercel) / Render blueprint / Docker | **Ready** |
+| Production deploy (hermes Docker + cloudflared) | **Ready** |
 | Media plane — WebRTC rooms + signalling (`/v1/rooms`, `ws /v1/signal`) | **Ready** (`degraded` without a TURN relay) |
 | Media plane — Telegram VC join (paired MTProto operator) | **Ready** — operator-only controls at `/v1/telegram-vc/*` |
 | Media plane — authenticated RTMP ingest | **Ready** — MediaMTX sidecar, one protected `vc` path; endpoint is operator-only at `/v1/rtmp/publish` |
@@ -48,7 +48,7 @@ Binds `0.0.0.0:$PORT` (Render/Fly/Docker compatible).
 
 ### Render
 
-`render.yaml` included. Set Discord/Telegram secrets in the dashboard.
+Optional `render.yaml` is **not** production (see `DEPLOY.md`). Production secrets live in `/opt/vc-node.env` on hermes.
 
 ### Docker
 
