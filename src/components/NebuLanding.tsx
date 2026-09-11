@@ -7,7 +7,7 @@ const PURPLE = '#9026ff'
 const CYAN = '#6bd9ff'
 const INK = '#0c021a'
 
-const STUDIO_URL = 'https://vc.friskydev.com'
+const STUDIO_URL = '/login'
 const LOGIN_URL = '/login'
 const ASHY_WALKTHROUGH_URL = '/units/ashy'
 const DONATE_URL = 'https://ko-fi.com/friskypup'

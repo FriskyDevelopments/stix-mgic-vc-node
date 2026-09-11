@@ -131,7 +131,7 @@ export function NebuLogin({
       </div>
 
       <div className="relative mx-auto flex min-h-screen max-w-lg flex-col justify-center px-5 py-12 sm:px-8">
-        <header className="mb-8 flex items-center justify-between">
+        <header className="nebu-rise nebu-rise-1 mb-8 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Sparkle size={22} weight="fill" className="nebu-spark" style={{ color: NEBU_YELLOW }} />
             <span className="text-2xl font-black tracking-tight uppercase">NEBU</span>
@@ -145,7 +145,7 @@ export function NebuLogin({
         </header>
 
         <section
-          className="nebu-rise nebu-rise-2 rounded-3xl border border-white/10 p-6 shadow-2xl sm:p-8"
+          className="nebu-login-panel rounded-3xl border border-white/10 p-6 shadow-2xl sm:p-8"
           style={{ backgroundColor: 'rgba(255,255,255,0.96)', color: '#0c021a' }}
         >
           <p
@@ -158,8 +158,8 @@ export function NebuLogin({
             {mode === 'signin' ? 'Welcome back.' : 'Join NEBU.'}
           </h1>
           <p className="mt-3 text-sm leading-6 text-black/60">
-            Set the scene with Google, Apple, or Microsoft — or email. Studio operators on
-            vc.friskydev.com still use FriskyDev ID (Authentik); this page is NEBU only.
+            NEBU product login — Google, Apple, Microsoft, or email. Set the scene and pick up
+            where you left off.
           </p>
 
           <div className="mt-7 grid gap-3" role="group" aria-label="Social sign-in providers">
@@ -324,7 +324,7 @@ export function NebuLogin({
         </section>
 
         <p className="mt-6 text-center text-xs leading-5 text-white/50">
-          Session cookies are httpOnly and server-managed. VC studio Authentik SSO is unchanged.
+          Session cookies are httpOnly and server-managed. This is NEBU on nebu.quest.
         </p>
       </div>
     </main>

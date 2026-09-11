@@ -9,70 +9,111 @@
 }
 
 @keyframes nebu-float {
-  0%, 100% { transform: translateY(0) rotate(-1deg); }
-  50% { transform: translateY(-14px) rotate(1.5deg); }
+  0%, 100% { transform: translateY(0) rotate(-1.5deg) scale(1); }
+  40% { transform: translateY(-16px) rotate(1.8deg) scale(1.015); }
+  70% { transform: translateY(-8px) rotate(0.4deg) scale(1.008); }
 }
 
 @keyframes nebu-pulse-live {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55); }
-  70% { box-shadow: 0 0 0 12px rgba(34, 197, 94, 0); }
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6), 0 0 12px rgba(34, 197, 94, 0.35);
+    filter: brightness(1);
+  }
+  55% {
+    box-shadow: 0 0 0 14px rgba(34, 197, 94, 0), 0 0 22px rgba(34, 197, 94, 0.15);
+    filter: brightness(1.08);
+  }
 }
 
 @keyframes nebu-blob {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(4%, -6%) scale(1.08); }
-  66% { transform: translate(-5%, 3%) scale(0.96); }
+  0%, 100% { transform: translate(0, 0) scale(1) rotate(0deg); }
+  25% { transform: translate(6%, -8%) scale(1.1) rotate(2deg); }
+  50% { transform: translate(-4%, 5%) scale(0.94) rotate(-1.5deg); }
+  75% { transform: translate(3%, 3%) scale(1.05) rotate(1deg); }
 }
 
 @keyframes nebu-spark {
-  0%, 100% { transform: scale(1) rotate(0deg); opacity: 1; }
-  50% { transform: scale(1.18) rotate(12deg); opacity: 0.85; }
+  0%, 100% { transform: scale(1) rotate(0deg); opacity: 1; filter: drop-shadow(0 0 0 transparent); }
+  40% { transform: scale(1.22) rotate(14deg); opacity: 0.9; filter: drop-shadow(0 0 8px rgba(245, 224, 0, 0.55)); }
+  70% { transform: scale(1.08) rotate(-6deg); opacity: 0.95; }
 }
 
 @keyframes nebu-rise {
-  from { opacity: 0; transform: translateY(28px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(32px) scale(0.98);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes nebu-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(40px) scale(0.96);
+    box-shadow: 0 0 0 rgba(144, 38, 255, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    box-shadow: 0 24px 64px rgba(144, 38, 255, 0.18);
+  }
+}
+
+@keyframes nebu-glow-breathe {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.55; }
 }
 
 .nebu-blob {
-  animation: nebu-blob 14s ease-in-out infinite;
+  animation: nebu-blob 16s ease-in-out infinite;
 }
 .nebu-blob-delay {
-  animation-delay: -4s;
+  animation-delay: -5s;
 }
 .nebu-float {
-  animation: nebu-float 6.5s ease-in-out infinite;
+  animation: nebu-float 7s ease-in-out infinite;
 }
 .nebu-live-pulse {
-  animation: nebu-pulse-live 2.2s ease-out infinite;
+  animation: nebu-pulse-live 2.4s ease-out infinite;
 }
 .nebu-spark {
-  animation: nebu-spark 2.8s ease-in-out infinite;
+  animation: nebu-spark 3s ease-in-out infinite;
 }
 .nebu-rise {
-  animation: nebu-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: nebu-rise 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
-.nebu-rise-1 { animation-delay: 0.05s; }
-.nebu-rise-2 { animation-delay: 0.14s; }
-.nebu-rise-3 { animation-delay: 0.24s; }
-.nebu-rise-4 { animation-delay: 0.34s; }
+.nebu-rise-1 { animation-delay: 0.06s; }
+.nebu-rise-2 { animation-delay: 0.16s; }
+.nebu-rise-3 { animation-delay: 0.28s; }
+.nebu-rise-4 { animation-delay: 0.4s; }
+.nebu-rise-5 { animation-delay: 0.52s; }
+
+.nebu-login-panel {
+  animation: nebu-panel-in 0.95s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: 0.16s;
+}
 
 .nebu-card {
-  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease, border-color 0.25s ease;
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.28s ease, border-color 0.28s ease;
 }
 .nebu-card:hover,
 .nebu-card:focus-within {
-  transform: translateY(-6px);
-  box-shadow: 6px 6px 0 var(--nebu-ink);
+  transform: translateY(-7px);
+  box-shadow: 7px 7px 0 var(--nebu-ink);
 }
 
 .nebu-cta {
-  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+  transition: transform 0.22s ease, box-shadow 0.22s ease, filter 0.22s ease;
 }
 .nebu-cta:hover {
-  transform: translateY(-2px) scale(1.02);
+  transform: translateY(-2px) scale(1.025);
   box-shadow: 4px 4px 0 var(--nebu-ink);
-  filter: brightness(1.05);
+  filter: brightness(1.06);
 }
 .nebu-cta:active {
   transform: translateY(1px) scale(0.99);
@@ -89,7 +130,9 @@
   .nebu-rise-1,
   .nebu-rise-2,
   .nebu-rise-3,
-  .nebu-rise-4 {
+  .nebu-rise-4,
+  .nebu-rise-5,
+  .nebu-login-panel {
     animation: none !important;
   }
   .nebu-card,
