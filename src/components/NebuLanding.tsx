@@ -1,4 +1,4 @@
-import { Sparkle, Play, Users, Waveform, Record, ArrowRight, Camera, SpeakerHigh, Heart } from '@phosphor-icons/react'
+import { Play, Users, Waveform, Record, ArrowRight, Camera, SpeakerHigh, Heart } from '@phosphor-icons/react'
 import '@/styles/nebu-motion.css'
 
 const BG = '#0d081a'
@@ -7,6 +7,7 @@ const PURPLE = '#9026ff'
 const CYAN = '#6bd9ff'
 const INK = '#0c021a'
 const PAPER = '#f7f5f2'
+const PANEL = '#160b2a'
 
 const STUDIO_URL = '/login'
 const LOGIN_URL = '/login'
@@ -15,10 +16,10 @@ const DONATE_URL = 'https://ko-fi.com/friskypup'
 const CRYPTO_DONATE_URL = 'https://nowpayments.io/donation/Frisky'
 
 const PARTS = [
-  { title: 'Studio', blurb: 'Find your frame.', color: YELLOW, icon: Camera, ink: true },
-  { title: 'Sound', blurb: 'Set the mood.', color: PURPLE, icon: SpeakerHigh, ink: false },
-  { title: 'Rooms', blurb: 'Bring people in.', color: CYAN, icon: Users, ink: true },
-  { title: 'Record', blurb: 'Keep the good bits.', color: '#fff', icon: Record, ink: true },
+  { ch: '01', title: 'Studio', blurb: 'Find your frame.', color: YELLOW, icon: Camera },
+  { ch: '02', title: 'Sound', blurb: 'Set the mood.', color: PURPLE, icon: SpeakerHigh },
+  { ch: '03', title: 'Rooms', blurb: 'Bring people in.', color: CYAN, icon: Users },
+  { ch: '04', title: 'Record', blurb: 'Keep the good bits.', color: PAPER, icon: Record },
 ] as const
 
 const STEPS = [
@@ -29,84 +30,120 @@ const STEPS = [
 
 const TICKER = ['Your camera', 'Your music', 'Your room', 'Your NEBU'] as const
 
+const NAV = [
+  { href: '#studio', label: 'Studio', hideMobile: true },
+  { href: ASHY_WALKTHROUGH_URL, label: 'Walkthrough', hideMobile: true },
+  { href: '#support', label: 'Support', hideMobile: true },
+  { href: LOGIN_URL, label: 'Sign in', hideMobile: false },
+] as const
+
+function NebuMark({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden className="shrink-0">
+      <title>NEBU</title>
+      <g fill={YELLOW}>
+        <rect x="3" y="4" width="10" height="1.5" />
+        <rect x="3" y="7.25" width="10" height="1.5" />
+        <rect x="3" y="10.5" width="10" height="1.5" />
+      </g>
+    </svg>
+  )
+}
+
+function Kicker({ children }: { children: string }) {
+  return <p className="nebu-kicker">{children}</p>
+}
+
+function ChannelMeter({ label, color, fill }: { label: string; color: string; fill: string }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <span className="font-mono text-[9px] font-bold tracking-[0.16em] uppercase text-white/45">{label}</span>
+      <span className="h-1.5 overflow-hidden rounded-sm bg-white/10">
+        <span className="block h-full" style={{ width: fill, backgroundColor: color }} />
+      </span>
+    </div>
+  )
+}
+
 export function NebuLanding() {
   return (
     <div
-      className="min-h-screen overflow-x-clip text-white"
+      className="nebu-console min-h-screen overflow-x-hidden text-white"
       style={{ backgroundColor: BG, fontFamily: "'Inter', system-ui, sans-serif" }}
     >
       <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
         <div
-          className="nebu-blob absolute -left-24 top-16 h-[28rem] w-[28rem] rounded-full blur-3xl opacity-35"
+          className="nebu-blob absolute -left-24 top-16 h-[22rem] w-[22rem] rounded-full blur-3xl opacity-25"
           style={{ backgroundColor: PURPLE }}
         />
         <div
-          className="nebu-blob nebu-blob-delay absolute -right-16 bottom-0 h-[24rem] w-[24rem] rounded-full blur-3xl opacity-25"
+          className="nebu-blob nebu-blob-delay absolute -right-16 bottom-0 h-[18rem] w-[18rem] rounded-full blur-3xl opacity-20"
           style={{ backgroundColor: CYAN }}
         />
         <div
-          className="nebu-blob absolute left-1/2 top-1/3 h-48 w-48 -translate-x-1/2 rounded-full blur-3xl opacity-15"
+          className="nebu-blob absolute left-1/2 top-1/3 h-40 w-40 -translate-x-1/2 rounded-full blur-3xl opacity-10"
           style={{ backgroundColor: YELLOW }}
         />
       </div>
 
-      <header className="relative z-10 mx-auto flex max-w-6xl items-center justify-between px-5 py-6 sm:px-8">
-        <div className="flex items-center gap-2">
-          <Sparkle size={22} weight="fill" className="nebu-spark" style={{ color: YELLOW }} />
-          <span className="text-xl font-black tracking-tight uppercase">NEBU</span>
+      <header className="relative z-10 border-b border-white/10">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-3 sm:px-8">
+          <div className="flex items-center gap-3">
+            <NebuMark />
+            <span className="text-sm font-black tracking-[0.18em] uppercase">NEBU</span>
+            <span className="hidden font-mono text-[10px] font-bold tracking-[0.18em] uppercase text-white/40 sm:inline">
+              · Console
+            </span>
+          </div>
+          <div className="flex items-center gap-4">
+            <span className="hidden items-center gap-2 font-mono text-[10px] font-bold tracking-[0.16em] uppercase text-white/45 sm:inline-flex">
+              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: CYAN }} />
+              Ready
+            </span>
+            <nav className="flex items-center gap-3 font-mono text-[10px] font-bold tracking-[0.16em] uppercase">
+              {NAV.map((item) => (
+                <a
+                  key={item.label}
+                  href={item.href}
+                  className={`${item.hideMobile ? 'hidden sm:inline' : ''} text-white/60 transition hover:text-white`}
+                >
+                  {item.label}
+                </a>
+              ))}
+            </nav>
+          </div>
         </div>
-        <nav className="flex items-center gap-3 text-sm font-bold">
-          <a href="#studio" className="hidden text-white/70 transition hover:text-white sm:inline">
-            Look around
-          </a>
-          <a href={ASHY_WALKTHROUGH_URL} className="hidden text-white/70 transition hover:text-white sm:inline">
-            Ashy’s walkthrough
-          </a>
-          <a href="#support" className="hidden text-white/70 transition hover:text-white sm:inline">
-            Support
-          </a>
-          <a href={LOGIN_URL} className="text-white/70 transition hover:text-white">
-            Sign in
-          </a>
-        </nav>
       </header>
 
       <main className="relative z-10">
         {/* Hero */}
-        <section className="mx-auto grid max-w-6xl gap-10 px-5 pb-16 pt-8 sm:px-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:pt-14">
+        <section className="mx-auto grid max-w-6xl gap-8 px-5 pb-10 pt-6 sm:px-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-10 lg:pt-10">
           <div>
-            <p className="nebu-rise nebu-rise-1 mb-4 text-[11px] font-bold tracking-[0.2em] uppercase text-white/55">
-              Your browser. Your stage.
-            </p>
-            <h1 className="nebu-rise nebu-rise-2 text-5xl font-black leading-[0.95] tracking-tight sm:text-7xl">
-              Set the{' '}
-              <span className="inline-flex items-center gap-2">
-                scene
-                <Sparkle size={36} weight="fill" className="nebu-spark" style={{ color: CYAN }} />
-              </span>
-              .
+            <Kicker>00 / YOUR BROWSER. YOUR STAGE.</Kicker>
+            <h1 className="nebu-rise nebu-rise-2 mt-3 text-4xl font-black leading-[0.92] tracking-tight sm:text-6xl">
+              Set the scene.
             </h1>
-            <p className="nebu-rise nebu-rise-3 mt-5 max-w-md text-lg font-semibold leading-7 text-white sm:text-xl">
+            <p className="nebu-rise nebu-rise-3 mt-4 max-w-md text-base font-semibold leading-6 text-white sm:text-lg">
               A browser studio to prepare, preview, and share.
             </p>
-            <p className="nebu-rise nebu-rise-3 mt-3 max-w-md text-base leading-7 text-white/65 sm:text-lg">
+            <p className="nebu-rise nebu-rise-3 mt-2 max-w-md text-sm leading-6 text-white/65 sm:text-base">
               Your scene. Your sound. Your people. For the things you want to put out into the world.
             </p>
-            <div className="nebu-rise nebu-rise-4 mt-8 flex flex-wrap items-center gap-4">
+            <div className="nebu-rise nebu-rise-4 mt-6 flex flex-wrap items-center gap-x-5 gap-y-3">
               <a
                 href={STUDIO_URL}
-                className="nebu-cta inline-flex min-h-12 items-center gap-2 rounded-full px-6 text-sm font-black uppercase tracking-wide"
+                className="nebu-cta inline-flex min-h-11 items-center gap-2 rounded-md px-5 text-xs font-black uppercase tracking-[0.14em]"
                 style={{ backgroundColor: YELLOW, color: INK }}
               >
                 Open your studio
-                <ArrowRight size={18} weight="bold" />
+                <ArrowRight size={16} weight="bold" />
               </a>
-              <a href="#studio" className="text-sm font-bold text-white/70 underline-offset-4 hover:underline">
+              <a href="#studio" className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-white/70 underline-offset-4 hover:underline">
                 Take a look around
               </a>
               <a
                 href={ASHY_WALKTHROUGH_URL}
-                className="text-sm font-bold text-white/70 underline-offset-4 hover:underline"
+                className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-white/70 underline-offset-4 hover:underline"
               >
                 Like Ashy’s room
               </a>
@@ -115,67 +152,69 @@ export function NebuLanding() {
 
           <div className="nebu-hero-art nebu-float relative mx-auto w-full max-w-md">
             <p
-              className="nebu-hero-badge absolute left-2 top-2 z-10 rounded-md border-2 border-black px-3 py-2 text-center shadow-[3px_4px_0_#000]"
+              className="nebu-hero-badge absolute left-2 top-2 z-10 rounded-sm border border-black/80 px-2.5 py-1.5 shadow-[3px_3px_0_#000]"
               style={{ backgroundColor: PAPER, color: INK }}
             >
-              <span className="block text-[9px] font-bold tracking-[0.12em] uppercase">Picture. Sound.</span>
-              <strong className="text-sm font-black tracking-tight">A little you.</strong>
+              <span className="block font-mono text-[9px] font-bold tracking-[0.14em] uppercase">CH 01 / CAM</span>
+              <strong className="text-xs font-black tracking-tight">Preview</strong>
             </p>
             <div
-              className="nebu-hero-frame overflow-hidden rounded-[1.75rem] border-2 border-black shadow-[8px_8px_0_#000]"
-              style={{ backgroundColor: PAPER, color: INK }}
+              className="nebu-hero-frame overflow-hidden rounded-md border border-white/15 shadow-[0_0_0_1px_rgba(0,0,0,0.5)]"
+              style={{ backgroundColor: PANEL, color: '#fff' }}
             >
-              <div className="flex items-center justify-between gap-2 px-4 py-3">
+              <div className="flex items-center justify-between gap-2 border-b border-white/10 px-3 py-2">
                 <span className="flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-full border border-black" />
-                  <span className="h-2.5 w-2.5 rounded-full border border-black" />
-                  <span className="h-2.5 w-2.5 rounded-full border border-black" />
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: '#ff5f56' }} />
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: YELLOW }} />
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: '#22c55e' }} />
                 </span>
-                <span className="text-[10px] font-bold tracking-[0.16em] uppercase">THE NEXT GOOD THING</span>
-                <span className="text-lg leading-none">+</span>
+                <span className="font-mono text-[10px] font-bold tracking-[0.16em] uppercase text-white/50">
+                  NEBU / PREVIEW
+                </span>
+                <span
+                  className="nebu-live-pulse rounded-sm px-2 py-0.5 font-mono text-[9px] font-black tracking-[0.14em] uppercase text-black"
+                  style={{ backgroundColor: '#22c55e' }}
+                >
+                  LIVE
+                </span>
               </div>
-              <div className="relative mx-1 mb-1 aspect-[4/3] overflow-hidden rounded-2xl" style={{ backgroundColor: PURPLE }}>
+              <div className="relative mx-1 mb-1 aspect-[16/10] overflow-hidden rounded-sm" style={{ backgroundColor: PURPLE }}>
                 <div
-                  className="absolute -right-8 -top-10 h-36 w-36 rounded-full border-[14px]"
+                  className="absolute -right-8 -top-10 h-32 w-32 rounded-full border-[12px]"
                   style={{ borderColor: YELLOW, boxShadow: `inset 0 0 0 3px ${INK}` }}
                 />
                 <div
-                  className="absolute -bottom-16 -left-12 h-40 w-40 rounded-full border-2 border-black"
+                  className="absolute -bottom-14 -left-10 h-36 w-36 rounded-full border border-black"
                   style={{ backgroundColor: CYAN }}
                 />
-                <div className="absolute inset-0 flex items-end justify-between p-5">
-                  <p className="text-[10px] font-bold tracking-[0.16em] uppercase text-black">
+                <div className="absolute inset-0 flex items-end justify-between p-3">
+                  <p className="font-mono text-[9px] font-bold tracking-[0.16em] uppercase text-black">
                     01 / in your element
                   </p>
-                  <span
-                    className="nebu-live-pulse rounded-full px-3 py-1 text-[10px] font-black tracking-[0.14em] uppercase text-black"
-                    style={{ backgroundColor: '#22c55e' }}
-                  >
-                    LIVE
-                  </span>
                 </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3 border-t border-white/10 px-3 py-2.5">
+                <ChannelMeter label="Cam" color={YELLOW} fill="78%" />
+                <ChannelMeter label="Mic" color={CYAN} fill="62%" />
+                <ChannelMeter label="Room" color={PURPLE} fill="44%" />
               </div>
             </div>
             <p
-              className="nebu-hero-badge absolute bottom-2 left-2 right-16 z-10 flex items-center gap-2 rounded-2xl border-2 border-black px-3 py-2 shadow-[5px_6px_0_#000]"
+              className="nebu-hero-badge absolute bottom-2 left-2 z-10 flex items-center gap-2 rounded-sm border border-black px-2.5 py-1.5 shadow-[4px_4px_0_#000]"
               style={{ backgroundColor: CYAN, color: INK }}
             >
-              <SpeakerHigh size={18} weight="fill" />
-              <span className="text-[10px] font-black uppercase leading-tight tracking-tight">
-                Sound on
-                <br />
-                World out
+              <SpeakerHigh size={14} weight="fill" />
+              <span className="font-mono text-[9px] font-black uppercase leading-tight tracking-[0.08em]">
+                Aud / Ready
               </span>
             </p>
             <p
-              className="nebu-hero-badge absolute bottom-16 right-2 z-10 flex h-24 w-24 flex-col items-center justify-center rounded-full border-2 border-black text-center shadow-[4px_4px_0_#000]"
-              style={{ backgroundColor: '#b7ff2a', color: INK }}
+              className="nebu-hero-badge absolute bottom-14 right-2 z-10 flex items-center gap-1.5 rounded-sm border border-black px-2.5 py-1.5 shadow-[3px_3px_0_#000]"
+              style={{ backgroundColor: YELLOW, color: INK }}
             >
-              <Users size={18} weight="fill" />
-              <span className="mt-1 text-[9px] font-bold uppercase leading-tight">
-                Bring your
-                <br />
-                <strong className="text-sm font-black">people.</strong>
+              <Users size={14} weight="fill" />
+              <span className="font-mono text-[9px] font-black uppercase leading-tight tracking-[0.08em]">
+                Room / Open
               </span>
             </p>
           </div>
@@ -196,64 +235,63 @@ export function NebuLanding() {
           </div>
         </div>
 
-        <section id="studio" className="px-5 py-20 sm:px-8">
+        <section id="studio" className="px-5 py-12 sm:px-8 sm:py-14">
           <div className="mx-auto max-w-6xl">
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-white/50">
-                  01 / Meet your studio
-                </p>
-                <h2 className="mt-3 max-w-xl text-4xl font-black tracking-tight sm:text-5xl">
+                <Kicker>01 / MEET YOUR STUDIO</Kicker>
+                <h2 className="mt-2 max-w-xl text-3xl font-black tracking-tight sm:text-4xl">
                   All the parts.
-                  <br />
-                  <span className="text-white/50">One place to play.</span>
+                  <span className="text-white/45"> One place to play.</span>
                 </h2>
               </div>
-              <p className="nebu-body-copy max-w-sm text-base leading-7 text-white/90">
+              <p className="nebu-body-copy max-w-sm text-sm leading-6 text-white/90">
                 Bring your picture, sound and people together. Check your scene before you share it.
               </p>
             </div>
-            <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {PARTS.map(({ title, blurb, color, icon: Icon, ink }) => (
+            <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {PARTS.map(({ ch, title, blurb, color, icon: Icon }) => (
                 <a
                   key={title}
                   href={STUDIO_URL}
-                  className="nebu-card block rounded-3xl border-2 border-black p-5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4"
-                  style={{
-                    backgroundColor: color,
-                    color: ink ? INK : '#fff',
-                    outlineColor: CYAN,
-                  }}
+                  className="nebu-card nebu-module block rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4"
+                  style={{ outlineColor: CYAN }}
                   aria-label={`Open studio — ${title}: ${blurb}`}
                 >
-                  <Icon size={28} weight="fill" />
-                  <h3 className="mt-6 text-xl font-black">{title}</h3>
-                  <p className="mt-1 text-sm font-medium opacity-80">{blurb}</p>
+                  <span className="nebu-module-rail" style={{ backgroundColor: color }} />
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-[10px] font-bold tracking-[0.16em] uppercase text-white/45">
+                      CH {ch}
+                    </span>
+                    <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />
+                  </span>
+                  <Icon size={22} weight="fill" style={{ color }} />
+                  <h3 className="mt-4 text-lg font-black tracking-tight">{title}</h3>
+                  <p className="mt-1 text-sm font-medium text-white/70">{blurb}</p>
+                  <span className="mt-4 inline-flex items-center gap-1 font-mono text-[10px] font-bold tracking-[0.16em] uppercase text-white/45">
+                    Open
+                    <ArrowRight size={12} weight="bold" />
+                  </span>
                 </a>
               ))}
             </div>
           </div>
         </section>
 
-        {/* Steps */}
-        <section className="mx-auto grid max-w-6xl gap-12 px-5 py-20 sm:px-8 lg:grid-cols-2 lg:items-center">
+        <section className="mx-auto grid max-w-6xl gap-8 px-5 py-12 sm:px-8 sm:py-14 lg:grid-cols-2 lg:items-start">
           <div>
-            <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-white/50">
-              03 / From idea to scene
-            </p>
-            <h2 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
-              Get into
-              <br />
-              your element.
+            <Kicker>02 / FROM IDEA TO SCENE</Kicker>
+            <h2 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">
+              Get into your element.
             </h2>
-            <ol className="mt-10 space-y-8">
+            <ol className="mt-6 divide-y divide-white/10 border-y border-white/10">
               {STEPS.map((step) => (
-                <li key={step.n} className="flex gap-4">
-                  <span className="text-sm font-black" style={{ color: YELLOW }}>
+                <li key={step.n} className="flex gap-4 py-4">
+                  <span className="w-8 shrink-0 font-mono text-[11px] font-black" style={{ color: YELLOW }}>
                     {step.n}
                   </span>
                   <div>
-                    <h3 className="text-2xl font-black">{step.title}</h3>
+                    <h3 className="text-xl font-black tracking-tight">{step.title}</h3>
                     <p className="nebu-body-copy mt-1 max-w-sm text-sm leading-6 text-white/90">{step.body}</p>
                   </div>
                 </li>
@@ -261,61 +299,64 @@ export function NebuLanding() {
             </ol>
           </div>
           <div
-            className="nebu-card relative overflow-hidden rounded-[2rem] border-2 border-black p-8 shadow-[10px_10px_0_#000]"
-            style={{ backgroundColor: '#160b2a' }}
+            className="nebu-card relative overflow-hidden rounded-md border border-white/15 p-6"
+            style={{ backgroundColor: PANEL }}
           >
-            <div className="flex items-center gap-3">
-              <Play size={22} weight="fill" style={{ color: YELLOW }} />
-              <Waveform size={22} style={{ color: CYAN }} />
-              <Users size={22} style={{ color: PURPLE }} />
+            <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-3">
+              <div className="flex items-center gap-3">
+                <Play size={18} weight="fill" style={{ color: YELLOW }} />
+                <Waveform size={18} style={{ color: CYAN }} />
+                <Users size={18} style={{ color: PURPLE }} />
+              </div>
+              <span className="font-mono text-[10px] font-bold tracking-[0.16em] uppercase text-white/40">
+                Rack / 02
+              </span>
             </div>
-            <p className="mt-8 text-[11px] font-bold tracking-[0.18em] uppercase text-white/50">
-              NEBU / in the studio
-            </p>
-            <p className="mt-2 text-3xl font-black leading-tight">
-              Picture · Sound · People
-            </p>
-            <p className="nebu-body-copy mt-4 text-sm leading-6 text-white/90">
+            <p className="nebu-kicker mt-5">NEBU / IN THE STUDIO</p>
+            <p className="mt-2 text-2xl font-black leading-tight">Picture · Sound · People</p>
+            <p className="nebu-body-copy mt-3 text-sm leading-6 text-white/90">
               Bring your picture, sound and people together. Check your scene before you share it.
             </p>
             <a
               href={STUDIO_URL}
-              className="nebu-cta mt-8 inline-flex min-h-11 items-center gap-2 rounded-full px-5 text-xs font-black uppercase tracking-wide"
+              className="nebu-cta mt-6 inline-flex min-h-10 items-center gap-2 rounded-md px-4 text-[11px] font-black uppercase tracking-[0.14em]"
               style={{ backgroundColor: YELLOW, color: INK }}
             >
               Start creating
-              <ArrowRight size={16} weight="bold" />
+              <ArrowRight size={14} weight="bold" />
             </a>
           </div>
         </section>
 
-        {/* Support / donate promo */}
-        <section id="support" className="px-5 pb-8 sm:px-8">
-          <div className="mx-auto grid max-w-6xl gap-8 overflow-hidden rounded-[2rem] border-2 border-black bg-[#160b2a] p-8 shadow-[10px_10px_0_#000] lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
+        <section id="support" className="px-5 pb-6 sm:px-8">
+          <div
+            className="mx-auto grid max-w-6xl gap-6 overflow-hidden rounded-md border border-white/15 p-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-center lg:p-7"
+            style={{ backgroundColor: PANEL }}
+          >
             <div>
-              <p className="text-[11px] font-bold tracking-[0.2em] uppercase" style={{ color: CYAN }}>
-                04 / Keep it going
-              </p>
-              <h2 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
+              <Kicker>03 / KEEP IT GOING</Kicker>
+              <h2 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">
                 Keep the scene running.
               </h2>
-              <p className="nebu-body-copy mt-4 max-w-lg text-base leading-7 text-white/90">
+              <p className="nebu-body-copy mt-3 max-w-lg text-sm leading-6 text-white/90">
                 Camera, sound, rooms, and a take you can keep — all in the browser. Hosting and the
                 next build still cost something. A coffee is enough.
               </p>
-              <p className="mt-3 text-sm font-bold text-white/50">Optional. Always.</p>
+              <p className="mt-2 font-mono text-[10px] font-bold tracking-[0.14em] uppercase text-white/40">
+                Optional. Always.
+              </p>
             </div>
-            <div className="flex flex-col items-start gap-4">
+            <div className="flex flex-col items-start gap-3">
               <a
                 href={DONATE_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="nebu-cta inline-flex min-h-12 items-center gap-2 rounded-full px-6 text-sm font-black uppercase tracking-wide"
+                className="nebu-cta inline-flex min-h-11 items-center gap-2 rounded-md px-5 text-xs font-black uppercase tracking-[0.14em]"
                 style={{ backgroundColor: PURPLE, color: '#fff' }}
               >
-                <Heart size={18} weight="fill" />
+                <Heart size={16} weight="fill" />
                 Support NEBU
-                <ArrowRight size={18} weight="bold" />
+                <ArrowRight size={16} weight="bold" />
               </a>
               <p className="text-xs leading-5 text-white/40">
                 Donation link:{' '}
@@ -331,32 +372,31 @@ export function NebuLanding() {
           </div>
         </section>
 
-        {/* Final CTA */}
-        <section className="px-5 pb-20 sm:px-8">
+        <section className="px-5 pb-14 sm:px-8">
           <div
-            className="nebu-card mx-auto flex max-w-6xl flex-col items-start justify-between gap-6 rounded-[2rem] border-2 border-black px-8 py-10 sm:flex-row sm:items-center"
+            className="nebu-card mx-auto flex max-w-6xl flex-col items-start justify-between gap-5 rounded-md border border-black px-6 py-6 sm:flex-row sm:items-center sm:px-7"
             style={{ backgroundColor: YELLOW, color: INK }}
           >
             <div>
-              <p className="text-[11px] font-bold tracking-[0.18em] uppercase opacity-70">
-                You’ve got something. Let it out.
+              <p className="font-mono text-[10px] font-bold tracking-[0.18em] uppercase opacity-70">
+                04 / OPEN STUDIO
               </p>
-              <h2 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">
+              <h2 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">
                 Your next scene starts here.
               </h2>
             </div>
             <a
               href={STUDIO_URL}
-              className="nebu-cta inline-flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-black px-6 text-sm font-black uppercase tracking-wide text-white"
+              className="nebu-cta inline-flex min-h-11 shrink-0 items-center gap-2 rounded-md bg-black px-5 text-xs font-black uppercase tracking-[0.14em] text-white"
             >
               Open your studio
-              <ArrowRight size={18} weight="bold" />
+              <ArrowRight size={16} weight="bold" />
             </a>
           </div>
         </section>
       </main>
 
-      <footer className="relative z-10 border-t border-white/10 px-5 py-8 text-center text-xs text-white/50 sm:px-8">
+      <footer className="relative z-10 border-t border-white/10 px-5 py-5 text-center font-mono text-[10px] tracking-[0.12em] uppercase text-white/45 sm:px-8">
         NEBU · nebu.quest · Set the scene.{' '}
         <a href={DONATE_URL} className="text-white/55 underline-offset-2 hover:text-white hover:underline">
           Support

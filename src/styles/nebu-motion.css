@@ -9,9 +9,9 @@
 }
 
 @keyframes nebu-float {
-  0%, 100% { transform: translateY(0) rotate(-1.5deg) scale(1); }
-  40% { transform: translateY(-16px) rotate(1.8deg) scale(1.015); }
-  70% { transform: translateY(-8px) rotate(0.4deg) scale(1.008); }
+  0%, 100% { transform: translateY(0) scale(1); }
+  40% { transform: translateY(-8px) scale(1.008); }
+  70% { transform: translateY(-4px) scale(1.004); }
 }
 
 @keyframes nebu-pulse-live {
@@ -41,8 +41,8 @@
 @keyframes nebu-rise {
   from {
     opacity: 0;
-    transform: translateY(32px) scale(0.98);
-    filter: blur(4px);
+    transform: translateY(16px) scale(0.99);
+    filter: blur(2px);
   }
   to {
     opacity: 1;
@@ -54,7 +54,7 @@
 @keyframes nebu-panel-in {
   from {
     opacity: 0;
-    transform: translateY(40px) scale(0.96);
+    transform: translateY(24px) scale(0.98);
     box-shadow: 0 0 0 rgba(144, 38, 255, 0);
   }
   to {
@@ -98,26 +98,48 @@
   animation-delay: 0.16s;
 }
 
+.nebu-kicker {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--nebu-cyan, #6bd9ff) 72%, white);
+}
+
+.nebu-module {
+  position: relative;
+  padding: 1rem 1rem 1rem 1.15rem;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--nebu-bg-2, #1a0a2e) 88%, black);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.nebu-module-rail {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+}
+
 .nebu-card {
-  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.28s ease, border-color 0.28s ease;
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s ease, border-color 0.22s ease;
 }
 .nebu-card:hover,
 .nebu-card:focus-within {
-  transform: translateY(-7px);
-  box-shadow: 7px 7px 0 var(--nebu-ink);
+  transform: translateY(-2px);
+  box-shadow: 0 0 0 1px var(--nebu-yellow, #f5e000);
 }
 
 .nebu-cta {
   transition: transform 0.22s ease, box-shadow 0.22s ease, filter 0.22s ease;
 }
 .nebu-cta:hover {
-  transform: translateY(-2px) scale(1.025);
-  box-shadow: 4px 4px 0 var(--nebu-ink);
+  transform: translateY(-1px);
+  box-shadow: 3px 3px 0 var(--nebu-ink, #0c021a);
   filter: brightness(1.06);
 }
 .nebu-cta:active {
-  transform: translateY(1px) scale(0.99);
-  box-shadow: 1px 1px 0 var(--nebu-ink);
+  transform: translateY(1px);
+  box-shadow: 1px 1px 0 var(--nebu-ink, #0c021a);
 }
 
 .nebu-hero-art {
@@ -125,19 +147,21 @@
   overflow: visible;
 }
 .nebu-hero-frame {
-  transform: rotate(2.4deg);
+  transform: none;
 }
 .nebu-hero-badge {
-  transform: rotate(-6deg);
+  transform: none;
 }
 .nebu-hero-badge:last-of-type {
-  transform: rotate(8deg);
+  transform: none;
 }
 
 .nebu-ticker {
-  background: var(--nebu-yellow);
-  color: var(--nebu-ink);
-  border-block: 3px solid #000;
+  background: var(--nebu-yellow, #f5e000);
+  color: var(--nebu-ink, #0c021a);
+  border-top: 2px solid #000;
+  border-bottom: 2px solid #000;
+  border-block: 2px solid #000;
   overflow: hidden;
 }
 .nebu-ticker-track {
@@ -150,12 +174,13 @@
   display: flex;
   flex: none;
   align-items: center;
-  gap: clamp(1.5rem, 4vw, 3.5rem);
-  padding-inline: clamp(1rem, 2vw, 2rem);
-  height: 3.5rem;
-  font-size: clamp(0.9rem, 1.6vw, 1.25rem);
-  font-weight: 800;
-  letter-spacing: -0.03em;
+  gap: clamp(1.25rem, 3vw, 2.5rem);
+  padding-inline: clamp(0.85rem, 2vw, 1.5rem);
+  height: 2.6rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: clamp(0.72rem, 1.3vw, 0.9rem);
+  font-weight: 700;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -169,7 +194,7 @@
     padding: 3rem 1.75rem 3.75rem;
   }
   .nebu-hero-frame {
-    transform: rotate(1.5deg);
+    transform: none;
   }
 }
 

@@ -46,7 +46,7 @@ describe('NebuLanding brand surface', () => {
     const cards = source.slice(source.indexOf('{PARTS.map'), source.indexOf('</section>', source.indexOf('{PARTS.map')))
     expect(cards).toContain('href={STUDIO_URL}')
     expect(cards).toContain('aria-label={`Open studio — ${title}: ${blurb}`}')
-    expect(cards).toContain('className="nebu-card block rounded-3xl')
+    expect(cards).toContain('className="nebu-card nebu-module block rounded-md')
     expect(cards).toContain('focus-visible:outline')
     expect(cards).not.toContain('tab-arrow')
     expect(source).toContain("const STUDIO_URL = '/login'")
@@ -110,5 +110,28 @@ describe('NebuLanding brand surface', () => {
   it('links Ashy’s mega-easy walkthrough', () => {
     expect(source).toContain('/units/ashy')
     expect(source).toContain('Like Ashy’s room')
+  })
+
+  it('uses the barred-E mark instead of a carnival sparkle logo', () => {
+    const header = source.slice(source.indexOf('<header'), source.indexOf('</header>'))
+    expect(source).toContain('function NebuMark')
+    expect(source).toContain('<rect x="3" y="4" width="10" height="1.5" />')
+    expect(source).toContain('<rect x="3" y="7.25" width="10" height="1.5" />')
+    expect(source).toContain('<rect x="3" y="10.5" width="10" height="1.5" />')
+    expect(header).toContain('<NebuMark')
+    expect(header).not.toContain('Sparkle')
+  })
+
+  it('uses dense operator section labels and console chrome', () => {
+    expect(source).toContain('01 / MEET YOUR STUDIO')
+    expect(source).toContain('00 / YOUR BROWSER. YOUR STAGE.')
+    expect(source).toContain('02 / FROM IDEA TO SCENE')
+    expect(source).toContain('03 / KEEP IT GOING')
+    expect(source).toContain('nebu-kicker')
+    expect(source).toContain('nebu-console')
+    expect(source).toContain('NEBU / PREVIEW')
+    expect(source).toContain('CH 01')
+    expect(motion).toContain('.nebu-kicker')
+    expect(motion).toContain('.nebu-module')
   })
 })
