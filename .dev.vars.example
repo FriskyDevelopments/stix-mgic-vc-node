@@ -1,0 +1,25 @@
+# Copy to .dev.vars for `npx wrangler dev`. Gitignores .dev.vars.
+# Fill locally. Never commit real values.
+
+OPERATOR_TOKEN_SECRET=
+
+# Optional — identity
+SUPABASE_URL=
+SUPABASE_ANON_KEY=
+SUPABASE_PUBLISHABLE_KEY=
+
+# Optional — BYO Telegram (hosted Ashy unit does not need a BotFather token here)
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_BOT_USERNAME=
+TELEGRAM_WEBHOOK_SECRET=
+
+# Optional — Cloudflare Realtime (TURN/SFU); server/cloudflare-realtime.ts
+CLOUDFLARE_TURN_KEY_ID=
+CLOUDFLARE_TURN_KEY_API_TOKEN=
+CLOUDFLARE_REALTIME_APP_ID=
+CLOUDFLARE_REALTIME_APP_SECRET=
+
+# Optional — NEBU consumer login on this unit
+BETTER_AUTH_SECRET=
+BETTER_AUTH_URL=
+DATABASE_URL=
