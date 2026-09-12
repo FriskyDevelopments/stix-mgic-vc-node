@@ -24,8 +24,11 @@ describe('NebuLanding brand surface', () => {
   })
 
   it('keeps a single yellow Open your studio CTA above the fold', () => {
-    expect(source).toContain('Take a look around')
-    expect(source).toContain('href="#studio"')
+    const hero = source.slice(source.indexOf('{/* Hero */}'), source.indexOf('</section>'))
+    expect(hero).toContain('Open your studio')
+    expect(hero).toContain('href={STUDIO_URL}')
+    expect(hero).toContain('Take a look around')
+    expect(hero).toContain('href="#studio"')
     const header = source.slice(source.indexOf('<header'), source.indexOf('</header>'))
     expect(header).not.toContain('Open studio')
     expect(header).not.toContain('nebu-cta')
@@ -40,10 +43,13 @@ describe('NebuLanding brand surface', () => {
   })
 
   it('makes Studio/Sound/Rooms/Record full-card links with hover/focus', () => {
-    expect(source).toContain('aria-label={`Open studio — ${title}: ${blurb}`}')
-    expect(source).toContain('className="nebu-card block rounded-3xl')
-    expect(source).toContain('focus-visible:outline')
-    expect(source).not.toContain('tab-arrow')
+    const cards = source.slice(source.indexOf('{PARTS.map'), source.indexOf('</section>', source.indexOf('{PARTS.map')))
+    expect(cards).toContain('href={STUDIO_URL}')
+    expect(cards).toContain('aria-label={`Open studio — ${title}: ${blurb}`}')
+    expect(cards).toContain('className="nebu-card block rounded-3xl')
+    expect(cards).toContain('focus-visible:outline')
+    expect(cards).not.toContain('tab-arrow')
+    expect(source).toContain("const STUDIO_URL = '/login'")
   })
 
   it('keeps hero art inside a padded safe area', () => {
@@ -58,23 +64,35 @@ describe('NebuLanding brand surface', () => {
     expect(source).toContain('nebu-float')
     expect(source).toContain('nebu-live-pulse')
     expect(source).toContain('nebu-card')
-    expect(motion).toContain('prefers-reduced-motion')
+    const reducedMotion = motion.slice(motion.indexOf('@media (prefers-reduced-motion: reduce)'))
+    expect(reducedMotion).toContain('prefers-reduced-motion')
     expect(motion).toContain('nebu-panel-in')
-    expect(motion).toContain('animation: none')
+    const tickerRule = reducedMotion.slice(
+      reducedMotion.indexOf('.nebu-ticker-track'),
+      reducedMotion.indexOf('}', reducedMotion.indexOf('.nebu-ticker-track')),
+    )
+    expect(tickerRule).toContain('animation: none !important')
   })
 
   it('pauses the ticker for reduced motion and keeps the copy readable', () => {
     expect(source).toContain('nebu-ticker')
     expect(source).toContain('Your camera')
     expect(motion).toContain('nebu-ticker-scroll')
-    expect(motion).toContain(".nebu-ticker-group[aria-hidden='true']")
-    expect(motion).toContain('white-space: normal')
+    const reducedMotion = motion.slice(motion.indexOf('@media (prefers-reduced-motion: reduce)'))
+    expect(reducedMotion).toContain(".nebu-ticker-group[aria-hidden='true']")
+    const tickerGroupRule = reducedMotion.slice(
+      reducedMotion.indexOf('.nebu-ticker-group {'),
+      reducedMotion.indexOf('}', reducedMotion.indexOf('.nebu-ticker-group {')),
+    )
+    expect(tickerGroupRule).toContain('white-space: normal')
   })
 
   it('does not put an Open studio link in the footer', () => {
     const footer = source.slice(source.indexOf('<footer'), source.indexOf('</footer>'))
-    expect(footer).not.toContain('Open studio')
-    expect(footer).not.toContain('STUDIO_URL')
+    expect(footer).not.toContain('Open your studio')
+    expect(footer).not.toContain('href="/login"')
+    expect(footer).not.toContain('href={STUDIO_URL}')
+    expect(footer).not.toContain('href={LOGIN_URL}')
   })
 
   it('routes studio CTA to NEBU /login (not vc.friskydev.com)', () => {
