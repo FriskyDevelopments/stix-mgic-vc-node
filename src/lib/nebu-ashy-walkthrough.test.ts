@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import {
   ASHY_SCENES,
   ASHY_UNIT,
   BEFORE_YOU_START,
   NEBU_BRAND,
+  NEBU_CSS_VARS,
   NEBU_LOGIN_URL,
   PIPE_LABELS,
   STUDIO_URL,
@@ -86,9 +89,30 @@ describe('NEBU Ashy walkthrough step model', () => {
     expect(NEBU_BRAND.cta).toContain("Like Ashy’s room")
     expect(NEBU_BRAND.night).toBe('#0B001A')
     expect(NEBU_BRAND.yellow).toBe('#FFD100')
+    expect(NEBU_BRAND.violet).toBe('#7A4FB8')
+    expect(NEBU_BRAND.cyan).toBe('#5EA8B8')
+    expect(NEBU_BRAND.ash).toBe('#9A93A0')
+    expect(NEBU_BRAND.danger).toBe('#B57A7A')
+    expect(NEBU_CSS_VARS['--nebu-yellow']).toBe(NEBU_BRAND.yellow)
+    expect(NEBU_CSS_VARS['--nebu-ash']).toBe(NEBU_BRAND.ash)
     const room = getScene('act-i-private-room')
     expect(room?.optionalTip).toMatch(/mute|kick|pin|end/i)
     expect(room?.practiceRule).toBe(true)
+  })
+
+  it('keeps CSS variables in lockstep with NEBU_BRAND and drops carnival neon', () => {
+    const tokens = readFileSync(resolve(__dirname, '../styles/nebu-tokens.css'), 'utf8')
+    expect(tokens).toContain(NEBU_BRAND.night)
+    expect(tokens).toContain(NEBU_BRAND.yellow)
+    expect(tokens).toContain(NEBU_BRAND.violet)
+    expect(tokens).toContain(NEBU_BRAND.cyan)
+    expect(tokens).toContain(NEBU_BRAND.ash)
+    expect(tokens).toContain(NEBU_BRAND.danger)
+    expect(tokens).toContain(NEBU_BRAND.live)
+    expect(tokens).not.toContain('#9D00FF')
+    expect(tokens).not.toContain('#00E5FF')
+    expect(tokens).not.toContain('#B7FF2A')
+    expect(NEBU_BRAND).not.toHaveProperty('lime')
   })
 
   it('documents BYO vs hosted with Ashy unit id only as display', () => {

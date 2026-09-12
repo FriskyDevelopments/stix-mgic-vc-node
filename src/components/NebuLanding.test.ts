@@ -7,11 +7,16 @@ describe('NebuLanding brand surface', () => {
   const motion = readFileSync(resolve(__dirname, '../styles/nebu-motion.css'), 'utf8')
 
   it('uses NEBU board colors and Set the scene copy', () => {
-    expect(source).toContain('#0d081a')
-    expect(source).toContain('#f5e000')
+    expect(source).toContain('NEBU_BRAND')
+    expect(source).toContain('nebuBrandStyle')
+    expect(source).toContain('var(--nebu-night)')
+    expect(source).toContain('var(--nebu-yellow)')
     expect(source).toContain('Set the')
     expect(source).toContain('scene')
     expect(source).toContain('Open your studio')
+    expect(source).toContain('01 / Meet your studio')
+    expect(source).not.toContain('#b7ff2a')
+    expect(source).not.toContain('#22c55e')
   })
 
   it('leads with a plain product-category value prop, poetic line second', () => {
@@ -46,7 +51,7 @@ describe('NebuLanding brand surface', () => {
     const cards = source.slice(source.indexOf('{PARTS.map'), source.indexOf('</section>', source.indexOf('{PARTS.map')))
     expect(cards).toContain('href={STUDIO_URL}')
     expect(cards).toContain('aria-label={`Open studio — ${title}: ${blurb}`}')
-    expect(cards).toContain('className="nebu-card block rounded-3xl')
+    expect(cards).toContain('className="nebu-card block rounded-xl')
     expect(cards).toContain('focus-visible:outline')
     expect(cards).not.toContain('tab-arrow')
     expect(source).toContain("const STUDIO_URL = '/login'")
@@ -108,7 +113,7 @@ describe('NebuLanding brand surface', () => {
   })
 
   it('links Ashy’s mega-easy walkthrough', () => {
-    expect(source).toContain('/units/ashy')
+    expect(source).toContain('ASHY_UNIT_PATH')
     expect(source).toContain('Like Ashy’s room')
   })
 })

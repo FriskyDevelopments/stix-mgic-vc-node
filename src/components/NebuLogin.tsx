@@ -1,6 +1,7 @@
 import { FormEvent, useMemo, useState } from 'react'
-import { WarningCircle, ArrowRight, Check, Eye, EyeSlash, Sparkle } from '@phosphor-icons/react'
+import { WarningCircle, ArrowRight, Check, Eye, EyeSlash } from '@phosphor-icons/react'
 import { nebuAuthClient, type NebuSocialProvider } from '@/lib/nebu-auth-client'
+import { NEBU_BRAND, nebuBrandStyle } from '@/lib/nebu-ashy-walkthrough'
 import '@/styles/nebu-motion.css'
 
 type Mode = 'signin' | 'signup'
@@ -11,10 +12,10 @@ const SOCIAL_PROVIDERS: Array<{ id: NebuSocialProvider; label: string; mark: str
   { id: 'apple', label: 'Continue with Apple', mark: 'A' },
 ]
 
-const NEBU_BG = '#0d081a'
-const NEBU_YELLOW = '#F5E000'
-const NEBU_PURPLE = '#9026ff'
-const NEBU_CYAN = '#6bd9ff'
+const NEBU_BG = NEBU_BRAND.night
+const NEBU_YELLOW = NEBU_BRAND.yellow
+const NEBU_PURPLE = NEBU_BRAND.violet
+const NEBU_CYAN = NEBU_BRAND.cyan
 
 type NebuLoginProps = {
   authConfigured?: boolean
@@ -113,7 +114,7 @@ export function NebuLogin({
   return (
     <main
       className="min-h-screen text-white"
-      style={{ backgroundColor: NEBU_BG, fontFamily: "'Inter', system-ui, sans-serif" }}
+      style={{ ...nebuBrandStyle(), backgroundColor: NEBU_BG, fontFamily: "'Inter', system-ui, sans-serif" }}
     >
       <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
         <div
@@ -132,13 +133,19 @@ export function NebuLogin({
 
       <div className="relative mx-auto flex min-h-screen max-w-lg flex-col justify-center px-5 py-12 sm:px-8">
         <header className="nebu-rise nebu-rise-1 mb-8 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Sparkle size={22} weight="fill" className="nebu-spark" style={{ color: NEBU_YELLOW }} />
-            <span className="text-2xl font-black tracking-tight uppercase">NEBU</span>
+          <div className="flex items-center gap-2" style={{ color: NEBU_YELLOW }}>
+            <svg width={18} height={18} viewBox="0 0 16 16" aria-hidden>
+              <g fill="currentColor">
+                <rect x="3" y="4" width="10" height="1.5" />
+                <rect x="3" y="7.25" width="10" height="1.5" />
+                <rect x="3" y="10.5" width="10" height="1.5" />
+              </g>
+            </svg>
+            <span className="text-sm font-black tracking-[0.18em] uppercase">NEBU</span>
           </div>
           <span
-            className="rounded-full px-3 py-1 text-[10px] font-bold tracking-[0.16em] uppercase"
-            style={{ backgroundColor: NEBU_YELLOW, color: '#0c021a' }}
+            className="rounded-md px-3 py-1 text-[10px] font-bold tracking-[0.16em] uppercase"
+            style={{ backgroundColor: NEBU_YELLOW, color: NEBU_BRAND.ink }}
           >
             nebu.quest
           </span>
@@ -146,7 +153,7 @@ export function NebuLogin({
 
         <section
           className="nebu-login-panel rounded-3xl border border-white/10 p-6 shadow-2xl sm:p-8"
-          style={{ backgroundColor: 'rgba(255,255,255,0.96)', color: '#0c021a' }}
+          style={{ backgroundColor: 'rgba(255,255,255,0.96)', color: NEBU_BRAND.ink }}
         >
           <p
             className="mb-2 text-[11px] font-bold tracking-[0.18em] uppercase"
@@ -197,8 +204,8 @@ export function NebuLogin({
             aria-label="Sign-in mode"
           >
             <label
-              className={`grid min-h-11 cursor-pointer place-items-center rounded-xl px-3 text-sm font-bold transition focus-within:ring-2 focus-within:ring-[#9026ff]/40 ${
-                mode === 'signin' ? 'text-[#0c021a]' : 'text-black/50'
+              className={`grid min-h-11 cursor-pointer place-items-center rounded-xl px-3 text-sm font-bold transition focus-within:ring-2 focus-within:ring-[var(--nebu-violet)]/40 ${
+                mode === 'signin' ? 'text-[var(--nebu-ink)]' : 'text-black/50'
               }`}
               style={mode === 'signin' ? { backgroundColor: NEBU_YELLOW } : undefined}
             >
@@ -216,8 +223,8 @@ export function NebuLogin({
               Sign in
             </label>
             <label
-              className={`grid min-h-11 cursor-pointer place-items-center rounded-xl px-3 text-sm font-bold transition focus-within:ring-2 focus-within:ring-[#9026ff]/40 ${
-                mode === 'signup' ? 'text-[#0c021a]' : 'text-black/50'
+              className={`grid min-h-11 cursor-pointer place-items-center rounded-xl px-3 text-sm font-bold transition focus-within:ring-2 focus-within:ring-[var(--nebu-violet)]/40 ${
+                mode === 'signup' ? 'text-[var(--nebu-ink)]' : 'text-black/50'
               }`}
               style={mode === 'signup' ? { backgroundColor: NEBU_YELLOW } : undefined}
             >
@@ -245,7 +252,7 @@ export function NebuLogin({
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   autoComplete="name"
-                  className="mt-2 min-h-12 w-full rounded-2xl border border-black/15 bg-white px-4 text-base outline-none focus:border-[#9026ff] focus:ring-2 focus:ring-[#9026ff]/25"
+                  className="mt-2 min-h-12 w-full rounded-2xl border border-black/15 bg-white px-4 text-base outline-none focus:border-[var(--nebu-violet)] focus:ring-2 focus:ring-[var(--nebu-violet)]/25"
                   placeholder="Your name"
                 />
               </label>
@@ -258,7 +265,7 @@ export function NebuLogin({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="email"
-                className="mt-2 min-h-12 w-full rounded-2xl border border-black/15 bg-white px-4 text-base outline-none focus:border-[#9026ff] focus:ring-2 focus:ring-[#9026ff]/25"
+                className="mt-2 min-h-12 w-full rounded-2xl border border-black/15 bg-white px-4 text-base outline-none focus:border-[var(--nebu-violet)] focus:ring-2 focus:ring-[var(--nebu-violet)]/25"
                 placeholder="you@example.com"
               />
             </label>
@@ -272,7 +279,7 @@ export function NebuLogin({
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
-                  className="min-h-12 w-full rounded-2xl border border-black/15 bg-white px-4 pr-12 text-base outline-none focus:border-[#9026ff] focus:ring-2 focus:ring-[#9026ff]/25"
+                  className="min-h-12 w-full rounded-2xl border border-black/15 bg-white px-4 pr-12 text-base outline-none focus:border-[var(--nebu-violet)] focus:ring-2 focus:ring-[var(--nebu-violet)]/25"
                   placeholder="At least 8 characters"
                 />
                 <button
@@ -298,7 +305,7 @@ export function NebuLogin({
             {notice && (
               <div
                 role="status"
-                className="flex gap-2 rounded-2xl border border-[#9026ff]/30 bg-[#9026ff]/10 p-3 text-sm"
+                className="flex gap-2 rounded-2xl border border-[var(--nebu-violet)]/30 bg-[var(--nebu-violet)]/10 p-3 text-sm"
               >
                 <Check size={18} className="mt-0.5 shrink-0" style={{ color: NEBU_PURPLE }} />
                 {notice}
@@ -309,7 +316,7 @@ export function NebuLogin({
               disabled={busy}
               type="submit"
               className="nebu-cta group flex min-h-12 w-full items-center justify-between rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-60"
-              style={{ backgroundColor: NEBU_YELLOW, color: '#0c021a' }}
+              style={{ backgroundColor: NEBU_YELLOW, color: NEBU_BRAND.ink }}
             >
               <span>
                 {isSubmitting

@@ -1,10 +1,11 @@
-/* Nebu Host Controls + Mini Widget — extends nebu-motion tokens, no new palette. */
+/* Nebu Host Controls + Mini Widget — inherits NEBU_BRAND via nebu-tokens.css */
+@import './nebu-tokens.css';
 
 .nebu-hc {
-  --nebu-hc-border: color-mix(in srgb, var(--nebu-cyan, #6bd9ff) 28%, transparent);
-  --nebu-hc-surface: color-mix(in srgb, var(--nebu-bg-2, #1a0a2e) 88%, transparent);
+  --nebu-hc-border: color-mix(in srgb, var(--nebu-cyan) 28%, transparent);
+  --nebu-hc-surface: color-mix(in srgb, var(--nebu-bg-2) 88%, transparent);
   font-family: ui-sans-serif, system-ui, sans-serif;
-  color: #f4f0ff;
+  color: var(--nebu-paper);
 }
 
 .nebu-hc-panel {
@@ -15,7 +16,7 @@
 }
 
 .nebu-hc-kicker {
-  color: var(--nebu-cyan, #6bd9ff);
+  color: var(--nebu-cyan);
   font-size: 8px;
   font-weight: 800;
   letter-spacing: 0.18em;
@@ -38,10 +39,10 @@
 .nebu-hc-btn {
   min-height: 30px;
   padding: 0 10px;
-  border: 1px solid color-mix(in srgb, var(--nebu-yellow, #f5e000) 35%, transparent);
+  border: 1px solid color-mix(in srgb, var(--nebu-yellow) 35%, transparent);
   border-radius: 9px;
-  background: color-mix(in srgb, var(--nebu-purple, #9026ff) 22%, transparent);
-  color: #f7f3ff;
+  background: color-mix(in srgb, var(--nebu-violet) 22%, transparent);
+  color: var(--nebu-paper);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -49,7 +50,7 @@
 }
 
 .nebu-hc-btn:hover {
-  border-color: var(--nebu-yellow, #f5e000);
+  border-color: var(--nebu-yellow);
 }
 
 .nebu-hc-btn:disabled {
@@ -58,8 +59,8 @@
 }
 
 .nebu-hc-btn.is-danger {
-  border-color: color-mix(in srgb, #ff6b7a 50%, transparent);
-  background: color-mix(in srgb, #ff6b7a 18%, transparent);
+  border-color: color-mix(in srgb, var(--nebu-danger) 50%, transparent);
+  background: color-mix(in srgb, var(--nebu-danger) 18%, transparent);
 }
 
 .nebu-hc-btn.is-quiet {
@@ -82,8 +83,8 @@
 }
 
 .nebu-hc-chip.is-live {
-  border-color: color-mix(in srgb, var(--nebu-cyan, #6bd9ff) 55%, transparent);
-  color: var(--nebu-cyan, #6bd9ff);
+  border-color: color-mix(in srgb, var(--nebu-live) 55%, transparent);
+  color: var(--nebu-live);
 }
 
 .nebu-hc-list {
@@ -98,14 +99,14 @@
   padding: 10px;
   border: 1px solid color-mix(in srgb, #fff 10%, transparent);
   border-radius: 12px;
-  background: color-mix(in srgb, var(--nebu-bg, #0d081a) 55%, transparent);
+  background: color-mix(in srgb, var(--nebu-bg) 55%, transparent);
   cursor: pointer;
   text-align: left;
 }
 
 .nebu-hc-person.is-selected {
-  border-color: color-mix(in srgb, var(--nebu-yellow, #f5e000) 55%, transparent);
-  box-shadow: 3px 3px 0 color-mix(in srgb, var(--nebu-ink, #0c021a) 70%, transparent);
+  border-color: color-mix(in srgb, var(--nebu-yellow) 55%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--nebu-yellow) 40%, transparent);
 }
 
 .nebu-hc-person-head {
@@ -134,16 +135,16 @@
 
 .nebu-tx-item {
   padding: 8px 10px;
-  border-left: 3px solid var(--nebu-yellow, #f5e000);
+  border-left: 3px solid var(--nebu-yellow);
   border-radius: 0 10px 10px 0;
-  background: color-mix(in srgb, var(--nebu-purple, #9026ff) 16%, transparent);
+  background: color-mix(in srgb, var(--nebu-violet) 16%, transparent);
   font-size: 11px;
 }
 
 .nebu-tx-item strong {
   display: block;
   margin-bottom: 2px;
-  color: var(--nebu-yellow, #f5e000);
+  color: var(--nebu-yellow);
   font-size: 8px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -152,9 +153,9 @@
 .nebu-cam-request {
   margin-top: 10px;
   padding: 12px;
-  border: 1px solid color-mix(in srgb, var(--nebu-yellow, #f5e000) 45%, transparent);
+  border: 1px solid color-mix(in srgb, var(--nebu-yellow) 45%, transparent);
   border-radius: 12px;
-  background: color-mix(in srgb, var(--nebu-bg-2, #1a0a2e) 90%, transparent);
+  background: color-mix(in srgb, var(--nebu-bg-2) 90%, transparent);
 }
 
 .nebu-cam-request p {
@@ -172,7 +173,7 @@
   gap: 8px;
   border: 1px solid var(--nebu-hc-border);
   border-radius: 16px;
-  background: color-mix(in srgb, var(--nebu-bg, #0d081a) 92%, transparent);
+  background: color-mix(in srgb, var(--nebu-bg) 92%, transparent);
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(16px);
   color: #f4f0ff;
@@ -208,15 +209,15 @@
   font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.14em;
-  color: var(--nebu-cyan, #6bd9ff);
+  color: var(--nebu-live);
 }
 
 .nebu-mini-live i {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--nebu-cyan, #6bd9ff);
-  box-shadow: 0 0 10px var(--nebu-cyan, #6bd9ff);
+  background: var(--nebu-live);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--nebu-live) 55%, transparent);
 }
 
 .nebu-mini-dock {
@@ -237,14 +238,14 @@
 }
 
 .nebu-mini-dock button.is-off {
-  background: #e7535c;
+  background: var(--nebu-danger);
 }
 
 .nebu-mini-attention {
   padding: 8px;
   border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--nebu-yellow, #f5e000) 40%, transparent);
-  background: color-mix(in srgb, var(--nebu-yellow, #f5e000) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--nebu-yellow) 40%, transparent);
+  background: color-mix(in srgb, var(--nebu-yellow) 10%, transparent);
   font-size: 11px;
   cursor: pointer;
   text-align: left;
@@ -259,9 +260,9 @@
 .nebu-busy {
   padding: 6px 8px;
   border-radius: 9px;
-  border: 1px dashed color-mix(in srgb, var(--nebu-cyan, #6bd9ff) 35%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--nebu-cyan) 35%, transparent);
   font-size: 10px;
-  color: color-mix(in srgb, #fff 78%, var(--nebu-cyan, #6bd9ff));
+  color: color-mix(in srgb, var(--nebu-paper) 78%, var(--nebu-cyan));
 }
 
 .nebu-hc-collapse {
@@ -291,11 +292,8 @@
   }
 }
 
-/* ROOM-ADMIN.md — Telegram group/room admin chrome (Nebu brand tokens) */
+/* ROOM-ADMIN.md — Telegram group/room admin chrome (inherits NEBU_BRAND) */
 .nebu-room-admin {
-  --nebu-night: #0b001a;
-  --nebu-yellow: #ffd100;
-  --nebu-violet: #9d00ff;
   margin-top: 12px;
   padding: 12px;
   border: 1px solid color-mix(in srgb, var(--nebu-violet) 40%, transparent);

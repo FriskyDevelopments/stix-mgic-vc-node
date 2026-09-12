@@ -1,23 +1,23 @@
-/* NEBU Ashy mega-easy walkthrough — neo-brutal cinematic brand tokens */
-
+/* NEBU Ashy mega-easy walkthrough — inherits NEBU_BRAND via nebu-tokens.css */
+@import './nebu-tokens.css';
 @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Manrope:wght@500;600;700;800&display=swap');
 
 .nebu-ashy {
-  --night: #0b001a;
-  --yellow: #ffd100;
-  --violet: #9d00ff;
-  --cyan: #00e5ff;
-  --lime: #b7ff2a;
-  --paper: #f7f5f2;
-  --muted: #bcb4c9;
-  --line: #4b4059;
-  --ink: #121212;
-  --panel: #191424;
+  --night: var(--nebu-night);
+  --yellow: var(--nebu-yellow);
+  --violet: var(--nebu-violet);
+  --cyan: var(--nebu-cyan);
+  --lime: var(--nebu-ash);
+  --paper: var(--nebu-paper);
+  --muted: var(--nebu-smoke);
+  --line: var(--nebu-hairline);
+  --ink: var(--nebu-ink);
+  --panel: var(--nebu-panel);
   min-height: 100vh;
   color: var(--paper);
   background:
-    radial-gradient(circle at 88% 8%, color-mix(in srgb, var(--violet) 34%, transparent), transparent 32%),
-    radial-gradient(circle at 8% 70%, color-mix(in srgb, var(--cyan) 18%, transparent), transparent 28%),
+    radial-gradient(circle at 88% 8%, color-mix(in srgb, var(--violet) 22%, transparent), transparent 32%),
+    radial-gradient(circle at 8% 70%, color-mix(in srgb, var(--cyan) 12%, transparent), transparent 28%),
     var(--night);
   font-family: Manrope, system-ui, sans-serif;
 }
@@ -71,18 +71,18 @@
 .nebu-ashy__chip {
   display: inline-flex;
   align-items: center;
-  min-height: 2rem;
-  padding: 0 0.85rem;
-  border: 2px solid #000;
-  border-radius: 999px;
+  min-height: 1.85rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
   background: color-mix(in srgb, var(--panel) 90%, transparent);
   color: var(--paper);
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   text-decoration: none;
-  box-shadow: 3px 3px 0 #000;
+  box-shadow: none;
 }
 
 .nebu-ashy__chip.is-yellow {
@@ -92,13 +92,13 @@
 
 .nebu-ashy__hero {
   display: grid;
-  gap: 1.25rem;
-  margin-bottom: 1.5rem;
-  padding: 1.5rem;
-  border: 3px solid #000;
-  border-radius: 1.5rem;
-  background: linear-gradient(145deg, color-mix(in srgb, var(--violet) 22%, var(--panel)), var(--panel));
-  box-shadow: 8px 8px 0 #000;
+  gap: 1rem;
+  margin-bottom: 1.15rem;
+  padding: 1.15rem;
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--violet) 14%, var(--panel)), var(--panel));
+  box-shadow: none;
 }
 
 .nebu-ashy__kicker {
@@ -147,11 +147,11 @@
 }
 
 .nebu-ashy__pipe {
-  padding: 0.9rem 1rem;
-  border: 2px solid #000;
-  border-radius: 1rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
   background: var(--night);
-  box-shadow: 4px 4px 0 #000;
+  box-shadow: none;
 }
 
 .nebu-ashy__pipe[data-status='active'] {
@@ -199,15 +199,15 @@
 
 .nebu-ashy__rule {
   margin: 0;
-  padding: 0.85rem 1rem;
-  border: 2px solid #000;
-  border-left: 6px solid var(--yellow);
-  border-radius: 0.85rem;
-  background: color-mix(in srgb, var(--yellow) 12%, var(--night));
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--yellow);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--yellow) 8%, var(--night));
   color: var(--paper);
-  font-size: 0.86rem;
+  font-size: 0.82rem;
   font-weight: 700;
-  box-shadow: 4px 4px 0 #000;
+  box-shadow: none;
 }
 
 .nebu-ashy__grid {
@@ -218,11 +218,11 @@
 }
 
 .nebu-ashy__panel {
-  padding: 1.15rem;
-  border: 3px solid #000;
-  border-radius: 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
   background: var(--panel);
-  box-shadow: 6px 6px 0 #000;
+  box-shadow: none;
 }
 
 .nebu-ashy__panel h2 {
@@ -262,11 +262,11 @@
   display: flex;
   align-items: center;
   gap: 0.65rem;
-  padding: 0.7rem 0.8rem;
-  border: 2px solid #000;
-  border-radius: 0.8rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 0.45rem;
   background: var(--night);
-  font-size: 0.88rem;
+  font-size: 0.82rem;
   font-weight: 700;
 }
 
@@ -324,19 +324,19 @@
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
-  min-height: 2.75rem;
-  padding: 0 1.1rem;
-  border: 2px solid #000;
-  border-radius: 999px;
+  min-height: 2.4rem;
+  padding: 0 0.95rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
   background: var(--yellow);
   color: var(--ink);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 800;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   text-decoration: none;
   cursor: pointer;
-  box-shadow: 4px 4px 0 #000;
+  box-shadow: none;
 }
 
 .nebu-ashy__btn:hover { filter: brightness(1.05); }

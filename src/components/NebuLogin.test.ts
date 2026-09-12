@@ -7,13 +7,15 @@ describe('NebuLogin brand surface', () => {
   const motion = readFileSync(resolve(__dirname, '../styles/nebu-motion.css'), 'utf8')
 
   it('uses NEBU brand colors and copy', () => {
-    expect(source).toContain('#0d081a')
-    expect(source).toContain('#F5E000')
-    expect(source).toContain('#9026ff')
+    expect(source).toContain('NEBU_BRAND')
+    expect(source).toContain('nebuBrandStyle')
+    expect(source).toContain('NEBU_BRAND.night')
+    expect(source).toContain('NEBU_BRAND.yellow')
     expect(source).toContain('NEBU')
     expect(source).toContain('nebu.quest')
     expect(source).toContain('Welcome back.')
     expect(source).toContain('NEBU product login')
+    expect(source).not.toContain('#9026ff')
   })
 
   it('wires Google, Apple, and Microsoft social buttons', () => {
