@@ -45,9 +45,11 @@ It is **not** the core business. Hosted is.
 Telegram VC is an **MTProto user session**, not Bot API. The repo already
 treats that session as a dedicated operator credential:
 
-- Pairing: `phone → code → optional 2FA`
+- Pairing: `api_id` + `api_hash` (from [my.telegram.org](https://my.telegram.org)) then `phone → code → optional 2FA`
 - Session at `/data/mtproto/operator`, mode `0600`, never returned by any API
 - Adapter is `ready` only if `operator.session` exists
+- For-dummies path (not BotFather): `docs/ASHY-TELETHON-FOR-DUMMIES.md` and `scripts/ashy_telethon_setup.py`
+- Ashy Cloudflare Containers (`nebu-ashy-unit`) runs the same image; **container disk is ephemeral** unless a durable volume / hermes `/data` attachment exists (`docs/cloudflare-containers.md`)
 
 So hosted $19 sells the **engine + custody + runtime**, not the identity the
 engine runs as.

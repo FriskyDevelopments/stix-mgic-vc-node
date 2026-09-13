@@ -5,6 +5,8 @@ import {
   ASHY_SCENES,
   ASHY_UNIT,
   ASHY_UNIT_PATH,
+  TELETHON_SETUP_DOC,
+  TELETHON_SETUP_SCRIPT,
   BEFORE_YOU_START,
   NEBU_BRAND,
   NEBU_CSS_VARS,
@@ -155,6 +157,18 @@ describe('NEBU Ashy walkthrough step model', () => {
     const unit = getScene('act-ii-unit-type')
     expect(unit?.body).toContain('8888816358')
     expect(unit?.body).toContain('@kimi_Friskydev_bot')
+    expect(unit?.body).toMatch(/Telethon|my\.telegram\.org/)
+    expect(unit?.body).toMatch(/BotFather/)
     expect(unit?.secondaryCta?.note).toMatch(/vault|Wrangler/i)
+  })
+
+  it('points Connect Telethon at the for-dummies script and manual, never secrets', () => {
+    const connect = getScene('act-ii-connect')
+    expect(connect?.secondaryCta?.label).toMatch(/Connect Telethon/i)
+    expect(connect?.secondaryCta?.note).toContain(TELETHON_SETUP_SCRIPT)
+    expect(connect?.secondaryCta?.note).toContain(TELETHON_SETUP_DOC)
+    expect(connect?.secondaryCta?.note).toMatch(/vault|wrangler|\.dev\.vars/i)
+    expect(connect?.body).toMatch(/not BotFather/i)
+    expect(connect?.primaryCta?.href).toBe(ASHY_UNIT_PATH)
   })
 })

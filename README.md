@@ -129,3 +129,5 @@ Required secrets for real platform login:
 ## Related
 
 stixmagic-bot / stixmagic-web — media-plane adapters report through `/v1/media/*`.
+
+Telegram dens / VC is a Telethon **user** session (not BotFather). Pair with `python3 scripts/ashy_telethon_setup.py` — `docs/ASHY-TELETHON-FOR-DUMMIES.md`.

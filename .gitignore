@@ -40,3 +40,7 @@ data/
 # Python bytecode from the Telegram VC adapter scripts
 __pycache__/
 *.pyc
+
+# Telethon dens sessions — never commit
+*.session
+*.session-journal

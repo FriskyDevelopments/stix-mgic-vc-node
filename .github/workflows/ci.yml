@@ -19,4 +19,5 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test:ci
+      - run: python3 scripts/test_ashy_telethon_setup.py
       - run: npm run build

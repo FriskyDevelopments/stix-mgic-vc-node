@@ -60,6 +60,9 @@ export const STUDIO_URL = NEBU_LOGIN_URL
 export const OPERATOR_STUDIO_URL = 'https://vc.friskydev.com'
 export const NEBU_MARKETING_URL = 'https://nebu.quest'
 export const ASHY_UNIT_PATH = '/units/ashy'
+/** Dens/VC pairing is Telethon, not BotFather. Manual + script; no secrets in this UI. */
+export const TELETHON_SETUP_DOC = 'docs/ASHY-TELETHON-FOR-DUMMIES.md'
+export const TELETHON_SETUP_SCRIPT = 'scripts/ashy_telethon_setup.py'
 
 /** The three pipes Ashy’s guide insists stay separate in the UI. */
 export type WalkthroughPipe = 'local_preview' | 'room_output' | 'telegram_broadcast'
@@ -216,20 +219,20 @@ export const ASHY_SCENES: WalkthroughScene[] = [
     actLabel: 'Act II — Bring the dens',
     sceneLabel: 'Scene 4',
     title: 'BYO vs Hosted.',
-    body: `Bring your own Telegram bot (~$9–19/mo) or take a FriskyDev hosted unit (~$29–49/mo). Ashy’s example hosted unit is ${ASHY_UNIT.hostedUnitId} (${ASHY_UNIT.botDisplay}). Never paste a BotFather token in chat.`,
+    body: `Bring your own Telegram dens (Telethon user session from my.telegram.org) or take a FriskyDev hosted unit (~$29–49/mo). Ashy’s example hosted unit is ${ASHY_UNIT.hostedUnitId} (${ASHY_UNIT.botDisplay}). BotFather tokens are a different optional pipe — they cannot join dens.`,
     focusPipe: 'telegram_broadcast',
     pipes: { local_preview: 'done', room_output: 'done', telegram_broadcast: 'active' },
     primaryCta: {
       label: 'Choose Hosted (Ashy example)',
       href: '#act-ii-connect',
       kind: 'stub',
-      note: `Hosted unit ${ASHY_UNIT.hostedUnitId} — FriskyDev already runs the bot. No token needed here.`,
+      note: `Hosted unit ${ASHY_UNIT.hostedUnitId} — FriskyDev already runs the node. No secrets needed here.`,
     },
     secondaryCta: {
       label: 'Choose BYO Telegram',
       href: '#act-ii-connect',
       kind: 'stub',
-      note: 'Paste the BotFather token only in the NEBU vault / Wrangler secret — never in this walkthrough.',
+      note: 'Dens needs api_id + api_hash in the vault / Wrangler secret / .dev.vars. Never paste them in this walkthrough.',
     },
   },
   {
@@ -238,7 +241,7 @@ export const ASHY_SCENES: WalkthroughScene[] = [
     actLabel: 'Act II — Bring the dens',
     sceneLabel: 'Scene 5',
     title: 'Connect.',
-    body: 'BYO: paste the token once in setup (secret vault). Hosted: attach the Ashy-style unit; FriskyDev already runs the bot. Display name only — no secrets on screen.',
+    body: 'Dens/VC is a Telethon user session, not BotFather. Hosted: attach the Ashy-style unit. BYO: run the for-dummies script on the node. Display name only — no api_hash, no session, no secrets on screen.',
     focusPipe: 'telegram_broadcast',
     pipes: { local_preview: 'done', room_output: 'done', telegram_broadcast: 'active' },
     primaryCta: {
@@ -246,6 +249,12 @@ export const ASHY_SCENES: WalkthroughScene[] = [
       href: ASHY_UNIT_PATH,
       kind: 'stub',
       note: `Connects to ${ASHY_UNIT.botDisplay} when the hosted unit API is live. Ashy unit at ${ASHY_UNIT_PATH} is the handoff.`,
+    },
+    secondaryCta: {
+      label: 'Connect Telethon (for dummies)',
+      href: '#act-ii-dens-practice',
+      kind: 'stub',
+      note: `Not BotFather. On the node run python3 ${TELETHON_SETUP_SCRIPT} — steps in ${TELETHON_SETUP_DOC}. Store api_id / api_hash in vault / wrangler secret / .dev.vars, never here.`,
     },
   },
   {
@@ -270,7 +279,7 @@ export const ASHY_SCENES: WalkthroughScene[] = [
     actLabel: 'Act III — Keep it alive',
     sceneLabel: 'Scene 7',
     title: 'FriskyDev ID ops.',
-    body: 'Operator signs in with FriskyDev ID → manages the unit, rotates a BYO token in the vault, opens studio. Product NEBU login stays on nebu.quest.',
+    body: 'Operator signs in with FriskyDev ID → manages the unit, rotates BYO Telethon api_id / api_hash in the vault (never in chat), opens studio. Product NEBU login stays on nebu.quest.',
     focusPipe: 'room_output',
     pipes: { local_preview: 'done', room_output: 'active', telegram_broadcast: 'done' },
     primaryCta: {
