@@ -8,6 +8,7 @@ import {
   NEBU_LOGIN_URL,
   PIPE_LABELS,
   STUDIO_URL,
+  nebuBrandStyle,
   actProgress,
   getScene,
   isTelegramUnlocked,
@@ -164,7 +165,7 @@ export function NebuAshyWalkthrough() {
   }
 
   return (
-    <div className="nebu-ashy">
+    <div className="nebu-ashy" style={nebuBrandStyle()}>
       <div className="nebu-ashy__shell">
         <header className="nebu-ashy__top">
           <a className="nebu-ashy__brand" href="/welcome" aria-label="NEBU home">
@@ -183,7 +184,7 @@ export function NebuAshyWalkthrough() {
         </header>
 
         <section className="nebu-ashy__hero">
-          <p className="nebu-ashy__kicker">For-dummies · Ashy first · cinematic acts</p>
+          <p className="nebu-ashy__kicker">00 / Ashy unit · control path</p>
           <h1>
             {NEBU_BRAND.line.replace(/\.$/, '')}
             <em>.</em>

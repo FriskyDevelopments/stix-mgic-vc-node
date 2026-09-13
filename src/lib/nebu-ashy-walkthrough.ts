@@ -16,13 +16,42 @@ export const ASHY_UNIT = {
 export const NEBU_BRAND = {
   night: '#0B001A',
   yellow: '#FFD100',
-  violet: '#9D00FF',
-  cyan: '#00E5FF',
-  lime: '#B7FF2A',
-  paper: '#F7F5F2',
+  violet: '#7A4FB8',
+  cyan: '#5EA8B8',
+  ash: '#9A93A0',
+  paper: '#F4F1EC',
+  ink: '#0C021A',
+  smoke: '#8B8494',
+  panel: '#16121F',
+  hairline: '#3C3646',
+  danger: '#B57A7A',
+  live: '#7A9B86',
   line: 'Set the scene.',
   cta: "Like Ashy’s room — BYO Telegram or take a FriskyDev hosted unit.",
 } as const
+
+/** CSS custom properties sourced from NEBU_BRAND — apply on landing, walkthrough, host chrome. */
+export const NEBU_CSS_VARS = {
+  '--nebu-night': NEBU_BRAND.night,
+  '--nebu-bg': NEBU_BRAND.night,
+  '--nebu-bg-2': NEBU_BRAND.panel,
+  '--nebu-yellow': NEBU_BRAND.yellow,
+  '--nebu-purple': NEBU_BRAND.violet,
+  '--nebu-violet': NEBU_BRAND.violet,
+  '--nebu-cyan': NEBU_BRAND.cyan,
+  '--nebu-ash': NEBU_BRAND.ash,
+  '--nebu-paper': NEBU_BRAND.paper,
+  '--nebu-ink': NEBU_BRAND.ink,
+  '--nebu-smoke': NEBU_BRAND.smoke,
+  '--nebu-panel': NEBU_BRAND.panel,
+  '--nebu-hairline': NEBU_BRAND.hairline,
+  '--nebu-danger': NEBU_BRAND.danger,
+  '--nebu-live': NEBU_BRAND.live,
+} as const
+
+export function nebuBrandStyle(): Record<string, string> {
+  return { ...NEBU_CSS_VARS }
+}
 
 export const STUDIO_URL = 'https://vc.friskydev.com'
 export const NEBU_LOGIN_URL = '/login'

@@ -51,8 +51,13 @@ describe('Nebu host controls surface copy', () => {
   })
 
   it('uses Nebu night / yellow / violet brand tokens for room-admin chrome', () => {
-    expect(css).toContain('#0b001a')
-    expect(css).toContain('#ffd100')
-    expect(css).toContain('#9d00ff')
+    expect(css).toContain("@import './nebu-tokens.css'")
+    expect(css).toContain('var(--nebu-night)')
+    expect(css).toContain('var(--nebu-yellow)')
+    expect(css).toContain('var(--nebu-violet)')
+    expect(css).toContain('var(--nebu-danger)')
+    expect(css).not.toContain('#ff6b7a')
+    expect(css).not.toContain('#e7535c')
+    expect(css).not.toContain('#9d00ff')
   })
 })

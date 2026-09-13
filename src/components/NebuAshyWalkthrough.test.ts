@@ -9,14 +9,17 @@ describe('NebuAshyWalkthrough surface', () => {
 
   it('uses Ashy-first brand tokens and Set the scene line', () => {
     expect(source).toContain('NEBU_BRAND')
+    expect(source).toContain('nebuBrandStyle')
     expect(source).toContain('ASHY_UNIT')
     expect(source).toContain('PipeStrip')
-    expect(css).toContain('#0b001a')
-    expect(css).toContain('#ffd100')
-    expect(css).toContain('#9d00ff')
-    expect(css).toContain('#00e5ff')
-    expect(css).toContain('#b7ff2a')
-    expect(css).toContain('#f7f5f2')
+    expect(css).toContain("@import './nebu-tokens.css'")
+    expect(css).toContain('var(--nebu-night)')
+    expect(css).toContain('var(--nebu-yellow)')
+    expect(css).toContain('var(--nebu-violet)')
+    expect(css).toContain('var(--nebu-ash)')
+    expect(css).not.toContain('#9d00ff')
+    expect(css).not.toContain('#00e5ff')
+    expect(css).not.toContain('#b7ff2a')
   })
 
   it('keeps the three pipes visible and practice rule copy', () => {

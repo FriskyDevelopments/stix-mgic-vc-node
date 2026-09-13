@@ -1,27 +1,19 @@
-/* NEBU brand motion — aligned to nebu-board tokens */
-:root {
-  --nebu-bg: #0d081a;
-  --nebu-bg-2: #1a0a2e;
-  --nebu-yellow: #f5e000;
-  --nebu-purple: #9026ff;
-  --nebu-cyan: #6bd9ff;
-  --nebu-ink: #0c021a;
-}
+/* NEBU brand motion — aligned to NEBU_BRAND / nebu-tokens.css */
+@import './nebu-tokens.css';
 
 @keyframes nebu-float {
-  0%, 100% { transform: translateY(0) rotate(-1.5deg) scale(1); }
-  40% { transform: translateY(-16px) rotate(1.8deg) scale(1.015); }
-  70% { transform: translateY(-8px) rotate(0.4deg) scale(1.008); }
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
 }
 
 @keyframes nebu-pulse-live {
   0%, 100% {
-    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6), 0 0 12px rgba(34, 197, 94, 0.35);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--nebu-live) 45%, transparent);
     filter: brightness(1);
   }
   55% {
-    box-shadow: 0 0 0 14px rgba(34, 197, 94, 0), 0 0 22px rgba(34, 197, 94, 0.15);
-    filter: brightness(1.08);
+    box-shadow: 0 0 0 10px transparent;
+    filter: brightness(1.05);
   }
 }
 
@@ -99,12 +91,12 @@
 }
 
 .nebu-card {
-  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.28s ease, border-color 0.28s ease;
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s ease, border-color 0.22s ease;
 }
 .nebu-card:hover,
 .nebu-card:focus-within {
-  transform: translateY(-7px);
-  box-shadow: 7px 7px 0 var(--nebu-ink);
+  transform: translateY(-2px);
+  box-shadow: 0 0 0 1px var(--nebu-yellow);
 }
 
 .nebu-cta {
@@ -125,19 +117,72 @@
   overflow: visible;
 }
 .nebu-hero-frame {
-  transform: rotate(2.4deg);
+  transform: none;
 }
 .nebu-hero-badge {
-  transform: rotate(-6deg);
+  transform: none;
 }
 .nebu-hero-badge:last-of-type {
-  transform: rotate(8deg);
+  transform: none;
+}
+
+.nebu-kicker {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--nebu-smoke);
+}
+
+.nebu-console {
+  border: 1px solid var(--nebu-hairline);
+  border-radius: 12px;
+  background: var(--nebu-panel);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--nebu-violet) 18%, transparent);
+  overflow: hidden;
+}
+.nebu-console-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--nebu-hairline);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--nebu-ash);
+}
+.nebu-meter {
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  align-items: center;
+  gap: 8px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--nebu-smoke);
+}
+.nebu-meter i {
+  display: block;
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--nebu-hairline) 80%, transparent);
+  overflow: hidden;
+}
+.nebu-meter i span {
+  display: block;
+  height: 100%;
+  background: var(--nebu-cyan);
 }
 
 .nebu-ticker {
-  background: var(--nebu-yellow);
-  color: var(--nebu-ink);
-  border-block: 3px solid #000;
+  background: color-mix(in srgb, var(--nebu-panel) 88%, var(--nebu-night));
+  color: var(--nebu-ash);
+  border-block: 1px solid var(--nebu-hairline);
   overflow: hidden;
 }
 .nebu-ticker-track {
@@ -152,10 +197,10 @@
   align-items: center;
   gap: clamp(1.5rem, 4vw, 3.5rem);
   padding-inline: clamp(1rem, 2vw, 2rem);
-  height: 3.5rem;
-  font-size: clamp(0.9rem, 1.6vw, 1.25rem);
+  height: 2.25rem;
+  font-size: 11px;
   font-weight: 800;
-  letter-spacing: -0.03em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -169,7 +214,7 @@
     padding: 3rem 1.75rem 3.75rem;
   }
   .nebu-hero-frame {
-    transform: rotate(1.5deg);
+    transform: none;
   }
 }
 
