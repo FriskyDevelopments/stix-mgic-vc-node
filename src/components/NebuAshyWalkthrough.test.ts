@@ -35,7 +35,6 @@ describe('NebuAshyWalkthrough surface', () => {
     expect(source).toContain('STUDIO_URL')
     expect(source).toContain('ASHY_UNIT_PATH')
     expect(source).toContain('NEBU sign in')
-    expect(source).toContain('Open studio')
     expect(source).toContain('href={STUDIO_URL}')
     expect(source).toContain('href={ASHY_UNIT_PATH}')
     expect(source).not.toContain('vc.friskydev.com')
@@ -44,6 +43,20 @@ describe('NebuAshyWalkthrough surface', () => {
     expect(source).toContain('BYO Telethon dens')
     expect(source).toContain('never paste session bytes')
     expect(source).toContain('phone pairing')
+  })
+
+  it('keeps studio as a supporting chip; Ashy unit / dens is the open path', () => {
+    const header = source.slice(source.indexOf('<header'), source.indexOf('</header>'))
+    expect(header).toContain('Studio')
+    expect(header).not.toContain('Open studio')
+    expect(header).not.toContain('is-yellow')
+    const footer = source.slice(source.indexOf('<footer'), source.indexOf('</footer>'))
+    expect(footer).toContain('Open path: Ashy unit')
+    expect(footer).toContain('href={ASHY_UNIT_PATH}')
+    expect(footer).toContain('Dens is Telethon, not BotFather')
+    expect(footer).toContain('Studio is supporting')
+    expect(footer).toContain('href={STUDIO_URL}')
+    expect(footer).not.toContain('Product studio')
   })
 
   it('is routed at /units/ashy', () => {

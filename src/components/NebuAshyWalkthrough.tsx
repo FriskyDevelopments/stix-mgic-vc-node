@@ -178,8 +178,8 @@ export function NebuAshyWalkthrough() {
             <a className="nebu-ashy__chip" href={NEBU_LOGIN_URL}>
               NEBU sign in
             </a>
-            <a className="nebu-ashy__chip is-yellow" href={STUDIO_URL}>
-              Open studio
+            <a className="nebu-ashy__chip" href={STUDIO_URL}>
+              Studio
             </a>
           </nav>
         </header>
@@ -312,9 +312,9 @@ export function NebuAshyWalkthrough() {
         </div>
 
         <footer className="nebu-ashy__footer">
-          Marketing and login on <a href="https://nebu.quest">nebu.quest</a> · Product studio{' '}
-          <a href={STUDIO_URL}>/login</a> · Ashy unit{' '}
-          <a href={ASHY_UNIT_PATH}>{ASHY_UNIT_PATH}</a> · Dens is Telethon, not BotFather. No secrets on this page.
+          Open path: Ashy unit{' '}
+          <a href={ASHY_UNIT_PATH}>{ASHY_UNIT_PATH}</a> · Dens is Telethon, not BotFather. Studio is supporting:{' '}
+          <a href={STUDIO_URL}>/login</a> · Marketing on <a href="https://nebu.quest">nebu.quest</a>. No secrets on this page.
         </footer>
       </div>
     </div>

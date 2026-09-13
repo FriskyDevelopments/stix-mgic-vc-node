@@ -16,7 +16,7 @@ const PARTS = [
 ] as const
 
 const STEPS = [
-  { n: '01', title: 'Prepare.', body: 'Open the studio. Choose your camera, microphone and sources.' },
+  { n: '01', title: 'Prepare.', body: 'Start from Ashy’s unit. Set camera and mic, then Telethon dens — not BotFather.' },
   { n: '02', title: 'Preview.', body: 'Find the frame. Balance the sound. Check what you’re about to share.' },
   { n: '03', title: 'Share.', body: 'Open your room, invite your people, or record a take for later.' },
 ] as const
@@ -65,11 +65,11 @@ export function NebuLanding() {
           </span>
         </div>
         <nav className="flex items-center gap-3 text-[10px] font-bold tracking-[0.14em] uppercase">
-          <a href="#studio" className="hidden text-[var(--nebu-ash)] transition hover:text-white sm:inline">
-            01 Studio
-          </a>
           <a href={ASHY_WALKTHROUGH_URL} className="hidden text-[var(--nebu-ash)] transition hover:text-white sm:inline">
-            02 Ashy
+            01 Ashy
+          </a>
+          <a href="#studio" className="hidden text-[var(--nebu-ash)] transition hover:text-white sm:inline">
+            02 Studio
           </a>
           <a href="#support" className="hidden text-[var(--nebu-ash)] transition hover:text-white sm:inline">
             03 Support
@@ -103,21 +103,21 @@ export function NebuLanding() {
             </p>
             <div className="nebu-rise nebu-rise-4 mt-6 flex flex-wrap items-center gap-3">
               <a
-                href={STUDIO_URL}
+                href={ASHY_WALKTHROUGH_URL}
                 className="nebu-cta inline-flex min-h-11 items-center gap-2 rounded-md px-5 text-xs font-black uppercase tracking-wide"
                 style={{ backgroundColor: 'var(--nebu-yellow)', color: 'var(--nebu-ink)' }}
               >
-                Open your studio
+                Like Ashy’s room
                 <ArrowRight size={16} weight="bold" />
               </a>
               <a href="#studio" className="text-xs font-bold text-[var(--nebu-ash)] underline-offset-4 hover:underline">
                 Take a look around
               </a>
               <a
-                href={ASHY_WALKTHROUGH_URL}
-                className="text-xs font-bold text-[var(--nebu-ash)] underline-offset-4 hover:underline"
+                href={STUDIO_URL}
+                className="inline-flex min-h-9 items-center rounded-md border border-[var(--nebu-hairline)] px-3 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--nebu-ash)] transition hover:text-white"
               >
-                Like Ashy’s room
+                Studio
               </a>
             </div>
           </div>
@@ -301,12 +301,18 @@ export function NebuLanding() {
               Bring your picture, sound and people together. Check your scene before you share it.
             </p>
             <a
-              href={STUDIO_URL}
+              href={ASHY_WALKTHROUGH_URL}
               className="nebu-cta mt-6 inline-flex min-h-10 items-center gap-2 rounded-md px-4 text-[11px] font-black uppercase tracking-wide"
               style={{ backgroundColor: 'var(--nebu-yellow)', color: 'var(--nebu-ink)' }}
             >
-              Start creating
+              Walk Ashy’s dens
               <ArrowRight size={14} weight="bold" />
+            </a>
+            <a
+              href={STUDIO_URL}
+              className="mt-3 inline-flex text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--nebu-ash)] underline-offset-4 hover:underline"
+            >
+              Studio /login
             </a>
           </div>
         </section>
@@ -365,19 +371,35 @@ export function NebuLanding() {
                 Your next scene starts here.
               </h2>
             </div>
-            <a
-              href={STUDIO_URL}
-              className="nebu-cta inline-flex min-h-11 shrink-0 items-center gap-2 rounded-md bg-[var(--nebu-ink)] px-5 text-xs font-black uppercase tracking-wide text-white"
-            >
-              Open your studio
-              <ArrowRight size={16} weight="bold" />
-            </a>
+            <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
+              <a
+                href={ASHY_WALKTHROUGH_URL}
+                className="nebu-cta inline-flex min-h-11 items-center gap-2 rounded-md bg-[var(--nebu-ink)] px-5 text-xs font-black uppercase tracking-wide text-white"
+              >
+                Open Ashy’s unit
+                <ArrowRight size={16} weight="bold" />
+              </a>
+              <a
+                href={STUDIO_URL}
+                className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--nebu-ink)]/70 underline-offset-4 hover:underline"
+              >
+                Studio /login
+              </a>
+            </div>
           </div>
         </section>
       </main>
 
       <footer className="relative z-10 border-t border-[var(--nebu-hairline)] px-5 py-6 text-center text-[11px] text-[var(--nebu-smoke)] sm:px-8">
-        NEBU · nebu.quest · {NEBU_BRAND.line}{' '}
+        NEBU · nebu.quest · {NEBU_BRAND.line} Open path:{' '}
+        <a href={ASHY_WALKTHROUGH_URL} className="text-[var(--nebu-ash)] underline-offset-2 hover:text-white hover:underline">
+          Ashy’s unit / dens
+        </a>
+        {' · '}
+        <a href={STUDIO_URL} className="text-[var(--nebu-smoke)] underline-offset-2 hover:text-white hover:underline">
+          Studio
+        </a>
+        {' · '}
         <a href={DONATE_URL} className="text-[var(--nebu-ash)] underline-offset-2 hover:text-white hover:underline">
           Support
         </a>
