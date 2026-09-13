@@ -1,7 +1,11 @@
 # Deploying VC node
 
-Production is **only** the Docker `vc-node` container on the `hermes` box, published
-through a cloudflared tunnel to `vc.friskydev.com`.
+`vc.friskydev.com` is **only** the Docker `vc-node` container on the `hermes` box,
+published through a cloudflared tunnel.
+
+Ashy’s self-hosted NEBU unit can also deploy as a **Cloudflare Containers** app (same
+`Dockerfile`, Worker + Durable Object — not Pages/Workers-only). See
+`docs/cloudflare-containers.md`. That path does not replace hermes.
 
 Do **not** deploy this repo with Vercel or Render. There is no `vercel.json`. `render.yaml`
 (if present) is not live — its `MEDIA_PLANE_ENABLED: "false"` disagrees with production, and

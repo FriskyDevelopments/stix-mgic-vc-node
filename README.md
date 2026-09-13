@@ -12,6 +12,7 @@ STIX MΛGIC VC NODE — production control-plane for multi-platform session oper
 | Telegram Login Widget HMAC verify + signed `/vc` bot webhook | **Ready** when `TELEGRAM_BOT_TOKEN` + `TELEGRAM_WEBHOOK_SECRET` are set |
 | Operator session tokens (HMAC) | **Ready** |
 | Production deploy (hermes Docker + cloudflared) | **Ready** |
+| Ashy self-host (Cloudflare Containers) | **Ready** — `wrangler.jsonc` + `docs/cloudflare-containers.md` |
 | Media plane — WebRTC rooms + signalling (`/v1/rooms`, `ws /v1/signal`) | **Ready** (`degraded` without a TURN relay) |
 | Media plane — Telegram VC join (paired MTProto operator) | **Ready** — operator-only controls at `/v1/telegram-vc/*` |
 | Media plane — authenticated RTMP ingest | **Ready** — MediaMTX sidecar, one protected `vc` path; endpoint is operator-only at `/v1/rtmp/publish` |
@@ -57,6 +58,19 @@ docker build -t stix-mgic-vc-node .
 docker run --rm -p 10000:10000 -e PORT=10000 -e OPERATOR_TOKEN_SECRET=... stix-mgic-vc-node
 ```
 
+### Cloudflare Containers (Ashy self-host)
+
+Same `Dockerfile`, not Pages/Workers-only. Worker `nebu-ashy-unit` proxies HTTP + WebSocket
+to the container on port 10000 (`/units/ashy`, `/healthz`, `/v1/signal`).
+
+```bash
+npx wrangler login          # owner step — no tokens in this repo
+npx wrangler secret put OPERATOR_TOKEN_SECRET
+npx wrangler deploy         # needs Docker running
+```
+
+See `docs/cloudflare-containers.md` for secrets, health checks, and what stays on hermes (RTMP).
+
 ## Environment
 
 ### Client (`VITE_*`)
@@ -97,6 +111,9 @@ docker run --rm -p 10000:10000 -e PORT=10000 -e OPERATOR_TOKEN_SECRET=... stix-m
 | `npm run typecheck` | Client + server types |
 | `npm run test:ci` | Vitest (UI + API) |
 | `npm run lint` | ESLint |
+| `npm run cf:whoami` | Confirm Wrangler login (owner) |
+| `npm run cf:dev` | Worker + local container (`wrangler dev`, Docker required) |
+| `npm run cf:deploy` | Build image, upload Worker, roll out Containers |
 
 ## Identity layers
 

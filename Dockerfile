@@ -11,6 +11,8 @@ FROM node:22-bookworm-slim
 WORKDIR /app
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
+# Cloudflare Containers + generic Docker: Worker defaultPort and HEALTHCHECK both use 10000.
+ENV PORT=10000
 RUN apt-get update \
   && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3 python3-pip ffmpeg bash cmake build-essential curl \
   && python3 -m pip install --no-cache-dir --break-system-packages 'telethon>=1.36,<2' 'py-tgcalls>=2.2,<3' \
