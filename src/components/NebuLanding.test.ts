@@ -13,7 +13,7 @@ describe('NebuLanding brand surface', () => {
     expect(source).toContain('var(--nebu-yellow)')
     expect(source).toContain('Set the')
     expect(source).toContain('scene')
-    expect(source).toContain('Open your studio')
+    expect(source).toContain('Like Ashy’s room')
     expect(source).toContain('01 / Meet your studio')
     expect(source).not.toContain('#b7ff2a')
     expect(source).not.toContain('#22c55e')
@@ -28,13 +28,29 @@ describe('NebuLanding brand surface', () => {
     expect(poeticAt).toBeGreaterThan(valuePropAt)
   })
 
-  it('keeps a single yellow Open your studio CTA above the fold', () => {
+  it('leads with Ashy unit as the yellow hero CTA; studio /login is a quieter chip', () => {
     const hero = source.slice(source.indexOf('{/* Hero */}'), source.indexOf('</section>'))
-    expect(hero).toContain('Open your studio')
-    expect(hero).toContain('href={STUDIO_URL}')
+    expect(hero).toContain('Like Ashy’s room')
+    expect(hero).toContain('href={ASHY_WALKTHROUGH_URL}')
     expect(hero).toContain('Take a look around')
     expect(hero).toContain('href="#studio"')
+    const ashyCta = hero.slice(
+      hero.indexOf('href={ASHY_WALKTHROUGH_URL}'),
+      hero.indexOf('</a>', hero.indexOf('href={ASHY_WALKTHROUGH_URL}')),
+    )
+    expect(ashyCta).toContain('nebu-cta')
+    expect(ashyCta).toContain('var(--nebu-yellow)')
+    const studioChip = hero.slice(
+      hero.indexOf('href={STUDIO_URL}'),
+      hero.indexOf('</a>', hero.indexOf('href={STUDIO_URL}')),
+    )
+    expect(studioChip).toContain('Studio')
+    expect(studioChip).not.toContain('nebu-cta')
+    expect(studioChip).not.toContain('var(--nebu-yellow)')
+    expect(hero).not.toContain('Open your studio')
     const header = source.slice(source.indexOf('<header'), source.indexOf('</header>'))
+    expect(header).toContain('01 Ashy')
+    expect(header).toContain('02 Studio')
     expect(header).not.toContain('Open studio')
     expect(header).not.toContain('nebu-cta')
     expect(header).not.toContain('#f5e000')
@@ -92,11 +108,14 @@ describe('NebuLanding brand surface', () => {
     expect(tickerGroupRule).toContain('white-space: normal')
   })
 
-  it('does not put an Open studio link in the footer', () => {
+  it('points footer open path at Ashy’s unit / dens, not studio as the hero', () => {
     const footer = source.slice(source.indexOf('<footer'), source.indexOf('</footer>'))
+    expect(footer).toContain('Open path:')
+    expect(footer).toContain('Ashy’s unit / dens')
+    expect(footer).toContain('href={ASHY_WALKTHROUGH_URL}')
+    expect(footer).toContain('href={STUDIO_URL}')
     expect(footer).not.toContain('Open your studio')
-    expect(footer).not.toContain('href="/login"')
-    expect(footer).not.toContain('href={STUDIO_URL}')
+    expect(footer).not.toContain('nebu-cta')
     expect(footer).not.toContain('href={LOGIN_URL}')
   })
 
@@ -112,8 +131,13 @@ describe('NebuLanding brand surface', () => {
     expect(source).toContain('id="support"')
   })
 
-  it('links Ashy’s mega-easy walkthrough', () => {
+  it('links Ashy’s mega-easy walkthrough as the consumer open path', () => {
     expect(source).toContain('ASHY_UNIT_PATH')
+    expect(source).toContain("const ASHY_WALKTHROUGH_URL = ASHY_UNIT_PATH")
     expect(source).toContain('Like Ashy’s room')
+    expect(source).toContain('Start from Ashy’s unit')
+    expect(source).toContain('Walk Ashy’s dens')
+    expect(source).toContain('Open Ashy’s unit')
+    expect(source).not.toContain('https://vc.friskydev.com')
   })
 })
