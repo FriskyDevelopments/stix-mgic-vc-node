@@ -4,10 +4,12 @@ import { resolve } from 'node:path'
 import {
   ASHY_SCENES,
   ASHY_UNIT,
+  ASHY_UNIT_PATH,
   BEFORE_YOU_START,
   NEBU_BRAND,
   NEBU_CSS_VARS,
   NEBU_LOGIN_URL,
+  OPERATOR_STUDIO_URL,
   PIPE_LABELS,
   STUDIO_URL,
   actProgress,
@@ -73,15 +75,49 @@ describe('NEBU Ashy walkthrough step model', () => {
     expect(progress.overallLength).toBe(ASHY_SCENES.length)
   })
 
-  it('keeps FriskyDev ID studio separate from NEBU Better Auth login', () => {
+  it('keeps FriskyDev ID operator plane separate from NEBU product studio', () => {
+    expect(STUDIO_URL).toBe(NEBU_LOGIN_URL)
+    expect(STUDIO_URL).toBe('/login')
+    expect(OPERATOR_STUDIO_URL).toBe('https://vc.friskydev.com')
+    expect(ASHY_UNIT_PATH).toBe('/units/ashy')
     const signIn = getScene('act-i-sign-in')
     expect(signIn?.primaryCta?.href).toBe(NEBU_LOGIN_URL)
-    expect(signIn?.secondaryCta?.href).toBe(STUDIO_URL)
+    expect(signIn?.secondaryCta?.href).toBe(OPERATOR_STUDIO_URL)
     expect(signIn?.body).toMatch(/FriskyDev ID/)
     expect(signIn?.body).toMatch(/separate/i)
     const ops = getScene('act-iii-ops')
-    expect(ops?.primaryCta?.href).toBe(STUDIO_URL)
+    expect(ops?.primaryCta?.href).toBe(OPERATOR_STUDIO_URL)
     expect(ops?.body).toMatch(/nebu\.quest/)
+  })
+
+  it('sends consumer studio CTAs to NEBU /login, not vc.friskydev.com', () => {
+    const operatorLabel = /\(FriskyDev ID\)|^Operator studio/i
+    for (const scene of ASHY_SCENES) {
+      for (const cta of [scene.primaryCta, scene.secondaryCta]) {
+        if (!cta) continue
+        const isOperator = operatorLabel.test(cta.label)
+        if (isOperator) {
+          expect(cta.href).toBe(OPERATOR_STUDIO_URL)
+          continue
+        }
+        expect(cta.href).not.toBe(OPERATOR_STUDIO_URL)
+        expect(cta.href).not.toBe('https://vc.friskydev.com')
+        if (/\bstudio\b/i.test(cta.label) && !isOperator) {
+          expect(cta.href).toBe(STUDIO_URL)
+        }
+      }
+    }
+    expect(getScene('act-i-devices')?.primaryCta?.href).toBe(NEBU_LOGIN_URL)
+    expect(getScene('act-i-private-room')?.primaryCta?.href).toBe(NEBU_LOGIN_URL)
+    expect(getScene('act-ii-dens-practice')?.primaryCta?.href).toBe(NEBU_LOGIN_URL)
+    expect(getScene('act-ii-connect')?.primaryCta?.href).toBe(ASHY_UNIT_PATH)
+    expect(getScene('act-iii-persistent-scene')?.primaryCta?.href).toBe(ASHY_UNIT_PATH)
+    const cutover = getScene('act-iii-cutover')
+    expect(cutover?.secondaryCta?.label).toBe('Open studio')
+    expect(cutover?.secondaryCta?.href).toBe(NEBU_LOGIN_URL)
+    expect(cutover?.body).toMatch(/nebu\.quest/)
+    expect(cutover?.body).toMatch(/\/units\/ashy/)
+    expect(cutover?.body).not.toMatch(/Studio lives on vc\.friskydev\.com/)
   })
 
   it('includes Ashy brand line, CTA, and room-admin optional tip after room works', () => {

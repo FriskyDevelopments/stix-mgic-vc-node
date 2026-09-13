@@ -53,8 +53,11 @@ export function nebuBrandStyle(): Record<string, string> {
   return { ...NEBU_CSS_VARS }
 }
 
-export const STUDIO_URL = 'https://vc.friskydev.com'
 export const NEBU_LOGIN_URL = '/login'
+/** Product studio entry for NEBU consumers — same-origin login, then in-app studio. */
+export const STUDIO_URL = NEBU_LOGIN_URL
+/** Operator Authentik / FriskyDev ID plane — not a NEBU consumer studio CTA. */
+export const OPERATOR_STUDIO_URL = 'https://vc.friskydev.com'
 export const NEBU_MARKETING_URL = 'https://nebu.quest'
 export const ASHY_UNIT_PATH = '/units/ashy'
 
@@ -165,7 +168,7 @@ export const ASHY_SCENES: WalkthroughScene[] = [
     },
     secondaryCta: {
       label: 'Open studio (FriskyDev ID)',
-      href: STUDIO_URL,
+      href: OPERATOR_STUDIO_URL,
       kind: 'real',
       note: 'Operators only — Authentik / FriskyDev ID on vc.friskydev.com.',
     },
@@ -184,7 +187,7 @@ export const ASHY_SCENES: WalkthroughScene[] = [
       label: 'Open device setup in studio',
       href: STUDIO_URL,
       kind: 'real',
-      note: 'Studio Room studio → Set up camera & microphone.',
+      note: 'NEBU studio at /login → Set up camera & microphone.',
     },
     practiceRule: true,
   },
@@ -240,9 +243,9 @@ export const ASHY_SCENES: WalkthroughScene[] = [
     pipes: { local_preview: 'done', room_output: 'done', telegram_broadcast: 'active' },
     primaryCta: {
       label: `Attach hosted ${ASHY_UNIT.hostedUnitId}`,
-      href: STUDIO_URL,
+      href: ASHY_UNIT_PATH,
       kind: 'stub',
-      note: `Connects to ${ASHY_UNIT.botDisplay} when the hosted unit API is live. Studio opens for handoff.`,
+      note: `Connects to ${ASHY_UNIT.botDisplay} when the hosted unit API is live. Ashy unit at ${ASHY_UNIT_PATH} is the handoff.`,
     },
   },
   {
@@ -272,7 +275,7 @@ export const ASHY_SCENES: WalkthroughScene[] = [
     pipes: { local_preview: 'done', room_output: 'active', telegram_broadcast: 'done' },
     primaryCta: {
       label: 'Operator studio (FriskyDev ID)',
-      href: STUDIO_URL,
+      href: OPERATOR_STUDIO_URL,
       kind: 'real',
       note: 'Authentik / FriskyDev ID — not NEBU Better Auth.',
     },
@@ -297,8 +300,8 @@ export const ASHY_SCENES: WalkthroughScene[] = [
     act: 'act_iii',
     actLabel: 'Act III — Keep it alive',
     sceneLabel: 'Scene 9',
-    title: 'nebu.quest vs vc.friskydev.com.',
-    body: 'Marketing lives on nebu.quest (brand). Studio lives on vc.friskydev.com. Cloudflare hosts the SaaS edge. Cut over when ready — identities stay on their own planes.',
+    title: 'nebu.quest product plane.',
+    body: 'Marketing and product login live on nebu.quest. Ashy’s self-host unit is /units/ashy. Cloudflare Containers packaging is already merged. Operator Authentik stays on its own plane.',
     focusPipe: 'room_output',
     pipes: { local_preview: 'done', room_output: 'active', telegram_broadcast: 'done' },
     primaryCta: {
