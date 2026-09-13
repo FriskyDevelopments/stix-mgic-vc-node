@@ -41,6 +41,9 @@ describe('NebuAshyWalkthrough surface', () => {
     expect(source).not.toContain('vc.friskydev.com')
     expect(source).not.toContain('OPERATOR_STUDIO_URL')
     expect(source).not.toContain('TELEGRAM_BOT_TOKEN')
+    expect(source).toContain('BYO Telethon dens')
+    expect(source).toContain('never paste session bytes')
+    expect(source).toContain('phone pairing')
   })
 
   it('is routed at /units/ashy', () => {
