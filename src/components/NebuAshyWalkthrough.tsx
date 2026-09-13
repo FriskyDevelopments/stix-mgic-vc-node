@@ -125,12 +125,12 @@ function UnitCards() {
   return (
     <div className="nebu-ashy__unit" aria-label="Ashy unit choices">
       <div className="nebu-ashy__unit-card">
-        <strong>BYO Telegram</strong>
-        <span>You own the bot. Paste the BotFather token once in the vault — never here.</span>
+        <strong>BYO Telethon dens</strong>
+        <span>You own the user session. Get api_id + api_hash from my.telegram.org, then phone pairing via the for-dummies script on the node — never paste them here.</span>
       </div>
       <div className="nebu-ashy__unit-card">
         <strong>FriskyDev hosted unit</strong>
-        <span>We run the bot. Ashy’s example:</span>
+        <span>FriskyDev already runs the Telethon session. You never paste session bytes. Ashy’s example:</span>
         <code>
           {ASHY_UNIT.hostedUnitId} · {ASHY_UNIT.botDisplay}
         </code>
@@ -314,7 +314,7 @@ export function NebuAshyWalkthrough() {
         <footer className="nebu-ashy__footer">
           Marketing and login on <a href="https://nebu.quest">nebu.quest</a> · Product studio{' '}
           <a href={STUDIO_URL}>/login</a> · Ashy unit{' '}
-          <a href={ASHY_UNIT_PATH}>{ASHY_UNIT_PATH}</a> · No token secrets on this page.
+          <a href={ASHY_UNIT_PATH}>{ASHY_UNIT_PATH}</a> · Dens is Telethon, not BotFather. No secrets on this page.
         </footer>
       </div>
     </div>

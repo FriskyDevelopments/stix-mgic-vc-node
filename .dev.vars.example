@@ -8,10 +8,19 @@ SUPABASE_URL=
 SUPABASE_ANON_KEY=
 SUPABASE_PUBLISHABLE_KEY=
 
-# Optional — BYO Telegram (hosted Ashy unit does not need a BotFather token here)
+# Optional — BYO Telegram bot pipe (hosted Ashy unit does not need a BotFather token here).
+# This is NOT dens. Dens is Telethon: STIX_TELEGRAM_API_* below.
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_BOT_USERNAME=
 TELEGRAM_WEBHOOK_SECRET=
+
+# Dens / VC — Telethon user session (my.telegram.org), never a BotFather token.
+# Put real values in `wrangler secret put` or this gitignored .dev.vars file.
+# Pair with: python3 scripts/ashy_telethon_setup.py
+# Session bytes stay on the node volume (/data/mtproto/...), not in Workers.
+STIX_TELEGRAM_API_ID=
+STIX_TELEGRAM_API_HASH=
+STIX_TELEGRAM_PHONE=
 
 # Optional — Cloudflare Realtime (TURN/SFU); server/cloudflare-realtime.ts
 CLOUDFLARE_TURN_KEY_ID=

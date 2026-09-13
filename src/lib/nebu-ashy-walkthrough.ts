@@ -1,8 +1,9 @@
 /**
  * NEBU Ashy mega-easy walkthrough — step model.
  * Same discipline as Ashy’s VC Node Implementation Guide:
- * keep Local preview, Room output, and Telegram broadcast separate.
- * No bot tokens or secrets belong here.
+ * keep Local preview, Room output, and Telegram dens separate.
+ * Dens is a Telethon user session (api_id + api_hash + phone pairing), not BotFather.
+ * No bot tokens, api_hash, or session bytes belong here.
  */
 
 export const ASHY_UNIT = {
@@ -27,7 +28,7 @@ export const NEBU_BRAND = {
   danger: '#B57A7A',
   live: '#7A9B86',
   line: 'Set the scene.',
-  cta: "Like Ashy’s room — BYO Telegram or take a FriskyDev hosted unit.",
+  cta: "Like Ashy’s room — BYO Telethon dens or take a FriskyDev hosted unit.",
 } as const
 
 /** CSS custom properties sourced from NEBU_BRAND — apply on landing, walkthrough, host chrome. */
@@ -60,6 +61,9 @@ export const STUDIO_URL = NEBU_LOGIN_URL
 export const OPERATOR_STUDIO_URL = 'https://vc.friskydev.com'
 export const NEBU_MARKETING_URL = 'https://nebu.quest'
 export const ASHY_UNIT_PATH = '/units/ashy'
+/** Dens/VC pairing is Telethon, not BotFather. Manual + script; no secrets in this UI. */
+export const TELETHON_SETUP_DOC = 'docs/ASHY-TELETHON-FOR-DUMMIES.md'
+export const TELETHON_SETUP_SCRIPT = 'scripts/ashy_telethon_setup.py'
 
 /** The three pipes Ashy’s guide insists stay separate in the UI. */
 export type WalkthroughPipe = 'local_preview' | 'room_output' | 'telegram_broadcast'
@@ -75,7 +79,7 @@ export type WalkthroughCta = {
   /** Absolute or app-relative URL when kind is real; informative when stub. */
   href: string
   kind: WalkthroughCtaKind
-  /** Short honesty note for stubs (e.g. "Opens studio — paste token only in vault"). */
+  /** Short honesty note (never include secrets, api_hash, or session bytes). */
   note?: string
 }
 
@@ -122,8 +126,8 @@ export const PIPE_LABELS: Record<WalkthroughPipe, { title: string; blurb: string
     blurb: 'What people in the browser room actually receive.',
   },
   telegram_broadcast: {
-    title: 'Telegram broadcast',
-    blurb: 'Separate pipe into an existing Telegram call / dens.',
+    title: 'Telegram dens',
+    blurb: 'Separate Telethon pipe into an existing Telegram call / dens. Not BotFather.',
   },
 }
 
@@ -216,20 +220,20 @@ export const ASHY_SCENES: WalkthroughScene[] = [
     actLabel: 'Act II — Bring the dens',
     sceneLabel: 'Scene 4',
     title: 'BYO vs Hosted.',
-    body: `Bring your own Telegram bot (~$9–19/mo) or take a FriskyDev hosted unit (~$29–49/mo). Ashy’s example hosted unit is ${ASHY_UNIT.hostedUnitId} (${ASHY_UNIT.botDisplay}). Never paste a BotFather token in chat.`,
+    body: `Bring your own Telethon dens (api_id + api_hash from my.telegram.org, then phone pairing) or take a FriskyDev hosted unit (~$29–49/mo). Hosted means FriskyDev already runs the Telethon session — you never paste session bytes. Ashy’s example hosted unit is ${ASHY_UNIT.hostedUnitId} (${ASHY_UNIT.botDisplay}). BotFather bot tokens are a different optional pipe and cannot join dens.`,
     focusPipe: 'telegram_broadcast',
     pipes: { local_preview: 'done', room_output: 'done', telegram_broadcast: 'active' },
     primaryCta: {
       label: 'Choose Hosted (Ashy example)',
       href: '#act-ii-connect',
       kind: 'stub',
-      note: `Hosted unit ${ASHY_UNIT.hostedUnitId} — FriskyDev already runs the bot. No token needed here.`,
+      note: `Hosted unit ${ASHY_UNIT.hostedUnitId} — FriskyDev already runs the Telethon session. You never paste session bytes here.`,
     },
     secondaryCta: {
-      label: 'Choose BYO Telegram',
+      label: 'Choose BYO Telethon',
       href: '#act-ii-connect',
       kind: 'stub',
-      note: 'Paste the BotFather token only in the NEBU vault / Wrangler secret — never in this walkthrough.',
+      note: 'BYO is api_id + api_hash + phone pairing. Store api_id / api_hash in the vault / Wrangler secret / .dev.vars. Never paste them in this walkthrough.',
     },
   },
   {
@@ -238,14 +242,20 @@ export const ASHY_SCENES: WalkthroughScene[] = [
     actLabel: 'Act II — Bring the dens',
     sceneLabel: 'Scene 5',
     title: 'Connect.',
-    body: 'BYO: paste the token once in setup (secret vault). Hosted: attach the Ashy-style unit; FriskyDev already runs the bot. Display name only — no secrets on screen.',
+    body: 'Dens/VC is a Telethon user session, not BotFather. Hosted: attach the Ashy-style unit — FriskyDev already runs the session; you never paste session bytes. BYO: api_id + api_hash + phone pairing via the for-dummies script on the node. This page is display names only.',
     focusPipe: 'telegram_broadcast',
     pipes: { local_preview: 'done', room_output: 'done', telegram_broadcast: 'active' },
     primaryCta: {
       label: `Attach hosted ${ASHY_UNIT.hostedUnitId}`,
       href: ASHY_UNIT_PATH,
       kind: 'stub',
-      note: `Connects to ${ASHY_UNIT.botDisplay} when the hosted unit API is live. Ashy unit at ${ASHY_UNIT_PATH} is the handoff.`,
+      note: `FriskyDev-run Telethon session for ${ASHY_UNIT.botDisplay}. You never paste session bytes. Ashy unit at ${ASHY_UNIT_PATH} is the handoff.`,
+    },
+    secondaryCta: {
+      label: 'Connect Telethon (for dummies)',
+      href: '#act-ii-dens-practice',
+      kind: 'stub',
+      note: `Not BotFather. Read ${TELETHON_SETUP_DOC}, then on the node run python3 ${TELETHON_SETUP_SCRIPT} (api_id + api_hash + phone pairing). Secrets stay in vault / wrangler secret / .dev.vars, never here.`,
     },
   },
   {
@@ -270,7 +280,7 @@ export const ASHY_SCENES: WalkthroughScene[] = [
     actLabel: 'Act III — Keep it alive',
     sceneLabel: 'Scene 7',
     title: 'FriskyDev ID ops.',
-    body: 'Operator signs in with FriskyDev ID → manages the unit, rotates a BYO token in the vault, opens studio. Product NEBU login stays on nebu.quest.',
+    body: 'Operator signs in with FriskyDev ID → manages the unit, rotates BYO Telethon api_id / api_hash in the vault (never in chat), opens studio. Product NEBU login stays on nebu.quest.',
     focusPipe: 'room_output',
     pipes: { local_preview: 'done', room_output: 'active', telegram_broadcast: 'done' },
     primaryCta: {
