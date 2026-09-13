@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, Check, Sparkle } from '@phosphor-icons/react'
 import {
   ASHY_SCENES,
   ASHY_UNIT,
+  ASHY_UNIT_PATH,
   BEFORE_YOU_START,
   NEBU_BRAND,
   NEBU_LOGIN_URL,
@@ -311,9 +312,9 @@ export function NebuAshyWalkthrough() {
         </div>
 
         <footer className="nebu-ashy__footer">
-          Marketing on <a href="https://nebu.quest">nebu.quest</a> · Studio on{' '}
-          <a href={STUDIO_URL}>vc.friskydev.com</a> · Unit slug <code>{ASHY_UNIT.slug}</code> · No
-          token secrets on this page.
+          Marketing and login on <a href="https://nebu.quest">nebu.quest</a> · Product studio{' '}
+          <a href={STUDIO_URL}>/login</a> · Ashy unit{' '}
+          <a href={ASHY_UNIT_PATH}>{ASHY_UNIT_PATH}</a> · No token secrets on this page.
         </footer>
       </div>
     </div>

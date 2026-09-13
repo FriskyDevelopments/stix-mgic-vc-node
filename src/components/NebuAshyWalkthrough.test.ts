@@ -30,11 +30,16 @@ describe('NebuAshyWalkthrough surface', () => {
     expect(source).toContain('PipeStrip')
   })
 
-  it('wires NEBU login and FriskyDev studio without collapsing identity', () => {
+  it('wires NEBU login and product studio without collapsing identity', () => {
     expect(source).toContain('NEBU_LOGIN_URL')
     expect(source).toContain('STUDIO_URL')
+    expect(source).toContain('ASHY_UNIT_PATH')
     expect(source).toContain('NEBU sign in')
     expect(source).toContain('Open studio')
+    expect(source).toContain('href={STUDIO_URL}')
+    expect(source).toContain('href={ASHY_UNIT_PATH}')
+    expect(source).not.toContain('vc.friskydev.com')
+    expect(source).not.toContain('OPERATOR_STUDIO_URL')
     expect(source).not.toContain('TELEGRAM_BOT_TOKEN')
   })
 
