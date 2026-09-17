@@ -1,30 +1,26 @@
 /**
- * The VC node sign-in surface, backed by Supabase FriskyDev (the Fenrir master identity)
- * plus an explicit FriskyDev ID button when Authentik OIDC is configured on the node.
+ * The VC node sign-in surface, backed by Supabase FriskyDev (the Fenrir master identity).
  *
  * The gate reports the identity the NODE resolved, never the one the browser believes it
  * has. That distinction is the whole point: a Supabase session sitting in localStorage
  * with no `vc_session` cookie means rooms and the WebSocket will reject you, so showing
  * "signed in" there would be theater. `syncSessionOnLoad()` reconciles the two on mount.
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ArrowRight, CheckCircle, ShieldCheck, Sparkle } from '@phosphor-icons/react'
 import {
+  PROVIDER_LABELS,
   getIdentityConfigState,
   signInWithProvider,
   signOut,
   syncSessionOnLoad,
+  type OAuthProvider,
 } from '@/lib/supabase-identity'
-import {
-  identityActionMark,
-  listIdentityActions,
-  supabaseProviderFor,
-  type IdentityAction,
-} from '@/lib/identity-actions'
-import { usePublicConfig } from '@/lib/public-config'
 import '@/styles/identity-portal.css'
 
 type Identity = { id: string; name: string }
+
+const PROVIDERS: OAuthProvider[] = ['custom:friskydev']
 
 export function FriskyDevIdentityGate({
   onChange,
@@ -35,51 +31,38 @@ export function FriskyDevIdentityGate({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const config = getIdentityConfigState()
-  const publicConfig = usePublicConfig()
-  const actions = listIdentityActions({
-    supabaseConfigured: config.configured,
-    friskydevIdConfigured: Boolean(publicConfig?.friskydevIdConfigured),
-  })
-  const primaryIndex = Math.max(0, actions.findIndex((action) => action.ready))
-
-  const refresh = useCallback(async () => {
-    try {
-      const identity = await syncSessionOnLoad()
-      setUser(identity)
-      onChange?.(identity)
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not check the session')
-    } finally {
-      setLoading(false)
-    }
-  }, [onChange])
+  const onChangeRef = useRef(onChange)
 
   useEffect(() => {
-    void refresh()
-  }, [refresh])
+    onChangeRef.current = onChange
+  }, [onChange])
 
-  async function handleAction(action: IdentityAction) {
+  // Studio telemetry and controls re-render the parent frequently. A new callback
+  // must not trigger another session exchange or revive a discarded gate.
+  useEffect(() => {
+    let cancelled = false
+    async function refresh() {
+      try {
+        const identity = await syncSessionOnLoad()
+        if (cancelled) return
+        setUser(identity)
+        onChangeRef.current?.(identity)
+      } catch (cause) {
+        if (!cancelled) setError(cause instanceof Error ? cause.message : 'Could not check the session')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    void refresh()
+    return () => { cancelled = true }
+  }, [])
+
+  async function handleSignIn(provider: OAuthProvider) {
     setError(null)
-    if (!action.ready) return
-    switch (action.id) {
-      case 'google':
-      case 'apple':
-      case 'microsoft':
-        try {
-          await signInWithProvider(supabaseProviderFor(action.id))
-        } catch (cause) {
-          setError(cause instanceof Error ? cause.message : 'Could not start sign-in')
-        }
-        return
-      case 'friskydev-id': {
-        const returnTo = `${window.location.pathname}${window.location.search}`
-        window.location.href = `/v1/auth/oidc/start?returnTo=${encodeURIComponent(returnTo)}`
-        return
-      }
-      default: {
-        const _never: never = action.id
-        setError(`Unhandled identity action: ${_never}`)
-      }
+    try {
+      await signInWithProvider(provider)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not start sign-in')
     }
   }
 
@@ -121,25 +104,21 @@ export function FriskyDevIdentityGate({
           </div>
         ) : (
           <div className="identity-portal__actions" data-testid="sso-buttons">
-            {actions.map((action, index) => (
+            {PROVIDERS.map((provider, index) => (
               <button
-                className={index === primaryIndex ? 'identity-portal__provider is-primary' : 'identity-portal__provider'}
-                key={action.id}
-                data-testid={`identity-action-${action.id}`}
-                disabled={!action.ready}
-                onClick={() => void handleAction(action)}
+                className={index === 0 ? 'identity-portal__provider is-primary' : 'identity-portal__provider'}
+                key={provider}
+                disabled={!config.configured}
+                onClick={() => void handleSignIn(provider)}
               >
-                <span className="identity-portal__provider-mark">{identityActionMark(action.id)}</span>
-                Continue with {action.label}
-                {index === primaryIndex && <ArrowRight weight="bold" />}
+                <span className="identity-portal__provider-mark">✦</span>
+                Continue with {PROVIDER_LABELS[provider]}
+                {index === 0 && <ArrowRight weight="bold" />}
               </button>
             ))}
           </div>
         )}
-        {!config.configured && <p className="identity-portal__notice">Social SSO needs configuration: {config.missing.join(', ')}</p>}
-        {publicConfig && !publicConfig.friskydevIdConfigured && (
-          <p className="identity-portal__notice">FriskyDev ID is not configured on this node.</p>
-        )}
+        {!config.configured && <p className="identity-portal__notice">Identity needs configuration: {config.missing.join(', ')}</p>}
         {error && <p className="identity-portal__notice is-error">{error}</p>}
         <p className="identity-portal__footer">By continuing, you enter with your FriskyDev identity.</p>
       </div>

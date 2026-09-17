@@ -16,6 +16,7 @@ describe('control plane API', () => {
     process.env.NODE_ENV = 'test'
     process.env.OPERATOR_TOKEN_SECRET = 'test-operator-token-secret'
     process.env.AUTH_REQUIRED = 'false'
+    delete process.env.CORS_ALLOWED_ORIGINS
     delete process.env.PUBLIC_ROOMS_ENABLED
     process.env.MEDIA_PLANE_ENABLED = 'false'
     setSignalingReady(false)
@@ -39,7 +40,39 @@ describe('control plane API', () => {
     const body = await res.json()
     expect(body.ok).toBe(true)
     expect(body.mediaPlaneEnabled).toBe(false)
+    expect(body.publicRoomsEnabled).toBe(false)
     expect(body.friskydevAccounts).toBe(true)
+  })
+
+  it('advertises public room invites on the public config', async () => {
+    process.env.PUBLIC_ROOMS_ENABLED = 'true'
+    resetServerEnvCache()
+    const app = createApp()
+    const config = await (await app.request('/v1/config/public')).json()
+    expect(config.publicRoomsEnabled).toBe(true)
+  })
+
+  it('applies the configured CORS allowlist to both public telemetry endpoints', async () => {
+    process.env.CORS_ALLOWED_ORIGINS = 'https://studio.example.test, https://preview.example.test'
+    const app = createApp()
+    for (const path of ['/healthz', '/v1/media/status']) {
+      for (const origin of ['https://studio.example.test', 'https://preview.example.test']) {
+        const response = await app.request(path, { headers: { Origin: origin } })
+        expect(response.status).toBe(200)
+        expect(response.headers.get('access-control-allow-origin')).toBe(origin)
+      }
+      const denied = await app.request(path, { headers: { Origin: 'https://unlisted.example.test' } })
+      expect(denied.headers.get('access-control-allow-origin')).toBeNull()
+    }
+  })
+
+  it('preserves the default wildcard CORS policy for public telemetry', async () => {
+    const app = createApp()
+    for (const path of ['/healthz', '/v1/media/status']) {
+      const response = await app.request(path, { headers: { Origin: 'https://studio.example.test' } })
+      expect(response.status).toBe(200)
+      expect(response.headers.get('access-control-allow-origin')).toBe('*')
+    }
   })
 
   it('reports adapter-level media availability', async () => {
@@ -90,7 +123,7 @@ describe('control plane API', () => {
     expect(body.error).toBe('Operator token required')
   })
 
-  it('keeps RTMP publish credentials behind operator authentication', async () => {
+  it('keeps RTMP publish credentials behind verified Telegram ownership', async () => {
     process.env.RTMP_INGEST_ENABLED = 'true'
     process.env.RTMP_PUBLIC_HOST = 'stream.example.test'
     process.env.RTMP_PUBLISH_USER = 'operator'
@@ -100,12 +133,12 @@ describe('control plane API', () => {
 
     expect((await app.request('/v1/rtmp/publish')).status).toBe(401)
 
-    const token = mintOperatorToken({ sub: 'rtmp-operator', platform: 'web', name: 'RTMP Operator' })
+    const token = mintOperatorToken({ sub: 'rtmp-operator', platform: 'supabase', name: 'RTMP Operator' })
     const res = await app.request('/v1/rtmp/publish', { headers: { Authorization: `Bearer ${token}` } })
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(403)
     const body = await res.json()
-    expect(body.ready).toBe(true)
-    expect(body.publishUrl).toContain('rtmp://operator:')
+    expect(body.error).toContain('owner')
+    expect(body).not.toHaveProperty('publishUrl')
   })
 
   it('rejects an unsigned Telegram webhook', async () => {
@@ -144,7 +177,7 @@ describe('control plane API', () => {
     }
   })
 
-  it('accepts the Supabase social-login session cookie for Telegram VC pairing', async () => {
+  it('requires verified Telegram ownership in addition to a social-login cookie for shared pairing', async () => {
     const app = createApp()
     const session = mintOperatorToken({
       sub: 'supabase-auth-users-id',
@@ -154,8 +187,8 @@ describe('control plane API', () => {
     const res = await app.request('/v1/telegram-vc/pair/status', {
       headers: { Cookie: `vc_session=${encodeURIComponent(session)}` },
     })
-    expect(res.status).toBe(200)
-    expect(await res.json()).toMatchObject({ available: expect.any(Boolean) })
+    expect(res.status).toBe(403)
+    expect(await res.json()).toMatchObject({ error: expect.stringContaining('owner') })
   })
 
   it('mints anonymous operator tokens', async () => {
@@ -243,6 +276,67 @@ describe('control plane API', () => {
     expect(body.endpoints.me).toBe('/v1/account/me')
     expect(body.endpoints.login).toBe('/v1/account/login')
     expect(body.endpoints.register).toBe('/v1/account/register')
+  })
+
+  it('accepts the Supabase session cookie as the account principal, keyed by auth.users.id', async () => {
+    const app = createApp()
+    const session = mintOperatorToken({
+      sub: 'supabase-auth-users-id',
+      platform: 'supabase',
+      name: 'Social Operator',
+    })
+    const res = await app.request('/v1/account/me', {
+      headers: { Cookie: `vc_session=${encodeURIComponent(session)}` },
+    })
+    expect(res.status).toBe(200)
+    const profile = await res.json()
+    // One principal: the account id IS the auth.users.id the session carries, never a
+    // second namespace minted for the same human.
+    expect(profile.account.id).toBe('supabase-auth-users-id')
+    expect(profile.account.displayName).toBe('Social Operator')
+    expect(profile.account.email).toBeNull()
+    expect(profile.linked).toEqual([])
+  })
+
+  it('refuses a telegram or anonymous session cookie as an account principal', async () => {
+    const app = createApp()
+    for (const platform of ['telegram', 'anonymous'] as const) {
+      const session = mintOperatorToken({
+        sub: `${platform}:12345`,
+        platform,
+        name: 'Not an account principal',
+      })
+      const me = await app.request('/v1/account/me', {
+        headers: { Cookie: `vc_session=${encodeURIComponent(session)}` },
+      })
+      expect(me.status).toBe(401)
+
+      const link = await app.request('/v1/account/link/telegram', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: `vc_session=${encodeURIComponent(session)}`,
+        },
+        body: JSON.stringify({ id: 1, first_name: 'A', auth_date: 1, hash: 'x' }),
+      })
+      expect(link.status).toBe(401)
+    }
+  })
+
+  it('does not fall back to the session cookie when a bearer is present but invalid', async () => {
+    const app = createApp()
+    const session = mintOperatorToken({
+      sub: 'supabase-auth-users-id',
+      platform: 'supabase',
+      name: 'Social Operator',
+    })
+    const res = await app.request('/v1/account/me', {
+      headers: {
+        Authorization: 'Bearer not-a-real-token',
+        Cookie: `vc_session=${encodeURIComponent(session)}`,
+      },
+    })
+    expect(res.status).toBe(401)
   })
 })
 

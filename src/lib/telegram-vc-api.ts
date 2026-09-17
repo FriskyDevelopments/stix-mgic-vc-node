@@ -27,16 +27,30 @@ export type TelegramVcParticipant = {
   id: string
   name: string
   muted: boolean
-  volume: number
-  date: number
+  cameraOn: boolean | null
+  isSelf: boolean
+  isAdmin: boolean
 }
 
 export type TelegramVcParticipantsResponse = {
   participants: TelegramVcParticipant[]
-  count: number
+  chatId: string
+  callId: string
+  complete: boolean
+  canManageCalls: boolean
 }
 
-export type TelegramVcGroup = { id: string; title: string; kind: 'group' | 'channel' }
+export type TelegramVcGroup = { id: string; title: string; kind: 'group' | 'channel'; botCanSendMessages: boolean; botCanManageCalls: boolean; userCanManageCalls: boolean }
+
+export type TelegramLinkStatus = { linked: boolean; username?: string | null }
+export type CameraPolicy = { chatId: string; enabled: boolean; graceSeconds: 0 | 30 | 60; callId: string | null; status?: string; error?: string | null }
+
+export function getTelegramLinkStatus(): Promise<TelegramLinkStatus> { return request('/link') }
+export function beginTelegramLink(): Promise<{ url: string; expiresAt: number; botUsername: string }> { return request('/link', { method: 'POST' }) }
+export function getCameraPolicy(chatId: string): Promise<CameraPolicy> { return request(`/camera-policy?chatId=${encodeURIComponent(chatId)}`) }
+export function setCameraPolicy(chatId: string, enabled: boolean, graceSeconds: 0 | 30 | 60, expectedCallId?: string): Promise<CameraPolicy> {
+  return request('/camera-policy', { method: 'PUT', body: JSON.stringify({ chatId, enabled, graceSeconds, expectedCallId }) })
+}
 
 export type TelegramPairStatus = {
   available: boolean
@@ -113,24 +127,16 @@ export async function switchSource(
   return request('/source', { method: 'POST', body: JSON.stringify({ type, config }) })
 }
 
-export async function getTelegramGroups(): Promise<{ groups: TelegramVcGroup[] }> {
+export async function getParticipants(chatId: string): Promise<TelegramVcParticipantsResponse> {
+  return request(`/participants?chatId=${encodeURIComponent(chatId)}`)
+}
+
+export async function getTelegramGroups(): Promise<{ groups: TelegramVcGroup[]; botUsername: string; discoveryPartial: boolean }> {
   return request('/groups')
 }
 
-export async function muteParticipant(
-  participantId: string,
-  options?: { chatId?: string; expectedCallId?: string; onlyIfCameraOff?: boolean; target?: string }
-): Promise<{ ok: boolean }> {
-  return request('/mute', {
-    method: 'POST',
-    body: JSON.stringify({
-      participantId,
-      target: options?.target || participantId,
-      chatId: options?.chatId,
-      expectedCallId: options?.expectedCallId,
-      onlyIfCameraOff: options?.onlyIfCameraOff,
-    }),
-  })
+export async function muteParticipant(chatId: string, participantId: string, callId: string): Promise<{ ok: boolean }> {
+  return request('/mute', { method: 'POST', body: JSON.stringify({ chatId, participantId, callId }) })
 }
 
 export async function getRtmpPublishConfig(): Promise<RtmpPublishConfig> {
@@ -145,88 +151,4 @@ export async function getRtmpPublishConfig(): Promise<RtmpPublishConfig> {
     throw new TelegramVcApiError(response.status, message)
   }
   return (await response.json()) as RtmpPublishConfig
-}
-
-export async function pause(): Promise<{ call: TelegramVcStatus['call'] }> {
-  return request('/pause', { method: 'POST' })
-}
-
-export async function resume(): Promise<{ call: TelegramVcStatus['call'] }> {
-  return request('/resume', { method: 'POST' })
-}
-
-export async function skip(): Promise<{ call: TelegramVcStatus['call'] }> {
-  return request('/skip', { method: 'POST' })
-}
-
-export async function stopVc(): Promise<{ call: TelegramVcStatus['call'] }> {
-  return request('/stop', { method: 'POST' })
-}
-
-export async function setCamera(on: boolean): Promise<{ call: TelegramVcStatus['call'] }> {
-  return request('/cam', { method: 'POST', body: JSON.stringify({ on }) })
-}
-
-export async function getParticipants(chatId?: string): Promise<{ participants: any[]; count?: number; complete?: boolean; canManageCalls?: boolean }> {
-  const qs = chatId ? `?chatId=${encodeURIComponent(chatId)}` : ''
-  return request(`/participants${qs}`)
-}
-
-async function studioRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const env = getAppEnv()
-  const token = getOperatorToken()
-  const response = await fetch(`${env.apiBaseUrl}${path}`, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(init.headers ?? {}),
-    },
-  })
-  if (!response.ok) {
-    let message = `Request failed with ${response.status}`
-    try {
-      const body = (await response.json()) as { error?: string }
-      if (body?.error) message = body.error
-    } catch { /* non-JSON */ }
-    throw new TelegramVcApiError(response.status, message)
-  }
-  return (await response.json()) as T
-}
-
-export type StudioPlaylist = {
-  id: string
-  name: string
-  items: Array<{ id: string; url: string; title: string }>
-  currentIndex: number
-  playing: boolean
-}
-
-export type StudioMediaFile = { id: string; name: string; url: string; path: string }
-
-export async function listPlaylists(): Promise<{ playlists: StudioPlaylist[] }> {
-  return studioRequest('/v1/playlists')
-}
-
-export async function createPlaylist(name: string): Promise<{ playlist: StudioPlaylist }> {
-  return studioRequest('/v1/playlists', { method: 'POST', body: JSON.stringify({ name }) })
-}
-
-export async function addPlaylistItem(id: string, item: { url: string; title?: string }) {
-  return studioRequest(`/v1/playlists/${id}/items`, { method: 'POST', body: JSON.stringify(item) })
-}
-
-export async function playPlaylist(id: string) {
-  return studioRequest(`/v1/playlists/${id}/play`, { method: 'POST' })
-}
-
-export async function listMediaFiles(): Promise<{ files: StudioMediaFile[] }> {
-  return studioRequest('/v1/media/files')
-}
-
-export async function uploadMediaFile(name: string, dataBase64: string): Promise<{ file: StudioMediaFile }> {
-  return studioRequest('/v1/media/upload', {
-    method: 'POST',
-    body: JSON.stringify({ name, data: dataBase64 }),
-  })
 }

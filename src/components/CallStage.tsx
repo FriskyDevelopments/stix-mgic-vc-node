@@ -3,8 +3,6 @@ import { CallClient, type CallState, type RemotePeer } from '@/lib/webrtc-client
 import { GlassCard } from '@/components/GlassCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { NebuSessionChrome } from '@/components/nebu'
-import type { HostControlWirePayload } from '@/lib/nebu-host-controls'
 
 /**
  * CallStage — the remote side of a call.
@@ -17,9 +15,6 @@ import type { HostControlWirePayload } from '@/lib/nebu-host-controls'
  * It is deliberately blunt about failure. A black tile with no explanation is the worst
  * possible outcome for an operator mid-session, so a connection that fails says so, and
  * says that a missing TURN relay is the usual cause.
- *
- * Nebu Host Controls + Mini Widget attach here so live session chrome stays on the call
- * surface without redesigning marketing NebuLanding.
  */
 
 export type CallStageProps = {
@@ -31,18 +26,14 @@ export type CallStageProps = {
   sinkId?: string
   /** Hands the live CallClient up so the shell can switch camera/mic mid-call. */
   onClientReady?: (client: CallClient | null) => void
-  /** Local media chrome for Host Controls / Mini Widget. */
-  localMicEnabled?: boolean
-  localCameraEnabled?: boolean
-  onToggleLocalMic?: () => void
-  onToggleLocalCamera?: () => void
-  inviteUrl?: string | null
-  sessionHealth?: 'healthy' | 'degraded' | 'unknown'
-  isHost?: boolean
-  onEndSession?: () => void
-  onCopyInvite?: () => void
-  /** When false, hide Nebu host chrome (e.g. embedded previews). Default true. */
-  showNebuChrome?: boolean
+  onLocalStreamChange?: (result: LocalStreamChangeResult) => void
+}
+
+export type LocalStreamChangeResult = {
+  status: 'switching' | 'applied' | 'failed'
+  /** The exact requested stream, so a newer UI selection can ignore stale results. */
+  stream: MediaStream | null
+  error?: string
 }
 
 const STATE_LABEL: Record<CallState, string> = {
@@ -53,17 +44,7 @@ const STATE_LABEL: Record<CallState, string> = {
   error: 'Failed',
 }
 
-function RemoteTile({
-  peer,
-  sinkId,
-  spotlighted,
-  pinned,
-}: {
-  peer: RemotePeer
-  sinkId?: string
-  spotlighted?: boolean
-  pinned?: boolean
-}) {
+function RemoteTile({ peer, sinkId }: { peer: RemotePeer; sinkId?: string }) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
 
   useEffect(() => {
@@ -84,11 +65,7 @@ function RemoteTile({
   const connected = peer.connectionState === 'connected'
 
   return (
-    <div
-      className={`relative overflow-hidden rounded-lg border bg-black/60 aspect-video ${
-        spotlighted || pinned ? 'border-accent ring-1 ring-accent/40 sm:col-span-2' : 'border-border'
-      }`}
-    >
+    <div className="relative overflow-hidden rounded-lg border border-border bg-black/60 aspect-video">
       <video
         ref={videoRef}
         autoPlay
@@ -114,33 +91,23 @@ function RemoteTile({
   )
 }
 
-export function CallStage({
-  roomId,
-  localStream,
-  onStateChange,
-  sinkId,
-  onClientReady,
-  localMicEnabled = true,
-  localCameraEnabled = true,
-  onToggleLocalMic,
-  onToggleLocalCamera,
-  inviteUrl = null,
-  sessionHealth = 'unknown',
-  isHost = true,
-  onEndSession,
-  onCopyInvite,
-  showNebuChrome = true,
-}: CallStageProps) {
+export function CallStage({ roomId, localStream, onStateChange, sinkId, onClientReady, onLocalStreamChange }: CallStageProps) {
   const clientRef = useRef<CallClient | null>(null)
-  const hostControlHandlerRef = useRef<((payload: HostControlWirePayload, from: string) => void) | null>(
-    null
-  )
   const [state, setState] = useState<CallState>('idle')
   const [peers, setPeers] = useState<RemotePeer[]>([])
   const [error, setError] = useState<{ code: string; message: string } | null>(null)
+  const callbacks = useRef({ onStateChange, onClientReady, onLocalStreamChange })
+  callbacks.current = { onStateChange, onClientReady, onLocalStreamChange }
+  const lastRequested = useRef<MediaStream | null>(localStream)
+  const joining = useRef<Promise<void> | null>(null)
+  const requestVersion = useRef(0)
 
   useEffect(() => {
     if (!roomId) return
+    let active = true
+    const version = ++requestVersion.current
+    lastRequested.current = localStream
+    callbacks.current.onLocalStreamChange?.({ status: 'switching', stream: localStream })
 
     const client = new CallClient({
       roomId,
@@ -151,99 +118,109 @@ export function CallStage({
       events: {
         onStateChange: (next) => {
           setState(next)
-          onStateChange?.(next)
+          if (active) callbacks.current.onStateChange?.(next)
         },
         onPeersChange: setPeers,
         onError: setError,
-        onHostControl: (payload, from) => {
-          hostControlHandlerRef.current?.(payload, from)
-        },
       },
     })
     clientRef.current = client
-    onClientReady?.(client)
+    callbacks.current.onClientReady?.(client)
 
     // A join that never resolves still surfaces through onError/onStateChange.
-    void client.join().catch(() => {})
+    joining.current = client.join()
+    void joining.current.then(() => {
+      if (active && requestVersion.current === version) callbacks.current.onLocalStreamChange?.({ status: 'applied', stream: localStream })
+    }).catch((cause: unknown) => {
+      if (active && requestVersion.current === version) callbacks.current.onLocalStreamChange?.({ status: 'failed', stream: localStream, error: cause instanceof Error ? cause.message : 'Could not join the room.' })
+    })
 
     return () => {
+      active = false
+      requestVersion.current += 1
       client.close()
       clientRef.current = null
-      onClientReady?.(null)
+      joining.current = null
+      callbacks.current.onClientReady?.(null)
     }
-    // Re-joining on a localStream change would drop the call; tracks are attached at join.
+    // Room changes create a new client; source changes use replaceLocalStream below.
+     
   }, [roomId])
 
+  useEffect(() => {
+    const client = clientRef.current
+    if (!client || lastRequested.current === localStream) return
+    const version = ++requestVersion.current
+    lastRequested.current = localStream
+    let active = true
+    callbacks.current.onLocalStreamChange?.({ status: 'switching', stream: localStream })
+    void (async () => {
+      try {
+        await joining.current
+        if (!active || clientRef.current !== client) return
+        await client.replaceLocalStream(localStream)
+        if (!active || requestVersion.current !== version) return
+        setError((current) => current?.code === 'source_switch_failed' ? null : current)
+        callbacks.current.onLocalStreamChange?.({ status: 'applied', stream: localStream })
+      } catch (cause) {
+        if (!active || requestVersion.current !== version) return
+        const message = cause instanceof Error ? cause.message : 'The source could not be changed.'
+        setError({ code: 'source_switch_failed', message })
+        callbacks.current.onLocalStreamChange?.({ status: 'failed', stream: localStream, error: message })
+      }
+    })()
+    return () => { active = false }
+  }, [roomId, localStream])
+
   return (
-    <div className="space-y-3">
-      <GlassCard className="p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Call stage</span>
-            <Badge
-              variant="outline"
-              className={`font-mono text-[10px] ${
-                state === 'joined' ? 'border-accent text-accent' : 'border-muted text-muted-foreground'
-              }`}
-            >
-              {STATE_LABEL[state]}
-            </Badge>
-          </div>
-          <span className="font-mono text-[10px] text-muted-foreground">
-            {peers.length} {peers.length === 1 ? 'peer' : 'peers'}
-          </span>
+    <GlassCard className="p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Call stage</span>
+          <Badge
+            variant="outline"
+            className={`font-mono text-[10px] ${
+              state === 'joined' ? 'border-accent text-accent' : 'border-muted text-muted-foreground'
+            }`}
+          >
+            {STATE_LABEL[state]}
+          </Badge>
         </div>
+        <span className="font-mono text-[10px] text-muted-foreground">
+          {peers.length} {peers.length === 1 ? 'peer' : 'peers'}
+        </span>
+      </div>
 
-        {error && (
-          <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2">
-            <p className="font-mono text-[10px] uppercase tracking-wider text-destructive">{error.code}</p>
-            <p className="mt-1 text-xs text-destructive-foreground/90">{error.message}</p>
-            {error.code === 'peer_connection_failed' && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-2 h-7 font-mono text-[10px]"
-                onClick={() => setError(null)}
-              >
-                Dismiss
-              </Button>
-            )}
-          </div>
-        )}
-
-        {peers.length === 0 ? (
-          <p className="py-6 text-center font-mono text-[11px] text-muted-foreground">
-            {state === 'joined'
-              ? 'Nobody else has joined this room yet.'
-              : 'Not connected to a room.'}
-          </p>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {peers.map((peer) => (
-              <RemoteTile key={peer.participant.id} peer={peer} sinkId={sinkId} />
-            ))}
-          </div>
-        )}
-      </GlassCard>
-
-      {showNebuChrome && (
-        <NebuSessionChrome
-          callClient={clientRef.current}
-          peers={peers}
-          callLive={state === 'joined'}
-          isHost={isHost}
-          inviteUrl={inviteUrl}
-          sessionHealth={sessionHealth}
-          localMicEnabled={localMicEnabled}
-          localCameraEnabled={localCameraEnabled}
-          onToggleLocalMic={onToggleLocalMic}
-          onToggleLocalCamera={onToggleLocalCamera}
-          onEndSession={onEndSession}
-          onCopyInvite={onCopyInvite}
-          roomId={roomId}
-          hostControlHandlerRef={hostControlHandlerRef}
-        />
+      {error && (
+        <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2">
+          <p className="font-mono text-[10px] uppercase tracking-wider text-destructive">{error.code}</p>
+          <p className="mt-1 text-xs text-destructive-foreground/90">{error.message}</p>
+          {error.code === 'peer_connection_failed' && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-2 h-7 font-mono text-[10px]"
+              onClick={() => setError(null)}
+            >
+              Dismiss
+            </Button>
+          )}
+        </div>
       )}
-    </div>
+
+      {peers.length === 0 ? (
+        <p className="py-6 text-center font-mono text-[11px] text-muted-foreground">
+          {state === 'joined'
+            ? 'Nobody else has joined this room yet.'
+            : 'Not connected to a room.'}
+        </p>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {peers.map((peer) => (
+            <RemoteTile key={peer.participant.id} peer={peer} sinkId={sinkId} />
+          ))}
+        </div>
+      )}
+    </GlassCard>
   )
 }

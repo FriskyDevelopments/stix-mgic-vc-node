@@ -7,12 +7,24 @@ import type { CallClient } from '@/lib/webrtc-client'
 import { IdentityGate } from '@/components/IdentityGate'
 import { RoomPanel } from '@/components/RoomPanel'
 import { CreatorTools } from '@/components/CreatorTools'
+import { clearSpotifySession } from '@/lib/spotify'
 import { TelegramVcPanel } from '@/components/TelegramVcPanel'
 import { NodeOperationsBoard } from '@/components/NodeOperationsBoard'
 import '@/styles/vc-mvp.css'
 import { initializeTelegramWebApp } from '@/lib/telegram-webapp'
 
 export function VcMvpShell() {
+  // This standalone shell owns its session when the main App is not mounted.
+  const [spotifyAccessToken, setSpotifyAccessToken] = useState<string | null>(null)
+  useEffect(() => {
+    const receive = (event: MessageEvent) => {
+      if (event.origin === window.location.origin && event.data?.type === 'spotify-auth' && typeof event.data.accessToken === 'string' && event.data.accessToken) setSpotifyAccessToken(event.data.accessToken)
+    }
+    window.addEventListener('message', receive)
+    return () => window.removeEventListener('message', receive)
+  }, [])
+  const disconnectSpotify = () => { clearSpotifySession(); setSpotifyAccessToken(null) }
+
   const [authenticated, setAuthenticated] = useState(false)
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null)
@@ -145,7 +157,7 @@ export function VcMvpShell() {
     <main className="vc-shell"><div className="vc-ambient" aria-hidden="true" /><div className="vc-app">
       <header className="vc-header">
         <a className="vc-brand" href="/" aria-label="VC Node home"><img className="vc-mark" src="/vc-node-icon.png?v=2" alt="" /><span><strong>VC NODE</strong><small>FRISKY DEVELOPMENTS</small></span></a>
-        <div className="vc-header-right"><a className="vc-studio-trigger" href="/units/ashy" style={{ textDecoration: 'none' }}>Ashy walkthrough</a><span className="vc-live"><i /> NODE ONLINE</span><button className="vc-studio-trigger" onClick={() => setStudioOpen((open) => !open)}><SlidersHorizontal size={17} /> {studioOpen ? 'Hide controls' : 'Control room'}</button></div>
+        <div className="vc-header-right"><a className="vc-studio-trigger" href="/overlay-studio">Overlay Studio</a><span className="vc-live"><i /> NODE ONLINE</span><button className="vc-studio-trigger" onClick={() => setStudioOpen((open) => !open)}><SlidersHorizontal size={17} /> {studioOpen ? 'Hide controls' : 'Control room'}</button></div>
       </header>
       <section className="vc-identity"><IdentityGate onChange={setAuthenticated} /></section>
       <section className="vc-stage" aria-label="Local video preview">
@@ -174,11 +186,6 @@ export function VcMvpShell() {
             onRoomChange={setRoomId}
             sinkId={speakerDeviceId}
             onClientReady={(client) => { callClientRef.current = client }}
-            localMicEnabled={micEnabled}
-            localCameraEnabled={cameraEnabled}
-            onToggleLocalMic={toggleMic}
-            onToggleLocalCamera={toggleCamera}
-            isHost
           />
         ) : (
           <div className="vc-locked">
@@ -188,7 +195,7 @@ export function VcMvpShell() {
           </div>
         )}
       </section>
-      {studioOpen && <aside className="vc-studio-drawer"><div className="vc-drawer-head"><div><span>CREATOR STUDIO</span><h2>Broadcast tools</h2></div><button onClick={() => setStudioOpen(false)} aria-label="Close studio"><X size={19} /></button></div><div className="vc-studio-intro"><div><span>LIVE SIGNAL CONSOLE</span><h3>One scene.<br />Every signal.</h3></div><div className="vc-signal-orb" aria-hidden="true"><i /><i /><i /></div><div className="vc-studio-rail"><span>OBS</span><span>SCREEN</span><span>CLIPSFLOW</span><span>RTMP</span><span>SPOTIFY</span><span>TELEGRAM</span></div></div><NodeOperationsBoard /><CreatorTools cameraStream={stream} screenStream={screenStream} onScreenStream={setScreenStream} roomId={roomId} /><div className="mt-4"><TelegramVcPanel accessGranted={authenticated} /></div></aside>}
+      {studioOpen && <aside className="vc-studio-drawer"><div className="vc-drawer-head"><div><span>CREATOR STUDIO</span><h2>Broadcast tools</h2></div><button onClick={() => setStudioOpen(false)} aria-label="Close studio"><X size={19} /></button></div><div className="vc-studio-intro"><div><span>LIVE SIGNAL CONSOLE</span><h3>One scene.<br />Every signal.</h3></div><div className="vc-signal-orb" aria-hidden="true"><i /><i /><i /></div><div className="vc-studio-rail"><span>OBS</span><span>SCREEN</span><span>CLIPSFLOW</span><span>RTMP</span><span>SPOTIFY</span><span>TELEGRAM</span></div></div><NodeOperationsBoard /><CreatorTools cameraStream={stream} screenStream={screenStream} onScreenStream={setScreenStream} roomId={roomId} spotifyAccessToken={spotifyAccessToken} onSpotifyDisconnect={disconnectSpotify} /><div className="mt-4"><TelegramVcPanel accessGranted={authenticated} /></div></aside>}
       <footer className="vc-footer"><span>Encrypted peer-to-peer media</span><span>vc.friskydev.com</span></footer>
     </div></main>
   )

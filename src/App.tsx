@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { usePersistedState } from "@/hooks/use-persisted-state"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
@@ -12,20 +12,21 @@ import { GlassCard } from "@/components/GlassCard"
 import { StatusIndicator } from "@/components/StatusIndicator"
 import { MetricDisplay } from "@/components/MetricDisplay"
 import { LogEntry } from "@/components/LogEntry"
-import { PreviewPanel } from "@/components/PreviewPanel"
+import { StudioMonitor } from "@/components/StudioMonitor"
+import { StudioMasthead } from "@/components/StudioMasthead"
+import { useStudioOutput, type StudioSourceId } from "@/hooks/use-studio-output"
 import { BrandControl } from "@/components/BrandControl"
-import { SpotifyTrackPicker } from "@/components/SpotifyTrackPicker"
+import { CameraSetupWizard } from "@/components/CameraSetupWizard"
+import { CameraReadyPreview } from "@/components/CameraReadyPreview"
 import { DeviceSelector } from "@/components/DeviceSelector"
 import { PlatformAccess } from "@/components/PlatformAccess"
 import { RoomPanel } from "@/components/RoomPanel"
 import { FriskyDevIdentityGate } from "@/components/FriskyDevIdentityGate"
 import { TelegramVcPanel } from "@/components/TelegramVcPanel"
+import { MediaDisclosure, openMediaDisclosure } from "@/components/MediaDisclosure"
 import { DJModePanel } from "@/components/DJModePanel"
 import { CreatorTools } from "@/components/CreatorTools"
 import { NodeOperationsBoard } from "@/components/NodeOperationsBoard"
-import { HudFrame } from "@/components/wow/HudFrame"
-import { ParticleField } from "@/components/wow/ParticleField"
-import { AnimatedGradient } from "@/components/wow/AnimatedGradient"
 import { 
   Broadcast, 
   Lightning, 
@@ -54,31 +55,30 @@ import {
   MusicNote,
   Funnel,
   SpotifyLogo,
-  SignIn,
-  SignOut,
-  UserCircle,
   PlugsConnected,
   Database
 } from "@phosphor-icons/react"
 import { toast } from "sonner"
-import { initiateSpotifyAuth, getSpotifyUser, formatTrackDisplay, clearSpotifySession, getStoredSpotifyRefreshToken, isSpotifyAccessExpiringSoon, refreshSpotifyToken, isSpotifyConfigured } from "@/lib/spotify"
-import type { SpotifyTrack } from "@/lib/spotify"
+import { type SpotifyPlaybackState } from "@/lib/spotify"
+import { useSpotifySession } from "@/hooks/use-spotify-session"
 import {
+  generateDemoStreamKey,
   getArchitectureLayers,
-  getRuntimeBanner,
 } from "@/lib/alpha"
 import { getAppEnv } from "@/lib/env"
 import { usePublicConfig } from "@/lib/public-config"
+import { checkCameraPreflight } from "@/lib/camera-preflight"
 import { getSessionApi } from "@/lib/session-api"
 import { setOperatorToken } from "@/lib/operator-token"
 import { log } from "@/lib/log"
 import { 
-  verifyTelegramLoginPayload,
+  initiateTelegramAuth, 
   initiateDiscordAuth,
   type PlatformAuthStatus,
   type TelegramUser,
   type DiscordUser
 } from "@/lib/auth"
+import { linkTelegramToFriskyDev } from "@/lib/friskydev"
 
 type Platform = 'telegram' | 'discord'
 type SessionStatus = 'standby' | 'active' | 'connecting' | 'error' | 'dj-mode'
@@ -87,7 +87,6 @@ type SessionMode = 'call' | 'broadcast' | 'dj' | null
 type SessionMark = 'stix-default' | 'client-sticker' | 'off'
 type OperatorTier = 'free' | 'premium'
 type DJAudioSource = 'stix-library' | 'clipsflow-pack' | 'session-pack' | 'spotify'
-type SpotifyConnectionStatus = 'disconnected' | 'connecting' | 'connected'
 
 interface LogEntryData {
   id: string
@@ -112,23 +111,25 @@ function LegacyControlPlane() {
   const telegramBotUsername = publicConfig?.telegramBotUsername ?? appEnv.telegramBotUsername ?? null
   const [platform, setPlatform] = usePersistedState<Platform>("platform", "telegram")
   const [friskyDevSignedIn, setFriskyDevSignedIn] = useState(false)
-  const [sessionStatus, setSessionStatus] = usePersistedState<SessionStatus>("session-status", "standby")
+  const [sessionStatus, setSessionStatus] = useState<SessionStatus>('standby')
+  useEffect(() => {
+    // A previous page's preflight does not describe this page's room or devices.
+    try { window.localStorage.removeItem('stix-vc-node:session-status') } catch { /* Storage may be unavailable. */ }
+  }, [])
   const [inputProtocol, setInputProtocol] = usePersistedState<InputProtocol>("input-protocol", "dj-mode")
   const [sessionMark, setSessionMark] = usePersistedState<SessionMark>("session-mark", "stix-default")
   const [logs, setLogs] = usePersistedState<LogEntryData[]>("diagnostic-logs", [])
   const [operatorTier] = useState<OperatorTier>(appEnv.operatorTier)
   const [operatorTimeRemaining, setOperatorTimeRemaining] = useState(120)
   const [operatorTimeElapsed, setOperatorTimeElapsed] = useState(0)
-  const [streamKey, setStreamKey] = useState<string | null>(null)
+  const [streamKey, setStreamKey] = useState(() => generateDemoStreamKey())
   const [isTransitioning, setIsTransitioning] = useState(false)
+  const [preflightNotice, setPreflightNotice] = useState<string | null>(null)
+  const [preflightError, setPreflightError] = useState<string | null>(null)
   
   const [djAudioSource, setDjAudioSource] = usePersistedState<DJAudioSource>("dj-audio-source", "stix-library")
-  const [spotifyStatus, setSpotifyStatus] = usePersistedState<SpotifyConnectionStatus>("spotify-status", "disconnected")
-  const [spotifyTrack, setSpotifyTrack] = usePersistedState<SpotifyTrack | null>("spotify-track", null)
-  const [spotifyUser, setSpotifyUser] = usePersistedState<string | null>("spotify-user", null)
-  const [spotifyAccessToken, setSpotifyAccessToken] = useState<string | null>(null) // in-memory only: do not persist OAuth tokens
-  const [showTrackPicker, setShowTrackPicker] = useState(false)
-  const [trackPlaybackTime, setTrackPlaybackTime] = useState(0)
+  const [, setSpotifyUser] = usePersistedState<string | null>("spotify-user", null)
+  const [spotifyPlayback, setSpotifyPlayback] = useState<SpotifyPlaybackState | null>(null)
   
   const [signalQuality, setSignalQuality] = useState(0)
   const [latency, setLatency] = useState(0)
@@ -140,8 +141,40 @@ function LegacyControlPlane() {
   
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null)
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null)
+  useEffect(() => { setPreflightNotice(null); setPreflightError(null) }, [cameraStream, inputProtocol])
   const [roomId, setRoomId] = useState<string | null>(null)
-  const [, setCameraPermissionError] = useState<string | null>(null)
+  const [cameraSetupOpen, setCameraSetupOpen] = useState(false)
+  const [joinWithoutMedia, setJoinWithoutMedia] = useState(false)
+  const [roomEntryReady, setRoomEntryReady] = useState(false)
+  const [selectedVideoDeviceId, setSelectedVideoDeviceId] = usePersistedState<string>("selected-video-device", "")
+  const [selectedAudioDeviceId, setSelectedAudioDeviceId] = usePersistedState<string>("selected-audio-device", "")
+  useEffect(() => () => cameraStream?.getTracks().forEach(track => track.stop()), [cameraStream])
+  useEffect(() => () => screenStream?.getTracks().forEach(track => track.stop()), [screenStream])
+  const [studioStream, setStudioStream] = useState<MediaStream | null>(null)
+  const [previewSource, setPreviewSource] = useState<StudioSourceId>('camera')
+  const studioSources = useMemo(() => [
+    { id: 'camera' as const, label: 'Camera', stream: cameraStream },
+    { id: 'screen' as const, label: 'Screen', stream: screenStream },
+    { id: 'studio' as const, label: 'Video & mix', stream: studioStream },
+  ], [cameraStream, screenStream, studioStream])
+  const output = useStudioOutput(studioSources, roomId)
+  const handleScreenStream = useCallback((stream: MediaStream | null) => {
+    setScreenStream(stream)
+    if (stream) setPreviewSource('screen')
+  }, [])
+  const handleStudioStream = useCallback((stream: MediaStream | null) => {
+    setStudioStream(stream)
+    if (stream) setPreviewSource('studio')
+  }, [])
+  const openCameraSetup = () => {
+    if (roomId || cameraSetupOpen) return
+    cameraStream?.getTracks().forEach(track => track.stop())
+    setCameraStream(null)
+    setRoomEntryReady(false)
+    setJoinWithoutMedia(false)
+    setCameraSetupOpen(true)
+  }
+
 
   const [telegramAuthStatus, setTelegramAuthStatus] = usePersistedState<PlatformAuthStatus>("telegram-auth-status", "disconnected")
   const [telegramUser, setTelegramUser] = usePersistedState<TelegramUser | null>("telegram-user", null)
@@ -242,23 +275,61 @@ function LegacyControlPlane() {
     setLogs((currentLogs) => [newLog, ...(currentLogs || [])].slice(0, 100))
   }
 
-  const handleTelegramAuth = async (payload: Record<string, unknown>) => {
+  const handleTelegramAuth = async () => {
     setTelegramAuthStatus('connecting')
     setTelegramAuthError(null)
-    addLog('info', 'AUTH', 'Verifying Telegram Login Widget payload')
-
+    addLog('info', 'AUTH', 'Telegram authorization initiated')
+    
     try {
-      const result = await verifyTelegramLoginPayload(payload)
-      setTelegramUser(result.user)
-      setTelegramAuthStatus('connected')
-      addLog('success', 'AUTH', 'Telegram platform identity verified')
-      toast.success('Telegram authorized')
+      await initiateTelegramAuth()
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Authorization failed'
       setTelegramAuthStatus('error')
       setTelegramAuthError(errorMessage)
       addLog('error', 'AUTH', `Telegram authorization failed: ${errorMessage}`)
       toast.error('Telegram authorization failed')
+    }
+  }
+
+  /**
+   * Real Telegram Login Widget payload (`data-onauth`).
+   *
+   * Platform Access is LAYER 2: it links an already-authenticated FriskyDev operator to a
+   * verified Telegram identity. It is not a sign-in method — Telegram is asked once, at
+   * linking, not on every login. So the signed payload goes to `/v1/account/link/telegram`,
+   * which re-verifies the HMAC server-side (server/auth-providers.ts:verifyTelegramLogin).
+   *
+   * It deliberately does NOT call verifyTelegramLoginPayload(): `/v1/auth/telegram/verify`
+   * mints an operator token whose `sub` is `telegram:<id>` and stores it over the operator
+   * token in sessionStorage. That would make the same human a second principal alongside
+   * `auth.users.id` — the exact failure server/supabase-auth.ts was written to prevent, and
+   * it would silently reassign room ownership (rooms.ts scopes by operatorId).
+   */
+  const handleTelegramWidgetAuth = async (payload: Record<string, unknown>) => {
+    setTelegramAuthStatus('connecting')
+    setTelegramAuthError(null)
+    addLog('info', 'AUTH', 'Telegram login widget returned a signed payload')
+
+    try {
+      const { identity } = await linkTelegramToFriskyDev(payload)
+
+      setTelegramUser({
+        id: Number(identity.externalSubject),
+        first_name:
+          typeof payload.first_name === 'string' ? payload.first_name : identity.displayName,
+        last_name: typeof payload.last_name === 'string' ? payload.last_name : undefined,
+        username: typeof payload.username === 'string' ? payload.username : undefined,
+        photo_url: typeof payload.photo_url === 'string' ? payload.photo_url : undefined,
+      })
+      setTelegramAuthStatus('connected')
+      addLog('success', 'AUTH', `Telegram identity ${identity.displayName} linked to FriskyDev`)
+      toast.success('Telegram linked')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Telegram link failed'
+      setTelegramAuthStatus('error')
+      setTelegramAuthError(message)
+      addLog('error', 'AUTH', `Telegram link failed: ${message}`)
+      toast.error('Telegram link failed')
     }
   }
 
@@ -302,9 +373,13 @@ function LegacyControlPlane() {
         const user = event.data.user as TelegramUser
         setTelegramAuthStatus('connected')
         setTelegramUser(user)
-        addLog('success', 'AUTH', 'Telegram platform identity verified')
+        addLog(
+          'success',
+          'AUTH',
+          event.data.demo ? 'Telegram demo identity linked' : 'Telegram platform identity verified'
+        )
         addLog('success', 'AUTH', 'Session authorization ready')
-        toast.success('Telegram authorized')
+        toast.success(event.data.demo ? 'Telegram demo authorized' : 'Telegram authorized')
       }
       
       if (event.data.type === 'discord-auth' && event.data.user) {
@@ -314,9 +389,13 @@ function LegacyControlPlane() {
         }
         setDiscordAuthStatus('connected')
         setDiscordUser(user)
-        addLog('success', 'AUTH', 'Discord platform identity verified')
+        addLog(
+          'success',
+          'AUTH',
+          event.data.demo ? 'Discord demo identity linked' : 'Discord platform identity verified'
+        )
         addLog('success', 'AUTH', 'Session authorization ready')
-        toast.success('Discord authorized')
+        toast.success(event.data.demo ? 'Discord demo authorized' : 'Discord authorized')
       }
       
       if (event.data.type === 'discord-auth-error') {
@@ -332,6 +411,37 @@ function LegacyControlPlane() {
   }, [])
 
   const handleRunPreflight = async () => {
+    if (roomId || cameraSetupOpen) return
+    setPreflightNotice(null)
+    setPreflightError(null)
+    if (inputProtocol === 'virtual-camera') {
+      if (!cameraStream) {
+        setRoomEntryReady(false)
+        setJoinWithoutMedia(false)
+        setCameraSetupOpen(true)
+        return
+      }
+      try {
+        const checked = checkCameraPreflight(cameraStream)
+        const microphone = checked.microphone === 'ready' ? 'Microphone ready.' : checked.microphone === 'muted' ? 'Microphone is muted.' : 'Camera only; no active microphone.'
+        const message = `Camera check passed. ${microphone} Join the room when you are ready.`
+        // Device preparation is local. Starting a platform session here neither
+        // tests this stream nor joins the browser room, and requires a different identity.
+        setSessionStatus('standby')
+        setPreflightNotice(message)
+        if (checked.video.height) setResolution(`${checked.video.height}p`)
+        addLog('success', 'TEST', message)
+        toast.success('Camera preflight passed', { description: microphone })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Camera check failed. Run camera setup and try again.'
+        setSessionStatus('error')
+        setPreflightError(message)
+        addLog('error', 'TEST', message)
+        toast.error('Camera preflight failed', { description: message })
+      }
+      return
+    }
+
     if (inputProtocol === 'dj-mode') {
       handleStartDJMode()
       return
@@ -347,9 +457,7 @@ function LegacyControlPlane() {
     setOperatorTimeElapsed(0)
     
     let detectedMode = 'PREPARED'
-    if (inputProtocol === 'virtual-camera') {
-      detectedMode = 'CALL'
-    } else if (inputProtocol === 'rtmp') {
+    if (inputProtocol === 'rtmp') {
       detectedMode = 'BROADCAST'
     }
     
@@ -363,27 +471,7 @@ function LegacyControlPlane() {
       addLog('success', 'BRAND', 'Branded sticker asset prepared')
     }
     
-    if (inputProtocol === 'virtual-camera') {
-      addLog('info', 'SOURCE', 'Requesting camera access')
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true
-        })
-        setCameraStream(stream)
-        setCameraPermissionError(null)
-        addLog('success', 'SOURCE', 'Camera permission granted')
-        addLog('info', 'SESSION', 'Initializing camera injection...')
-        setResolution('720p')
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Permission denied'
-        setCameraPermissionError(errorMessage)
-        addLog('error', 'SOURCE', `Camera access failed: ${errorMessage}`)
-        toast.error('Camera permission denied')
-        setSessionStatus('standby')
-        return
-      }
-    } else if (inputProtocol === 'clipsflow') {
+    if (inputProtocol === 'clipsflow') {
       addLog('info', 'INTAKE', 'ClipsFlow asset received')
       addLog('info', 'PREP', 'Compression profile applied')
       addLog('info', 'SESSION', `Linking prepared media to ${getPlatformLanguage('session')}...`)
@@ -414,7 +502,11 @@ function LegacyControlPlane() {
       setResolution(snapshot.resolution)
       if (snapshot.streamKey) setStreamKey(snapshot.streamKey)
 
-      addLog('info', 'SESSION', 'Session started via live API')
+      addLog(
+        'info',
+        'SESSION',
+        snapshot.source === 'live-api' ? 'Session started via live API' : 'Demo session started (simulated)'
+      )
       
       if (operatorTier === 'premium') {
         addLog('success', 'SESSION', `Operator session active — ${Math.floor(operatorTimeRemaining / 60)}:${String(operatorTimeRemaining % 60).padStart(2, '0')} available`)
@@ -436,12 +528,6 @@ function LegacyControlPlane() {
         addLog('success', 'SESSION', 'Injection payload ready')
         addLog('info', 'PREVIEW', 'Optimized preview feed active')
         toast.success('Preflight active — ClipsFlow media routed')
-      } else if (inputProtocol === 'virtual-camera') {
-        addLog('success', 'SESSION', getPlatformLanguage('injecting'))
-        addLog('success', 'PREVIEW', 'Frame sync stable')
-        addLog('info', 'AUDIO', 'External audio routing active')
-        addLog('success', 'SYNC', 'Frame alignment stable')
-        toast.success('Preflight active — Camera feed ready')
       } else if (inputProtocol === 'rtmp') {
         addLog('success', 'SESSION', getPlatformLanguage('bound'))
         addLog('success', 'PREVIEW', 'Frame sync stable')
@@ -459,7 +545,8 @@ function LegacyControlPlane() {
       log.error('session', 'Preflight failed', errorMessage)
       setSessionStatus('error')
       addLog('error', 'SESSION', `Preflight failed: ${errorMessage}`)
-      toast.error('Preflight failed')
+      setPreflightError(errorMessage)
+      toast.error('Preflight failed', { description: errorMessage })
     }
   }
 
@@ -490,7 +577,7 @@ function LegacyControlPlane() {
       addLog('success', 'DJ', 'DJ Mode active')
       addLog('success', 'LOOP', 'Visual cycle running')
       addLog('success', 'AUDIO', 'Ambient track active')
-      addLog('info', 'SESSION', 'Autonomous mode started via live API')
+      addLog('info', 'SESSION', snapshot.source === 'live-api' ? 'Autonomous mode via live API' : 'Autonomous mode live (demo)')
       
       if (sessionMark !== 'off') {
         addLog('success', 'BRAND', 'Session mark applied')
@@ -548,22 +635,23 @@ function LegacyControlPlane() {
         
         setTimeout(() => {
           setSessionStatus('dj-mode')
-          setSignalQuality(0)
-          setLatency(0)
-          setAudioSync('muted')
-          setResolution('Unavailable')
+          setSignalQuality(88)
+          setLatency(35)
+          setAudioSync('stable')
+          setResolution('720p')
           setFrameRate(0)
           setBitrate(0)
           setPacketLoss(0)
           setIsTransitioning(false)
-
-          toast('DJ Mode requested — waiting for measured adapter telemetry')
+          
+          toast.success('DJ Mode active — session continuing autonomously')
         }, 800)
       }, 1200)
     }
   }
 
   const handleStopPreflight = async () => {
+    if (roomId || cameraSetupOpen) return
     if (cameraStream) {
       cameraStream.getTracks().forEach(track => track.stop())
       setCameraStream(null)
@@ -638,6 +726,7 @@ function LegacyControlPlane() {
   }
 
   const handleVideoDeviceChange = async (deviceId: string) => {
+    if (roomId || cameraSetupOpen) return
     if (!cameraStream) {
       addLog('info', 'SOURCE', 'No active stream - start preflight first')
       toast.error('Start preflight before switching devices')
@@ -666,6 +755,7 @@ function LegacyControlPlane() {
   }
 
   const handleAudioDeviceChange = async (deviceId: string) => {
+    if (roomId || cameraSetupOpen) return
     if (!cameraStream) {
       addLog('info', 'AUDIO', 'No active stream - start preflight first')
       toast.error('Start preflight before switching devices')
@@ -718,79 +808,47 @@ function LegacyControlPlane() {
   }
 
   const handleCopyStreamKey = () => {
-    if (!streamKey) {
-      toast.error('No stream key is available')
-      return
-    }
-    void navigator.clipboard.writeText(streamKey)
+    navigator.clipboard.writeText(streamKey)
     toast.success('Stream key copied to clipboard')
   }
 
   const handleResetKey = () => {
-    setStreamKey(null)
-    addLog('warning', 'SECURITY', 'Local stream key cleared; request a new key from the configured RTMP service')
-    toast('Stream key cleared')
+    const nextKey = generateDemoStreamKey()
+    setStreamKey(nextKey)
+    addLog('warning', 'SECURITY', 'Stream key regenerated (demo)')
+    toast.success('Demo stream key regenerated')
   }
 
-  const handleSpotifyLogin = async () => {
-    setSpotifyStatus('connecting')
-    addLog('info', 'SPOTIFY', 'Initiating Spotify OAuth')
-    
-    try {
-      await initiateSpotifyAuth()
-    } catch (error) {
-      console.error('Spotify auth failed:', error)
-      setSpotifyStatus('disconnected')
-      addLog('error', 'SPOTIFY', 'OAuth initiation failed')
-      toast.error(error instanceof Error ? error.message : 'Failed to start Spotify login')
-    }
-  }
-  
-  useEffect(() => {
-    const handleSpotifyMessage = async (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return
-      if (event.data.type === 'spotify-auth' && event.data.accessToken) {
-        const accessToken = event.data.accessToken
-        setSpotifyAccessToken(accessToken)
-        
-        const user = await getSpotifyUser(accessToken)
-        if (user) {
-          setSpotifyStatus('connected')
-          setSpotifyUser(user.display_name || user.id)
-          addLog('success', 'SPOTIFY', 'Spotify account connected')
-          addLog('info', 'AUDIO', 'Personal music source available')
-          toast.success('Spotify connected')
-        } else {
-          setSpotifyStatus('disconnected')
-          addLog('error', 'SPOTIFY', 'Failed to fetch user info')
-          toast.error('Spotify authentication incomplete')
-        }
+  const { accessToken: spotifyAccessToken, disconnect: disconnectSpotifySession } = useSpotifySession({
+    onConnected: (restored) => {
+      setSpotifyUser("Spotify connected")
+      addLog('success', 'SPOTIFY', restored ? 'Spotify session restored' : 'Spotify account connected')
+      if (!restored) {
+        addLog('info', 'AUDIO', 'Personal music source available')
+        toast.success('Spotify connected')
       }
-    }
-    
-    window.addEventListener('message', handleSpotifyMessage)
-    return () => window.removeEventListener('message', handleSpotifyMessage)
-  }, [])
+    },
+    onRefreshed: () => log.info('spotify', 'Access token refreshed'),
+    onProfileUnavailable: () => log.warn('spotify', 'Profile unavailable; Spotify connection retained'),
+    onError: (message, disconnected) => {
+      if (disconnected) {
+        setSpotifyUser(null)
+        setSpotifyPlayback(null)
+      }
+      addLog('error', 'SPOTIFY', message)
+      toast.error(message)
+    },
+  })
 
   const handleSpotifyDisconnect = () => {
-    setSpotifyStatus('disconnected')
+    disconnectSpotifySession()
     setSpotifyUser(null)
-    setSpotifyTrack(null)
-    setSpotifyAccessToken(null)
-    clearSpotifySession()
+    setSpotifyPlayback(null)
     if (djAudioSource === 'spotify') {
       setDjAudioSource('stix-library')
     }
     addLog('info', 'SPOTIFY', 'Spotify disconnected')
     toast('Spotify disconnected')
-  }
-
-  const handleSelectSpotifyTrack = (track: SpotifyTrack) => {
-    setSpotifyTrack(track)
-    const trackDisplay = formatTrackDisplay(track)
-    addLog('success', 'SPOTIFY', `Track selected: ${trackDisplay}`)
-    toast.success(`Selected: ${trackDisplay}`)
-    setShowTrackPicker(false)
   }
 
   const handleDJAudioSourceChange = (source: DJAudioSource) => {
@@ -805,27 +863,8 @@ function LegacyControlPlane() {
     
     addLog('info', 'AUDIO', `DJ audio source: ${sourceLabels[source]}`)
     
-    if (source === 'spotify' && spotifyStatus === 'connected' && spotifyTrack) {
-      addLog('info', 'AUDIO', `Playing: ${spotifyTrack}`)
-    }
-    
     toast.success(`Audio source: ${sourceLabels[source]}`)
   }
-
-  useEffect(() => {
-    if (sessionStatus === 'dj-mode' && djAudioSource === 'spotify' && spotifyTrack) {
-      const interval = setInterval(() => {
-        setTrackPlaybackTime((prev) => {
-          const trackDuration = spotifyTrack.duration_ms / 1000
-          const newTime = prev + 1
-          return newTime >= trackDuration ? 0 : newTime
-        })
-      }, 1000)
-      return () => clearInterval(interval)
-    } else {
-      setTrackPlaybackTime(0)
-    }
-  }, [sessionStatus, djAudioSource, spotifyTrack])
 
   useEffect(() => {
     if (sessionStatus === 'active' && operatorTier === 'premium' && operatorTimeRemaining > 0) {
@@ -863,44 +902,44 @@ function LegacyControlPlane() {
     }
   }, [sessionStatus, operatorTier, operatorTimeRemaining])
 
-
   useEffect(() => {
-    if (!spotifyAccessToken) return
-
-    const interval = setInterval(async () => {
-      if (!isSpotifyAccessExpiringSoon()) return
-      const refreshToken = getStoredSpotifyRefreshToken()
-      if (!refreshToken) return
-
-      const refreshed = await refreshSpotifyToken(refreshToken)
-      if (refreshed?.accessToken) {
-        setSpotifyAccessToken(refreshed.accessToken)
-        log.info('spotify', 'Access token refreshed')
-      } else {
-        log.warn('spotify', 'Token refresh failed')
-        handleSpotifyDisconnect()
-      }
-    }, 30_000)
-
-    return () => clearInterval(interval)
-  }, [spotifyAccessToken])
-
-  const getStatusIndicator = (): { status: 'active' | 'standby' | 'warning' | 'error' | 'connecting', label: string, pulse: boolean } => {
-    switch (sessionStatus) {
-      case 'active':
-        return { status: 'active', label: 'ACTIVE', pulse: true }
-      case 'dj-mode':
-        return { status: 'active', label: 'DJ MODE ACTIVE', pulse: true }
-      case 'connecting':
-        return { status: 'connecting', label: 'CONNECTING', pulse: true }
-      case 'error':
-        return { status: 'error', label: 'ERROR', pulse: true }
-      default:
-        return { status: 'standby', label: 'STANDBY', pulse: false }
+    if (sessionStatus === 'active' || sessionStatus === 'dj-mode') {
+      if (!appEnv.demoMode) return
+      // DEMO ONLY: simulates telemetry fluctuation when no live peer connection exists.
+      // In live mode, telemetry comes from RTCPeerConnection.getStats() reported via
+      // /v1/rooms/:id/telemetry — it is never invented by the client.
+      const interval = setInterval(() => {
+        setSignalQuality((prev) => {
+          const baseVariation = sessionStatus === 'dj-mode' ? 2 : 3
+          const newQuality = Math.min(100, Math.max(75, prev + (Math.random() - 0.5) * baseVariation))
+          return newQuality
+        })
+        setLatency((prev) => Math.max(25, prev + (Math.random() - 0.5) * 5))
+        
+        if (inputProtocol === 'virtual-camera') {
+          setFrameRate((prev) => Math.min(30, Math.max(24, prev + (Math.random() - 0.5) * 2)))
+        }
+        
+        if (inputProtocol === 'rtmp') {
+          setBitrate((prev) => Math.min(3000, Math.max(2000, prev + (Math.random() - 0.5) * 100)))
+          setPacketLoss((prev) => Math.min(2, Math.max(0, prev + (Math.random() - 0.5) * 0.3)))
+        }
+      }, 3000)
+      return () => clearInterval(interval)
     }
-  }
+  }, [sessionStatus, inputProtocol, appEnv.demoMode])
 
-  const statusIndicator = getStatusIndicator()
+  const roomStudioStatus: { status: 'active' | 'standby' | 'warning' | 'connecting', label: string } = roomId
+    ? { status: 'active', label: 'ROOM OPEN' }
+    : output.error
+      ? { status: 'warning', label: 'CHECK OUTPUT' }
+      : inputProtocol === 'virtual-camera' && preflightError
+        ? { status: 'warning', label: 'CHECK CAMERA' }
+        : cameraSetupOpen
+          ? { status: 'connecting', label: 'DEVICE SETUP' }
+          : output.applied
+            ? { status: 'standby', label: 'READY TO JOIN' }
+            : { status: 'standby', label: 'NOT IN A ROOM' }
 
   const getModeLabel = () => {
     if (!sessionMode) return null
@@ -924,39 +963,18 @@ function LegacyControlPlane() {
   }) : []
 
   return (
-    <div className="min-h-screen bg-black relative overflow-hidden">
-      {/* Atmospheric background effects */}
-      <AnimatedGradient className="fixed inset-0" opacity={0.08} />
-      <ParticleField className="fixed inset-0" particleCount={80} color="6, 182, 212" speed={0.15} />
-      <ParticleField className="fixed inset-0" particleCount={40} color="139, 92, 246" speed={0.1} maxRadius={1.5} />
+    <div className="vc-studio-page">
+      <div className="studio-shell">
+        <StudioMasthead
+          signedIn={friskyDevSignedIn}
+          onOpenAccount={() => openMediaDisclosure('identity-controls')}
+          onOpenMusic={() => openMediaDisclosure('spotify-controls')}
+          onOpenBroadcast={() => openMediaDisclosure('telegram-controls')}
+        />
 
-      <div className="relative z-10 mx-auto max-w-6xl px-4 py-8 space-y-8">
-        
-        <header className="text-center space-y-3 relative">
-          <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/5 via-transparent to-transparent pointer-events-none" />
-          <h1 className="font-mono font-bold text-4xl md:text-5xl tracking-tight relative">
-            <span className="absolute -inset-4 bg-gradient-to-r from-cyan-500/20 via-blue-500/10 to-purple-500/20 blur-2xl rounded-full" />
-            <span className="relative">STIX M<span className="text-accent animate-pulse">Λ</span>GIC</span>
-          </h1>
-          <div className="h-px w-32 mx-auto bg-gradient-to-r from-transparent via-accent to-transparent relative">
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400 to-transparent blur-sm animate-pulse" />
-          </div>
-          <p className="text-sm text-cyan-400/60 font-mono tracking-[0.3em] uppercase">
-            Multi-Platform Session Control
-          </p>
-          <div className="mx-auto max-w-2xl rounded-lg border border-cyan-500/20 bg-cyan-500/5 backdrop-blur-sm px-4 py-2">
-            <p className="text-xs text-cyan-300/80 font-mono leading-relaxed">
-              {getRuntimeBanner()}
-            </p>
-          </div>
-        </header>
-
-        <HudFrame label="PLATFORM" variant="idle">
-          <div className="space-y-3">
-            <div className="text-center">
-              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
-                Platform Destination
-              </h3>
+        <section className="studio-destination" aria-label="Platform destination">
+          <div className="studio-destination__label"><strong>Where is your audience?</strong><span>Choose your destination</span></div>
+            <div className="studio-destination__choices">
               <Tabs value={platform || "telegram"} onValueChange={(value) => {
                 if (sessionStatus === 'active' || sessionStatus === 'dj-mode') {
                   toast.error('Cannot switch platform during active session')
@@ -966,7 +984,7 @@ function LegacyControlPlane() {
                 addLog('info', 'PLATFORM', `Switched to ${value === 'telegram' ? 'Telegram' : 'Discord'}`)
                 toast.success(`Platform: ${value === 'telegram' ? 'Telegram' : 'Discord'}`)
               }}>
-                <TabsList className="grid grid-cols-2 w-full max-w-md mx-auto">
+                <TabsList aria-label="Choose a platform">
                   <TabsTrigger value="telegram" disabled={sessionStatus === 'active' || sessionStatus === 'dj-mode'}>
                     Telegram
                   </TabsTrigger>
@@ -976,14 +994,11 @@ function LegacyControlPlane() {
                 </TabsList>
               </Tabs>
             </div>
-            <div className="text-center text-xs text-muted-foreground">
-              {platform === 'telegram' && 'Target: Telegram Voice Chat infrastructure'}
-              {platform === 'discord' && 'Target: Discord Voice Channel infrastructure'}
-            </div>
-          </div>
-        </HudFrame>
+        </section>
 
-        <FriskyDevIdentityGate onChange={(identity) => setFriskyDevSignedIn(Boolean(identity))} />
+        <MediaDisclosure id="identity-controls" title="Accounts & connections" status={friskyDevSignedIn ? 'Signed in' : 'Sign in to open a room'}>
+          <div className="studio-account-content">
+          <FriskyDevIdentityGate onChange={(identity) => setFriskyDevSignedIn(Boolean(identity))} />
 
         <PlatformAccess
           telegramStatus={telegramAuthStatus || 'disconnected'}
@@ -994,24 +1009,23 @@ function LegacyControlPlane() {
           discordError={discordAuthError}
           friskyDevSignedIn={friskyDevSignedIn}
           telegramBotUsername={telegramBotUsername}
-          telegramAuthReady={publicConfig?.capabilities.telegramAuth.ready ?? false}
-          telegramAuthReason={publicConfig?.capabilities.telegramAuth.reason ?? 'Checking Telegram configuration'}
-          discordAuthReady={publicConfig?.capabilities.discordAuth.ready ?? false}
-          discordAuthReason={publicConfig?.capabilities.discordAuth.reason ?? 'Checking Discord configuration'}
           telegramLinked={telegramAuthStatus === 'connected'}
           discordLinked={discordAuthStatus === 'connected'}
-          onTelegramWidgetAuth={(payload) => void handleTelegramAuth(payload)}
+          onTelegramWidgetAuth={(payload) => void handleTelegramWidgetAuth(payload)}
+          onTelegramDemoAuth={() => void handleTelegramAuth()}
           onTelegramDisconnect={handleTelegramDisconnect}
           onDiscordAuth={handleDiscordAuth}
           onDiscordDisconnect={handleDiscordDisconnect}
         />
+          </div>
+        </MediaDisclosure>
 
         <div className="space-y-6">
-          <div className="glass-panel rounded-xl p-6 space-y-6">
+          <div id="room-studio" className="glass-panel studio-room space-y-6">
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="studio-room__heading">
                 <div className="space-y-1">
-                  <h2 className="text-lg font-semibold">Live Preview</h2>
+                  <h2>Room studio</h2>
                   <div className="flex gap-2 flex-wrap">
                     <Badge variant="outline" className="gap-1.5 border-primary text-primary font-mono text-[10px]">
                       <Broadcast size={12} weight="fill" />
@@ -1025,52 +1039,89 @@ function LegacyControlPlane() {
                     )}
                   </div>
                 </div>
-                <StatusIndicator {...statusIndicator} />
+                <StatusIndicator {...roomStudioStatus} />
               </div>
               
-              <PreviewPanel
-                sessionStatus={sessionStatus || "standby"}
-                inputProtocol={inputProtocol || "virtual-camera"}
-                signalQuality={signalQuality}
-                frameRate={frameRate}
-                bitrate={bitrate}
-                audioSync={audioSync}
-                resolution={resolution}
-                sessionMark={sessionMark || "stix-default"}
-                djAudioSource={djAudioSource}
-                spotifyStatus={spotifyStatus}
-                spotifyTrack={spotifyTrack}
-                trackPlaybackTime={trackPlaybackTime}
-                cameraStream={cameraStream}
-                onVideoDeviceChange={handleVideoDeviceChange}
-                onAudioDeviceChange={handleAudioDeviceChange}
-              />
+              <div className="studio-room__setup">
+                <p className="text-xs text-muted-foreground">{roomId ? 'Leave the room to run device setup again. You can mute your camera and microphone below.' : 'Check your camera and microphone before joining a room.'}</p>
+                <Button variant="outline" disabled={Boolean(roomId) || cameraSetupOpen} onClick={openCameraSetup}>{cameraStream ? 'Change camera & microphone' : 'Set up camera & microphone'}</Button>
+              </div>
+              {cameraSetupOpen ? <CameraSetupWizard
+                autoStart
+                initialVideoDeviceId={selectedVideoDeviceId}
+                initialAudioDeviceId={selectedAudioDeviceId}
+                onCancel={() => setCameraSetupOpen(false)}
+                onComplete={({ videoDeviceId, audioDeviceId, stream }) => {
+                  setSelectedVideoDeviceId(videoDeviceId)
+                  setSelectedAudioDeviceId(audioDeviceId)
+                  setCameraStream(stream)
+                  setPreviewSource('camera')
+                  output.prepareCamera(stream)
+                  setCameraSetupOpen(false)
+                }}
+              /> : <StudioMonitor
+                sources={studioSources}
+                previewId={previewSource}
+                onPreviewChange={setPreviewSource}
+                programId={output.applied?.id ?? null}
+                programStream={output.applied?.stream ?? null}
+                roomId={roomId}
+                pending={output.pending}
+                error={output.error}
+                onShare={() => output.select(previewSource)}
+                onClear={output.clear}
+                onOpenCameraSetup={!roomId ? openCameraSetup : undefined}
+                onOpenScreenControls={() => openMediaDisclosure('capture-controls')}
+                onOpenStudioControls={() => openMediaDisclosure('studio-controls')}
+              />}
+              <p className="text-xs text-muted-foreground">The studio output feeds your browser room. Telegram broadcasting uses its relay controls below.</p>
+              {cameraStream && !cameraSetupOpen && <MediaDisclosure title="Camera controls">
+                <CameraReadyPreview stream={cameraStream} inRoom={Boolean(roomId)} onStop={() => {
+                  cameraStream.getTracks().forEach(track => track.stop())
+                  setCameraStream(null)
+                }} />
+              </MediaDisclosure>}
 
-        {/* npm run dev starts the signaling node alongside Vite. Platform controls remain
-            unavailable until their server-side provider and media adapters report ready. */}
-              <div className="mt-4 space-y-4">
-                {friskyDevSignedIn ? (
+              {/* npm run dev starts the signaling node alongside Vite, so browser rooms are
+                  real even while the legacy platform-control surfaces remain in demo mode. */}
+              <div className="media-workspace mt-4 space-y-4">
+                {cameraSetupOpen ? (
+                  <p className="text-sm text-muted-foreground">Finish or cancel setup to open a room.</p>
+                ) : friskyDevSignedIn || appEnv.demoMode ? (roomEntryReady || joinWithoutMedia || roomId ? (
                   <RoomPanel
-                    localStream={cameraStream || screenStream}
+                    localStream={output.requested?.stream ?? null}
+                    onLocalStreamChange={output.onChange}
                     onRoomChange={setRoomId}
-                    localMicEnabled={audioSync !== 'muted'}
-                    localCameraEnabled={Boolean(cameraStream)}
-                    isHost
                   />
                 ) : (
+                  <GlassCard className="space-y-3 p-5 text-sm">
+                    {output.requested ? <>
+                      <p>Your output is prepared. Join when you’re ready to share it.</p>
+                      <Button onClick={() => setRoomEntryReady(true)}>{new URLSearchParams(window.location.search).has('room') ? 'Join invited room' : 'Open room controls'}</Button>
+                    </> : <>
+                      <p>Prepare a camera, screen, or video in the studio monitor before joining. Your invitation stays here while you check your source.</p>
+                      <Button variant="outline" onClick={() => setJoinWithoutMedia(true)}>{new URLSearchParams(window.location.search).has('room') ? 'Join without camera & microphone' : 'Continue without camera & microphone'}</Button>
+                      <p className="text-xs text-muted-foreground">You can watch and listen, then explicitly share a prepared screen or video from the studio monitor.</p>
+                    </>}
+                  </GlassCard>
+                )) : (
                   <GlassCard className="p-5 text-center text-sm text-muted-foreground">
                     Continue with FriskyDev ID to create or join a room.
                   </GlassCard>
                 )}
-                <NodeOperationsBoard />
-                <CreatorTools
-                  cameraStream={cameraStream}
-                  screenStream={screenStream}
-                  onScreenStream={setScreenStream}
-                  roomId={roomId}
-                />
-                <TelegramVcPanel accessGranted={friskyDevSignedIn} />
-                <DJModePanel />
+                <DJModePanel spotifyTrack={spotifyPlayback?.item ?? null} onOutputStream={handleStudioStream} />
+                <MediaDisclosure title="Node operations"><NodeOperationsBoard /></MediaDisclosure>
+                  <CreatorTools
+                    cameraStream={cameraStream}
+                    screenStream={screenStream}
+                    onScreenStream={handleScreenStream}
+                    roomId={roomId}
+                    recordingStream={output.applied?.stream ?? null}
+                    spotifyAccessToken={spotifyAccessToken}
+                    onSpotifyDisconnect={handleSpotifyDisconnect}
+                    onSpotifyPlaybackChange={setSpotifyPlayback}
+                  />
+                <MediaDisclosure id="telegram-controls" title="Telegram broadcast"><TelegramVcPanel accessGranted={friskyDevSignedIn || appEnv.demoMode} /></MediaDisclosure>
               </div>
               
               {sessionStatus === 'active' && operatorTier === 'premium' && operatorTimeRemaining > 0 && (
@@ -1132,15 +1183,16 @@ function LegacyControlPlane() {
 
           <div className="glass-panel rounded-xl p-6">
             <div className="space-y-4">
-              {sessionStatus === 'standby' && (
+              {(sessionStatus === 'standby' || sessionStatus === 'error') && (
                 <Button 
-                  onClick={handleRunPreflight} 
+                  onClick={handleRunPreflight}
+                  disabled={Boolean(roomId) || cameraSetupOpen}
                   className="w-full gap-3 h-12"
                   size="lg"
                 >
                   <Play size={20} weight="fill" />
                   <div className="flex flex-col items-start">
-                    <span className="text-base font-semibold">{inputProtocol === 'dj-mode' ? 'Start DJ Mode' : 'Run Preflight'}</span>
+                    <span className="text-base font-semibold">{sessionStatus === 'error' ? 'Retry preflight' : inputProtocol === 'dj-mode' ? 'Start DJ Mode' : 'Run Preflight'}</span>
                     <span className="text-[10px] opacity-75 font-normal">
                       {inputProtocol === 'dj-mode' ? 'No-cost autonomous session' : `${getPreflightLabel()} mode`}
                     </span>
@@ -1148,6 +1200,9 @@ function LegacyControlPlane() {
                 </Button>
               )}
               
+              {preflightNotice && <p role="status" className="rounded-lg border border-success/30 bg-success/5 p-4 text-sm">{preflightNotice}</p>}
+              {sessionStatus === 'error' && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm">{preflightError || 'The previous preflight did not finish. Check your source and retry.'}</p>}
+
               {sessionStatus === 'dj-mode' && operatorTimeElapsed > 0 && (
                 <div className="glass-panel p-4 rounded-lg bg-accent/5 border border-accent/20 space-y-3">
                   <div className="flex items-start gap-3">
@@ -1208,7 +1263,7 @@ function LegacyControlPlane() {
                 </div>
               )}
               
-              {sessionStatus !== 'standby' && sessionStatus !== 'dj-mode' && (
+              {sessionStatus !== 'standby' && sessionStatus !== 'dj-mode' && sessionStatus !== 'error' && (
                 <>
                   <div className="flex items-center justify-between">
                     {operatorTier === 'premium' && operatorTimeRemaining > 0 && (
@@ -1234,7 +1289,8 @@ function LegacyControlPlane() {
 
                   <div className="grid grid-cols-2 gap-3">
                     <Button 
-                      onClick={handleStopPreflight} 
+                      onClick={handleStopPreflight}
+                      disabled={Boolean(roomId) || cameraSetupOpen}
                       variant="secondary"
                       className="gap-2"
                     >
@@ -1403,127 +1459,23 @@ function LegacyControlPlane() {
 
                 <div className="space-y-3">
                   <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    Personal Source
+                    Personal listening
                   </div>
-                  
-                  {!isSpotifyConfigured() ? (
-                    <div className="glass-panel p-4 rounded-lg border border-border">
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 rounded-lg bg-muted">
-                          <SpotifyLogo size={18} className="text-muted-foreground" />
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="text-sm font-semibold">Spotify</h4>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            <strong>Not configured</strong>. Set <span className="font-mono">VITE_SPOTIFY_CLIENT_ID</span> to enable.
-                          </p>
-                        </div>
+                  <div className="glass-panel p-4 rounded-lg border border-border">
+                    <div className="flex items-start gap-3">
+                      <SpotifyLogo size={20} className="text-accent flex-shrink-0" />
+                      <div className="space-y-3">
+                        <h4 className="text-sm font-semibold">Spotify</h4>
+                        <p className="text-xs text-muted-foreground">
+                          Choose a song or playlist, then press Play in the Spotify controls. The player shows the track reported by Spotify on your listening device.
+                        </p>
+                        <Button asChild variant="outline" size="sm">
+                          <a href="#spotify-controls" onClick={(event) => { event.preventDefault(); openMediaDisclosure('spotify-controls') }}>Open Spotify controls</a>
+                        </Button>
                       </div>
                     </div>
-                  ) : spotifyStatus === 'disconnected' || spotifyStatus === 'connecting' ? (
-                    <div className="glass-panel p-4 rounded-lg border border-border">
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 rounded-lg bg-muted">
-                          <SpotifyLogo size={18} className="text-foreground" />
-                        </div>
-                        <div className="flex-1 space-y-3">
-                          <div>
-                            <h4 className="text-sm font-semibold">Spotify</h4>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Optional — requires <span className="font-mono">VITE_SPOTIFY_CLIENT_ID</span>
-                            </p>
-                          </div>
-                          <Button
-                            onClick={handleSpotifyLogin}
-                            variant="outline"
-                            size="sm"
-                            className="gap-2 w-full"
-                            disabled={spotifyStatus === 'connecting'}
-                          >
-                            <SignIn size={16} />
-                            {spotifyStatus === 'connecting' ? 'Connecting...' : 'Log in with Spotify'}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {spotifyStatus === 'connected' && (
-                    <button
-                      onClick={() => handleDJAudioSourceChange('spotify')}
-                      className={`glass-panel p-4 rounded-lg text-left transition-all ${
-                        djAudioSource === 'spotify'
-                          ? 'border-2 border-accent bg-accent/5'
-                          : 'border border-border hover:border-accent/50'
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className={`p-2 rounded-lg ${djAudioSource === 'spotify' ? 'bg-accent/20' : 'bg-muted'}`}>
-                          <SpotifyLogo size={18} weight="fill" className={djAudioSource === 'spotify' ? 'text-accent' : 'text-foreground'} />
-                        </div>
-                        <div className="flex-1 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <h4 className="text-sm font-semibold">Spotify</h4>
-                              <div className="flex items-center gap-2 mt-1">
-                                <Badge variant="outline" className="gap-1 border-success text-success text-[10px]">
-                                  <UserCircle size={10} weight="fill" />
-                                  {spotifyUser}
-                                </Badge>
-                                {djAudioSource === 'spotify' && (
-                                  <Badge variant="outline" className="gap-1 border-accent text-accent text-[10px]">
-                                    <CheckCircle size={10} weight="fill" />
-                                    Active
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          {spotifyTrack && (
-                            <div className="text-xs text-muted-foreground flex items-center gap-1.5">
-                              <MusicNote size={12} />
-                              {formatTrackDisplay(spotifyTrack)}
-                            </div>
-                          )}
-                          <div className="flex gap-2 pt-1">
-                            <Button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setShowTrackPicker(true)
-                              }}
-                              variant="outline"
-                              size="sm"
-                              className="gap-1.5 text-xs flex-1"
-                            >
-                              <MusicNote size={14} />
-                              {spotifyTrack ? 'Change Track' : 'Choose Track'}
-                            </Button>
-                            <Button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleSpotifyDisconnect()
-                              }}
-                              variant="ghost"
-                              size="sm"
-                              className="gap-1.5 text-xs"
-                            >
-                              <SignOut size={14} />
-                              Disconnect
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </button>
-                  )}
+                  </div>
                 </div>
-
-                {djAudioSource === 'spotify' && spotifyStatus === 'connected' && (
-                  <div className="glass-panel p-3 rounded-lg bg-accent/5 border border-accent/20">
-                    <p className="text-xs text-muted-foreground">
-                      <span className="text-accent font-medium">Personal Source Active</span> — DJ Mode will use your selected Spotify track
-                    </p>
-                  </div>
-                )}
               </div>
             </CollapsibleSection>
           )}
@@ -1565,13 +1517,17 @@ function LegacyControlPlane() {
           {sessionStatus !== 'standby' && (
             <CollapsibleSection
               title="Source Details"
-              description="Measured session telemetry from the active control-plane adapter; unavailable values remain empty."
+              description={
+                inputProtocol === 'virtual-camera' && sessionStatus === 'active'
+                  ? 'Live camera metrics where available; other values may be simulated'
+                  : 'Simulated telemetry for alpha demo'
+              }
             >
               {inputProtocol === 'virtual-camera' && (
                 <>
                   <div className="mb-4">
                     <DeviceSelector 
-                      disabled={sessionStatus !== 'active'}
+                      disabled={Boolean(roomId) || cameraSetupOpen || (sessionStatus !== 'active')}
                       onVideoDeviceChange={handleVideoDeviceChange}
                       onAudioDeviceChange={handleAudioDeviceChange}
                     />
@@ -1646,15 +1602,13 @@ function LegacyControlPlane() {
                     </div>
                     <div className="flex gap-2">
                       <Input 
-                        value={streamKey ?? ''}
-                        placeholder="Unavailable until RTMP session starts"
+                        value={streamKey} 
                         readOnly 
                         className="font-mono text-xs"
                         type="password"
                       />
                       <Button 
-                        onClick={handleCopyStreamKey}
-                        disabled={!streamKey}
+                        onClick={handleCopyStreamKey} 
                         variant="outline" 
                         size="icon"
                       >
@@ -1867,18 +1821,14 @@ function LegacyControlPlane() {
             <Broadcast size={12} />
             <span className="font-mono">FRISKY DEVELOPMENTS</span>
           </div>
-          <p>Verified-provider session control • Telegram + Discord • NEBU / nebu.quest</p>
+          <p>
+            {appEnv.demoMode
+              ? 'Alpha local demo • Multi-platform session control • Telegram + Discord'
+              : 'Multi-platform session control • Telegram + Discord • vc.friskydev.com'}
+          </p>
         </footer>
       </div>
       
-      {spotifyAccessToken && (
-        <SpotifyTrackPicker
-          open={showTrackPicker}
-          onOpenChange={setShowTrackPicker}
-          accessToken={spotifyAccessToken}
-          onTrackSelect={handleSelectSpotifyTrack}
-        />
-      )}
     </div>
   )
 }

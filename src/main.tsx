@@ -5,9 +5,11 @@ import { Toaster } from 'sonner'
 import App from './App.tsx'
 import { DiscordCallback } from './components/DiscordCallback.tsx'
 import { SpotifyCallback } from './components/SpotifyCallback.tsx'
+import { NebuStudio } from './components/NebuStudio.tsx'
 import { NebuLogin } from './components/NebuLogin.tsx'
 import { NebuLanding } from './components/NebuLanding.tsx'
 import { NebuAshyWalkthrough } from './components/NebuAshyWalkthrough.tsx'
+import { lazy, Suspense } from 'react'
 import { ErrorFallback } from './ErrorFallback.tsx'
 import {
   getAnalyticsClient,
@@ -15,15 +17,23 @@ import {
   isAnalyticsEnabled,
 } from './lib/analytics'
 import { fetchPublicConfig, getCachedPublicConfig } from './lib/public-config'
+import { isNebuStudioRoute } from './lib/nebu-host'
 
 import "./main.css"
 
 initAnalytics()
 await fetchPublicConfig()
 
-/** Selects the top-level application surface for the current browser path. */
+const OverlayStudio = lazy(() => import('./components/OverlayStudio').then(module => ({ default: module.OverlayStudio })))
+const OverlayOutput = lazy(() => import('./components/OverlayStudio').then(module => ({ default: module.OverlayOutputView })))
+
 function Root() {
   const path = window.location.pathname
+
+  if (path === '/overlay-studio') return <Suspense fallback={<p>Opening Overlay Studio…</p>}><OverlayStudio /></Suspense>
+  if (path === '/overlay-output') return <Suspense fallback={null}><OverlayOutput /></Suspense>
+  if (path === '/ops') return <App />
+  if (isNebuStudioRoute(path, window.location.hostname)) return <NebuStudio />
 
   if (path === '/auth/discord/callback') {
     return (

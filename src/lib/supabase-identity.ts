@@ -18,27 +18,25 @@
  * row-level security. The service-role key must never appear here.
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { getCachedPublicConfig } from '@/lib/public-config'
+import { signInReturnUrl } from '@/lib/room-invites'
 
-function identityConfig(): { url: string; key: string } {
-  const runtime = getCachedPublicConfig()
-  return {
-    url: runtime?.supabaseUrl || (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() || '',
-    key:
-      runtime?.supabasePublishableKey ||
-      (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined)?.trim() ||
-      (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim() ||
-      '',
-  }
-}
+/** The FriskyDev / MyFenrir project — the same one LORE points at. Public client config. */
+const DEFAULT_URL = 'https://yqevglppbhuoxxfsfnih.supabase.co'
+const DEFAULT_PUBLISHABLE_KEY = 'YOUR_SUPABASE_PUBLISHABLE_KEY'
 
-/** SSO only. The same three LORE wires: Google, Apple, Microsoft (azure). No email auth. */
-export type OAuthProvider = 'google' | 'apple' | 'azure'
+const URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || DEFAULT_URL
+const ANON_KEY =
+  (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) || DEFAULT_PUBLISHABLE_KEY
+
+/**
+ * FriskyDev identity is owned by the existing Authentik-backed OIDC provider in
+ * Supabase. Do not bypass it with a separately configured social provider here:
+ * that would create a second, inconsistent account path for the VC node.
+ */
+export type OAuthProvider = 'custom:friskydev'
 
 export const PROVIDER_LABELS: Record<OAuthProvider, string> = {
-  google: 'Google',
-  apple: 'Apple',
-  azure: 'Microsoft',
+  'custom:friskydev': 'FriskyDev',
 }
 
 export interface IdentityConfigState {
@@ -48,10 +46,9 @@ export interface IdentityConfigState {
 }
 
 export function getIdentityConfigState(): IdentityConfigState {
-  const { url, key } = identityConfig()
   const missing: string[] = []
-  if (!url) missing.push('SUPABASE_URL')
-  if (!key) missing.push('SUPABASE_PUBLISHABLE_KEY')
+  if (!URL) missing.push('VITE_SUPABASE_URL')
+  if (!ANON_KEY) missing.push('VITE_SUPABASE_ANON_KEY')
   return { configured: missing.length === 0, missing }
 }
 
@@ -64,8 +61,7 @@ export function getSupabase(): SupabaseClient {
     throw new Error(`Supabase identity is not configured. Missing: ${missing.join(', ')}`)
   }
   if (!client) {
-    const { url, key } = identityConfig()
-    client = createClient(url, key, {
+    client = createClient(URL, ANON_KEY, {
       auth: {
         detectSessionInUrl: true,
         persistSession: true,
@@ -80,7 +76,7 @@ export function getSupabase(): SupabaseClient {
 /** Start SSO. Returns to the current path so the operator lands back where they were. */
 export async function signInWithProvider(provider: OAuthProvider): Promise<void> {
   const supabase = getSupabase()
-  const redirectTo = `${window.location.origin}${window.location.pathname}`
+  const redirectTo = signInReturnUrl()
   const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo } })
   if (error) throw error
 }
@@ -134,14 +130,13 @@ export async function signOut(): Promise<void> {
 }
 
 /**
- * Called once at startup. Reads the node's `vc_session` first (FriskyDev ID / OIDC, or a
- * cookie minted earlier) so an OIDC-only node still appears signed in. If there is no
- * cookie yet and Supabase is configured, exchange a live SSO session for one. Idempotent
- * and safe to call on every mount.
+ * Called once at startup. If Supabase has just returned from SSO (or a session is still
+ * live) but the node has no cookie yet, exchange it. Idempotent and safe to call on every
+ * mount — with no Supabase session it does nothing.
  */
 export async function syncSessionOnLoad(): Promise<{ id: string; name: string } | null> {
+  if (!getIdentityConfigState().configured) return null
   const existing = await getNodeIdentity()
   if (existing) return existing
-  if (!getIdentityConfigState().configured) return null
   return establishNodeSession()
 }

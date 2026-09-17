@@ -25,6 +25,9 @@ dist-ssr
 *.sw?
 
 .env
+.env.*
+!.env.example
+.auth-proof/
 **/agent-eval-report*
 packages
 pids

@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 1,
+  "packId": "vc-node-starter",
+  "version": "0.1.0",
+  "title": "VC Node",
+  "author": "",
+  "status": "draft",
+  "commercialStatus": "unreviewed",
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "background": "transparent"
+  },
+  "tokens": {
+    "ink": "#111a1c",
+    "paper": "#f5f2ec",
+    "mint": "#70c8ac",
+    "line": "#334144"
+  },
+  "screens": [
+    {
+      "id": "screen-01",
+      "title": "Starting Soon",
+      "layers": []
+    },
+    {
+      "id": "screen-02",
+      "title": "Live Camera",
+      "layers": []
+    },
+    {
+      "id": "screen-03",
+      "title": "Just Chatting",
+      "layers": []
+    },
+    {
+      "id": "screen-04",
+      "title": "Screen Share",
+      "layers": []
+    },
+    {
+      "id": "screen-05",
+      "title": "Presentation",
+      "layers": []
+    },
+    {
+      "id": "screen-06",
+      "title": "Interview",
+      "layers": []
+    },
+    {
+      "id": "screen-07",
+      "title": "Guest Spotlight",
+      "layers": []
+    },
+    {
+      "id": "screen-08",
+      "title": "Panel",
+      "layers": []
+    },
+    {
+      "id": "screen-09",
+      "title": "Co-host",
+      "layers": []
+    },
+    {
+      "id": "screen-10",
+      "title": "Music Session",
+      "layers": []
+    },
+    {
+      "id": "screen-11",
+      "title": "DJ Set",
+      "layers": []
+    },
+    {
+      "id": "screen-12",
+      "title": "Now Playing",
+      "layers": []
+    },
+    {
+      "id": "screen-13",
+      "title": "Intermission",
+      "layers": []
+    },
+    {
+      "id": "screen-14",
+      "title": "Be Right Back",
+      "layers": []
+    },
+    {
+      "id": "screen-15",
+      "title": "Technical Pause",
+      "layers": []
+    },
+    {
+      "id": "screen-16",
+      "title": "Countdown",
+      "layers": []
+    },
+    {
+      "id": "screen-17",
+      "title": "Announcement",
+      "layers": []
+    },
+    {
+      "id": "screen-18",
+      "title": "Credits",
+      "layers": []
+    },
+    {
+      "id": "screen-19",
+      "title": "Ending",
+      "layers": []
+    },
+    {
+      "id": "screen-20",
+      "title": "Offline",
+      "layers": []
+    }
+  ]
+}

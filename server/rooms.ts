@@ -80,13 +80,17 @@ export const TELEMETRY_MAX_AGE_MS = 15 * 1000
 const rooms = new Map<string, Room>()
 const roomIdsByOwner = new Map<string, Set<string>>()
 const participantIdsByRoomAndOperator = new Map<string, Map<string, string>>()
+const emptySinceByRoom = new Map<string, number>()
 let statePath: string | null = null
 
-type StoredRoom = Omit<Room, 'participants' | 'telemetry'>
+type StoredRoom = Omit<Room, 'participants' | 'telemetry'> & { emptySince?: number | null }
 
 function persistRooms(): void {
   if (!statePath) return
-  const stored: StoredRoom[] = [...rooms.values()].map(({ participants: _participants, telemetry: _telemetry, ...room }) => room)
+  const stored: StoredRoom[] = [...rooms.values()].map(({ participants: _participants, telemetry: _telemetry, ...room }) => ({
+    ...room,
+    emptySince: emptySinceByRoom.get(room.id) ?? null,
+  }))
   mkdirSync(dirname(statePath), { recursive: true })
   const pending = `${statePath}.tmp`
   writeFileSync(pending, JSON.stringify(stored), { mode: 0o600 })
@@ -98,13 +102,23 @@ export function configureRoomPersistence(path: string | undefined): void {
   if (!statePath) return
   try {
     const stored = JSON.parse(readFileSync(statePath, 'utf8')) as StoredRoom[]
-    for (const room of stored) {
+    const now = Date.now()
+    let restored = false
+    for (const record of stored) {
+      if (!record) continue
+      const { emptySince, ...room } = record
       if (!room?.id || !room.ownerOperatorId || rooms.has(room.id)) continue
       rooms.set(room.id, { ...room, scheduledFor: room.scheduledFor ?? null, participants: new Map(), telemetry: null })
+      // Seats do not survive a restart. Interrupted calls and legacy records get one
+      // fresh reconnect window; rooms already idle keep their original deadline.
+      emptySinceByRoom.set(room.id, typeof emptySince === 'number' && Number.isFinite(emptySince) ? emptySince : now)
       const owned = roomIdsByOwner.get(room.ownerOperatorId) ?? new Set<string>()
       owned.add(room.id)
       roomIdsByOwner.set(room.ownerOperatorId, owned)
+      restored = true
     }
+    // Save restart/legacy timestamps now so repeated restarts cannot renew them.
+    if (restored) persistRooms()
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
   }
@@ -116,6 +130,7 @@ function removeRoomIndexes(room: Room): void {
     roomIdsByOwner.delete(room.ownerOperatorId)
   }
   participantIdsByRoomAndOperator.delete(room.id)
+  emptySinceByRoom.delete(room.id)
 }
 
 function clampParticipants(requested: number | undefined): number {
@@ -152,6 +167,7 @@ export function createRoom(input: {
     telemetry: null,
   }
   rooms.set(id, room)
+  emptySinceByRoom.set(id, room.createdAt)
   const ownedRoomIds = roomIdsByOwner.get(room.ownerOperatorId) ?? new Set<string>()
   ownedRoomIds.add(id)
   roomIdsByOwner.set(room.ownerOperatorId, ownedRoomIds)
@@ -209,6 +225,7 @@ export function joinRoom(
   room.participants.set(participant.id, participant)
   participantIds.set(input.operatorId, participant.id)
   participantIdsByRoomAndOperator.set(roomId, participantIds)
+  if (emptySinceByRoom.delete(roomId)) persistRooms()
   return { ok: true, participant }
 }
 
@@ -221,6 +238,10 @@ export function leaveRoom(roomId: string, participantId: string): Participant | 
   const participantIds = participantIdsByRoomAndOperator.get(roomId)
   participantIds?.delete(participant.operatorId)
   if (participantIds?.size === 0) participantIdsByRoomAndOperator.delete(roomId)
+  if (room.participants.size === 0) {
+    emptySinceByRoom.set(roomId, Date.now())
+    persistRooms()
+  }
   return participant
 }
 
@@ -271,7 +292,8 @@ export function findRoomForOperator(operatorId: string): { room: Room; participa
 export function sweepEmptyRooms(now = Date.now(), ttlMs = EMPTY_ROOM_TTL_MS): number {
   let removed = 0
   for (const [id, room] of rooms) {
-    const expiresAt = room.scheduledFor ? room.scheduledFor + SCHEDULED_ROOM_GRACE_MS : room.createdAt + ttlMs
+    const idleExpiresAt = (emptySinceByRoom.get(id) ?? room.createdAt) + ttlMs
+    const expiresAt = room.scheduledFor ? Math.max(idleExpiresAt, room.scheduledFor + SCHEDULED_ROOM_GRACE_MS) : idleExpiresAt
     if (room.participants.size === 0 && now > expiresAt) {
       rooms.delete(id)
       removeRoomIndexes(room)
@@ -287,6 +309,7 @@ export function resetRooms(): void {
   rooms.clear()
   roomIdsByOwner.clear()
   participantIdsByRoomAndOperator.clear()
+  emptySinceByRoom.clear()
 }
 
 export function roomCount(): number {

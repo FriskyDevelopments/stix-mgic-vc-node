@@ -1,6 +1,10 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   closeRoom,
+  configureRoomPersistence,
   createRoom,
   currentTelemetry,
   findRoomForOperator,
@@ -26,6 +30,10 @@ const GUEST = 'discord:2'
 
 beforeEach(() => {
   resetRooms()
+})
+
+afterEach(() => {
+  vi.useRealTimers()
 })
 
 describe('createRoom', () => {
@@ -196,6 +204,51 @@ describe('findRoomForOperator', () => {
 })
 
 describe('sweepEmptyRooms', () => {
+  it('gives an old room a full idle window after its last participant leaves', () => {
+    vi.useFakeTimers()
+    const room = createRoom({ ownerOperatorId: OWNER })
+    const joined = joinRoom(room.id, { operatorId: OWNER, name: 'Owner' })
+    expect(joined.ok).toBe(true)
+    if (!joined.ok) return
+    vi.setSystemTime(room.createdAt + EMPTY_ROOM_TTL_MS * 2)
+    leaveRoom(room.id, joined.participant.id)
+    expect(sweepEmptyRooms()).toBe(0)
+    expect(sweepEmptyRooms(Date.now() + EMPTY_ROOM_TTL_MS)).toBe(0)
+    expect(sweepEmptyRooms(Date.now() + EMPTY_ROOM_TTL_MS + 1)).toBe(1)
+  })
+
+  it('starts the idle window only when the last participant leaves', () => {
+    vi.useFakeTimers()
+    const room = createRoom({ ownerOperatorId: OWNER })
+    const owner = joinRoom(room.id, { operatorId: OWNER, name: 'Owner' })
+    const guest = joinRoom(room.id, { operatorId: GUEST, name: 'Guest' })
+    expect(owner.ok && guest.ok).toBe(true)
+    if (!owner.ok || !guest.ok) return
+    vi.setSystemTime(room.createdAt + EMPTY_ROOM_TTL_MS * 2)
+    leaveRoom(room.id, owner.participant.id)
+    vi.setSystemTime(Date.now() + EMPTY_ROOM_TTL_MS * 2)
+    expect(sweepEmptyRooms()).toBe(0)
+    leaveRoom(room.id, guest.participant.id)
+    expect(sweepEmptyRooms()).toBe(0)
+    expect(sweepEmptyRooms(Date.now() + EMPTY_ROOM_TTL_MS + 1)).toBe(1)
+  })
+
+  it('renews the idle window after a participant rejoins and leaves again', () => {
+    vi.useFakeTimers()
+    const room = createRoom({ ownerOperatorId: OWNER })
+    const first = joinRoom(room.id, { operatorId: OWNER, name: 'Owner' })
+    if (!first.ok) throw new Error('First join failed')
+    leaveRoom(room.id, first.participant.id)
+    vi.setSystemTime(Date.now() + EMPTY_ROOM_TTL_MS / 2)
+    const second = joinRoom(room.id, { operatorId: OWNER, name: 'Owner' })
+    if (!second.ok) throw new Error('Rejoin failed')
+    vi.setSystemTime(Date.now() + EMPTY_ROOM_TTL_MS)
+    expect(sweepEmptyRooms()).toBe(0)
+    leaveRoom(room.id, second.participant.id)
+    expect(sweepEmptyRooms()).toBe(0)
+    expect(sweepEmptyRooms(Date.now() + EMPTY_ROOM_TTL_MS + 1)).toBe(1)
+  })
+
   it('drops an empty room past the TTL', () => {
     createRoom({ ownerOperatorId: OWNER })
     expect(sweepEmptyRooms(Date.now() + EMPTY_ROOM_TTL_MS + 1000)).toBe(1)
@@ -222,9 +275,92 @@ describe('sweepEmptyRooms', () => {
     expect(sweepEmptyRooms(scheduledFor + SCHEDULED_ROOM_GRACE_MS + 1)).toBe(1)
   })
 
+  it('gives a scheduled call a reconnect window even after its event window', () => {
+    vi.useFakeTimers()
+    const room = createRoom({ ownerOperatorId: OWNER })
+    const scheduledFor = Date.now() + 60_000
+    scheduleRoom(room.id, OWNER, scheduledFor)
+    const joined = joinRoom(room.id, { operatorId: OWNER, name: 'Owner' })
+    if (!joined.ok) throw new Error('Join failed')
+    vi.setSystemTime(scheduledFor + SCHEDULED_ROOM_GRACE_MS + 1)
+    leaveRoom(room.id, joined.participant.id)
+    expect(sweepEmptyRooms()).toBe(0)
+    expect(sweepEmptyRooms(Date.now() + EMPTY_ROOM_TTL_MS + 1)).toBe(1)
+  })
+
   it('does not let another operator reschedule the room', () => {
     const room = createRoom({ ownerOperatorId: OWNER })
     expect(scheduleRoom(room.id, GUEST, Date.now() + 60_000)).toBeNull()
+  })
+})
+
+describe('room persistence and idle expiry', () => {
+  let directory: string
+  let path: string
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    directory = mkdtempSync(join(tmpdir(), 'vc-room-expiry-'))
+    path = join(directory, 'rooms.json')
+    configureRoomPersistence(path)
+  })
+
+  afterEach(() => {
+    configureRoomPersistence(undefined)
+    rmSync(directory, { recursive: true, force: true })
+  })
+
+  it('preserves the last departure deadline across restarts', () => {
+    const room = createRoom({ ownerOperatorId: OWNER })
+    const joined = joinRoom(room.id, { operatorId: OWNER, name: 'Owner' })
+    if (!joined.ok) throw new Error('Join failed')
+    vi.setSystemTime(room.createdAt + EMPTY_ROOM_TTL_MS * 2)
+    leaveRoom(room.id, joined.participant.id)
+    const emptySince = Date.now()
+    expect(JSON.parse(readFileSync(path, 'utf8'))[0].emptySince).toBe(emptySince)
+    vi.setSystemTime(emptySince + EMPTY_ROOM_TTL_MS / 2)
+    resetRooms()
+    configureRoomPersistence(path)
+    expect(sweepEmptyRooms()).toBe(0)
+    expect(sweepEmptyRooms(emptySince + EMPTY_ROOM_TTL_MS + 1)).toBe(1)
+    expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual([])
+  })
+
+  it('gives interrupted calls one restart window without extending it on another restart', () => {
+    const room = createRoom({ ownerOperatorId: OWNER })
+    expect(joinRoom(room.id, { operatorId: OWNER, name: 'Owner' }).ok).toBe(true)
+    const stored = JSON.parse(readFileSync(path, 'utf8'))[0]
+    expect(stored.emptySince).toBeNull()
+    expect(stored.participants).toBeUndefined()
+    vi.setSystemTime(room.createdAt + EMPTY_ROOM_TTL_MS * 2)
+    const restartedAt = Date.now()
+    resetRooms()
+    configureRoomPersistence(path)
+    expect(getRoom(room.id)?.participants.size).toBe(0)
+    expect(sweepEmptyRooms()).toBe(0)
+    expect(JSON.parse(readFileSync(path, 'utf8'))[0].emptySince).toBe(restartedAt)
+    vi.setSystemTime(restartedAt + EMPTY_ROOM_TTL_MS / 2)
+    resetRooms()
+    configureRoomPersistence(path)
+    expect(sweepEmptyRooms()).toBe(0)
+    expect(sweepEmptyRooms(restartedAt + EMPTY_ROOM_TTL_MS + 1)).toBe(1)
+  })
+
+  it('migrates legacy room records with one persisted reconnect window', () => {
+    const room = createRoom({ ownerOperatorId: OWNER })
+    const [legacy] = JSON.parse(readFileSync(path, 'utf8'))
+    delete legacy.emptySince
+    writeFileSync(path, JSON.stringify([legacy]))
+    vi.setSystemTime(room.createdAt + EMPTY_ROOM_TTL_MS * 2)
+    const migratedAt = Date.now()
+    resetRooms()
+    configureRoomPersistence(path)
+    expect(sweepEmptyRooms()).toBe(0)
+    expect(JSON.parse(readFileSync(path, 'utf8'))[0].emptySince).toBe(migratedAt)
+    vi.setSystemTime(migratedAt + EMPTY_ROOM_TTL_MS / 2)
+    resetRooms()
+    configureRoomPersistence(path)
+    expect(sweepEmptyRooms(migratedAt + EMPTY_ROOM_TTL_MS + 1)).toBe(1)
   })
 })
 

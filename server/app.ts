@@ -66,6 +66,7 @@ import { listMediaFiles, saveMediaFile } from './media-upload'
 import { oidcCallback, oidcLogout, oidcMe, oidcStart, sessionClaimsFromCookie } from './oidc'
 import { supabaseSession } from './supabase-auth'
 import { handleTelegramUpdate, isTelegramWebhookAuthorized, WEBHOOK_HEADER } from './telegram-bot'
+import { assertTelegramNodeOwner } from './telegram-group-access'
 import { buildIdentityCatalog, publicSupabaseIdentity } from './identity-catalog'
 import { getNebuAuth, isNebuBetterAuthConfigured, listConfiguredSocialProviders } from './betterAuth'
 
@@ -76,10 +77,60 @@ type Variables = {
   friskyAccountId?: string
 }
 
-function requireFriskyDev(c: { req: { header: (name: string) => string | undefined } }) {
+type FriskyPrincipal = {
+  sub: string
+  name: string
+  email: string | null
+  source: 'friskydev-bearer' | 'vc-session-cookie'
+}
+
+/**
+ * The principal allowed to read and mutate `/v1/account/*`.
+ *
+ * Two sources, one principal. The legacy email/password store issues a browser-readable
+ * FriskyDev bearer (`mintFriskyDevToken`). The live sign-in does not: `supabaseSession`
+ * mints an operator token into the HttpOnly `vc_session` cookie whose `sub` is the bare
+ * `auth.users.id`. Accepting only the bearer left an operator the node had itself
+ * authenticated unable to link an identity.
+ *
+ * The cookie fallback is deliberately restricted to the two platforms that denote a
+ * node-verified human. An `anonymous` or `telegram` operator token must never be able to
+ * link or unlink an identity.
+ */
+function requireFriskyDev(c: {
+  req: { header: (name: string) => string | undefined }
+}): FriskyPrincipal | null {
   const token = extractBearer(c.req.header('authorization'))
-  if (!token) return null
-  return verifyFriskyDevToken(token)
+  if (token) {
+    const frisky = verifyFriskyDevToken(token)
+    if (!frisky) return null
+    return {
+      sub: frisky.sub,
+      name: frisky.name,
+      email: frisky.email,
+      source: 'friskydev-bearer',
+    }
+  }
+
+  const session = sessionClaimsFromCookie(c.req.header('cookie'))
+  if (!session) return null
+  if (session.platform !== 'supabase' && session.platform !== 'friskydev') return null
+  return {
+    sub: session.sub,
+    name: session.name,
+    email: null,
+    source: 'vc-session-cookie',
+  }
+}
+
+function linkedView(accountId: string) {
+  return listLinkedIdentities(accountId).map((i) => ({
+    platform: i.platform,
+    externalSubject: i.externalSubject,
+    displayName: i.displayName,
+    verifiedAt: i.verifiedAt,
+    meta: i.meta,
+  }))
 }
 
 /** Builds the Hono control-plane application and registers its API routes. */
@@ -95,14 +146,14 @@ export function createApp() {
     ? env.CORS_ALLOWED_ORIGINS.split(',').map((v) => v.trim()).filter(Boolean)
     : ['*']
 
-  app.use(
-    '/v1/*',
-    cors({
-      origin: allowedOrigins.includes('*') ? '*' : allowedOrigins,
-      allowHeaders: ['Content-Type', 'Authorization', 'X-Client-Id'],
-      allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-    })
-  )
+  const apiCors = cors({
+    origin: allowedOrigins.includes('*') ? '*' : allowedOrigins,
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Client-Id'],
+    allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+  })
+  app.use('/v1/*', apiCors)
+  app.use('/healthz', apiCors)
+  app.use('/v1/media/status', apiCors)
 
   // NEBU Better Auth (nebu.quest). Additive — does not replace Authentik OIDC on the studio path.
   app.on(['GET', 'POST'], '/api/auth/*', (c) => {
@@ -131,6 +182,7 @@ export function createApp() {
       telegramConfigured: env.telegramConfigured,
       telegramWebhookConfigured: env.telegramWebhookConfigured,
       mediaPlaneEnabled: env.MEDIA_PLANE_ENABLED,
+      publicRoomsEnabled: Boolean(env.PUBLIC_ROOMS_ENABLED),
       friskydevAccounts: true,
       friskydevIdConfigured: env.oidcConfigured,
       supabaseIdentityConfigured: env.supabaseConfigured,
@@ -169,6 +221,7 @@ export function createApp() {
       telegramBotUsername: env.TELEGRAM_BOT_USERNAME || null,
       authRequired: env.AUTH_REQUIRED,
       mediaPlaneEnabled: env.MEDIA_PLANE_ENABLED,
+      publicRoomsEnabled: Boolean(env.PUBLIC_ROOMS_ENABLED),
       friskydevEnabled: true,
       friskydevIdConfigured: env.oidcConfigured,
       supabaseIdentityConfigured: env.supabaseConfigured,
@@ -379,19 +432,29 @@ export function createApp() {
   app.get('/v1/account/', accountIndex)
 
   app.get('/v1/account/me', (c) => {
-    const claims = requireFriskyDev(c)
-    if (!claims) return c.json({ error: 'FriskyDev session required' }, 401)
-    const account = getAccountById(claims.sub)
-    if (!account) return c.json({ error: 'Account not found' }, 404)
+    const principal = requireFriskyDev(c)
+    if (!principal) return c.json({ error: 'FriskyDev session required' }, 401)
+
+    const account = getAccountById(principal.sub)
+    if (account) {
+      return c.json({ account: publicAccount(account), linked: linkedView(account.id) })
+    }
+
+    // A vc_session principal has no row in the legacy account store, and creating one
+    // here would be a second namespace for the same human. Report exactly what the
+    // session asserts — `email` and `createdAt` are null because this principal has
+    // neither, not because they are empty.
+    if (principal.source !== 'vc-session-cookie') {
+      return c.json({ error: 'Account not found' }, 404)
+    }
     return c.json({
-      account: publicAccount(account),
-      linked: listLinkedIdentities(account.id).map((i) => ({
-        platform: i.platform,
-        externalSubject: i.externalSubject,
-        displayName: i.displayName,
-        verifiedAt: i.verifiedAt,
-        meta: i.meta,
-      })),
+      account: {
+        id: principal.sub,
+        email: null,
+        displayName: principal.name,
+        createdAt: null,
+      },
+      linked: linkedView(principal.sub),
     })
   })
 
@@ -982,12 +1045,24 @@ export function createApp() {
     return c.json({ error: 'Invalid or expired operator token' }, 401)
   })
 
-  app.get('/v1/rtmp/publish', (c) => {
+  app.get('/v1/rtmp/publish', async (c) => {
+    try {
+      await assertTelegramNodeOwner(c.get('operatorId'))
+    } catch {
+      return c.json({ error: 'Only the connected Telegram account owner can access broadcast settings.' }, 403)
+    }
     const config = getRtmpPublishConfig()
     return config.ready ? c.json(config) : c.json({ error: 'RTMP ingest is not configured' }, 503)
   })
 
-  app.get('/v1/telegram-vc/pair/status', (c) => c.json(pairingStatus()))
+  app.get('/v1/telegram-vc/pair/status', async (c) => {
+    try {
+      await assertTelegramNodeOwner(c.get('operatorId'))
+    } catch {
+      return c.json({ error: 'Only the connected Telegram account owner can inspect adapter pairing.' }, 403)
+    }
+    return c.json(pairingStatus())
+  })
 
   app.post('/v1/telegram-vc/pair/start', async (c) => {
     const body: { phone?: string } = await c.req.json<{ phone?: string }>().catch(() => ({}))

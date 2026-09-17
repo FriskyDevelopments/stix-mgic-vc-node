@@ -83,6 +83,16 @@ export type TelegramVerifiedUser = {
   photo_url?: string
 }
 
+/** Why a Login Widget payload was refused. Server-side only — never sent to the client. */
+export type TelegramLoginRejection =
+  | 'not_configured'
+  | 'malformed_payload'
+  | 'hash_mismatch'
+  | 'auth_date_in_future'
+  | 'auth_date_expired'
+
+export type TelegramLoginCheck = { ok: true } | { ok: false; reason: TelegramLoginRejection }
+
 const TELEGRAM_WIDGET_FIELDS = ['auth_date', 'first_name', 'id', 'last_name', 'photo_url', 'username'] as const
 const AUTH_DATE_MAX_AGE_SECONDS = 86400
 
@@ -149,6 +159,58 @@ type WidgetNormalized = {
   hash: string
   idString: string
   authDateString: string
+}
+
+/**
+ * The token whose SHA-256 keys the login HMAC.
+ *
+ * It must belong to the bot that signed the payload — the one named by
+ * TELEGRAM_BOT_USERNAME and loaded by the Login Widget. `TELEGRAM_BOT_TOKEN` doubles as
+ * the webhook/commands bot and is not necessarily that bot, so a dedicated
+ * `TELEGRAM_LOGIN_BOT_TOKEN` wins when present.
+ */
+function loginVerificationToken(): string | undefined {
+  const env = getServerEnv()
+  return env.TELEGRAM_LOGIN_BOT_TOKEN || env.TELEGRAM_BOT_TOKEN
+}
+
+/** The bot's numeric id — the part before the colon. Public, unlike the token itself. */
+function botIdOf(token: string | undefined): string | null {
+  if (!token) return null
+  const [id] = token.split(':')
+  return /^\d+$/.test(id) ? id : null
+}
+
+/**
+ * REDACTED diagnostics, in the same discipline as `oidc.ts` and `supabase-auth.ts`:
+ * a coarse reason code, field NAMES, and lengths. Never a token, a hash, a user id or a
+ * display name. `verifyingBotId` is the public bot id and is the single field that makes
+ * a bot/token mismatch legible without another investigation.
+ */
+function logTelegramLoginRejected(
+  reason: TelegramLoginRejection,
+  payload: Partial<TelegramLoginPayload> | null | undefined,
+  extra: Record<string, unknown> = {}
+): void {
+  const fields = payload && typeof payload === 'object' ? Object.keys(payload).sort() : []
+  console.info(
+    JSON.stringify({
+      ts: new Date().toISOString(),
+      level: 'info',
+      scope: 'telegram-auth',
+      message: 'telegram login rejected',
+      data: {
+        reason,
+        fieldsPresent: fields,
+        hasHash: typeof payload?.hash === 'string' && payload.hash.length > 0,
+        hashLength: typeof payload?.hash === 'string' ? payload.hash.length : 0,
+        verifyingBotId: botIdOf(loginVerificationToken()),
+        usingDedicatedLoginToken: Boolean(getServerEnv().TELEGRAM_LOGIN_BOT_TOKEN),
+        configuredBotUsername: getServerEnv().TELEGRAM_BOT_USERNAME ?? null,
+        ...extra,
+      },
+    })
+  )
 }
 
 /**
@@ -235,7 +297,10 @@ function miniAppUserFromRecord(parsed: Record<string, unknown>): TelegramVerifie
   return user
 }
 
-function verifyMiniAppInitData(initData: string, botToken: string): TelegramVerifiedUser | null {
+function verifyMiniAppInitData(initData: string): TelegramVerifiedUser | null {
+  const botToken = loginVerificationToken()
+  if (!botToken) return null
+
   let params: URLSearchParams
   try {
     params = new URLSearchParams(initData)
@@ -276,10 +341,33 @@ function objectToInitData(input: Record<string, unknown>): string | null {
   return params.toString()
 }
 
-function verifyLoginWidget(input: Record<string, unknown>, botToken: string): TelegramVerifiedUser | null {
-  const normalized = normalizeTelegramLoginPayload(input)
-  if (!normalized) return null
-  if (!authDateFresh(normalized.authDateString)) return null
+/**
+ * Verify a Telegram Login Widget payload and return a structured check result.
+ *
+ * The data-check-string is every received field except `hash`, sorted by key, joined with
+ * `\n` as `key=value`. Fields Telegram did not send are absent from what it signed, so a
+ * null or undefined value must be omitted entirely — emitting `key=` for it appends a line
+ * Telegram never hashed and breaks the digest. `photo_url` and `username` are the two that
+ * are routinely absent.
+ */
+export function checkTelegramLogin(payload: TelegramLoginPayload): TelegramLoginCheck {
+  const token = loginVerificationToken()
+  if (!token) {
+    throw new Error('Telegram auth is not configured on the server')
+  }
+
+  const normalized = normalizeTelegramLoginPayload(payload)
+  if (!normalized) {
+    logTelegramLoginRejected('malformed_payload', payload)
+    return { ok: false, reason: 'malformed_payload' }
+  }
+
+  if (!authDateFresh(normalized.authDateString)) {
+    const age = Math.floor(Date.now() / 1000) - normalized.auth_date
+    const reason = age < 0 ? 'auth_date_in_future' : 'auth_date_expired'
+    logTelegramLoginRejected(reason, payload, { authDateAgeSeconds: age })
+    return { ok: false, reason }
+  }
 
   const dataCheckStringWidget = TELEGRAM_WIDGET_FIELDS
     .filter((key) => {
@@ -295,9 +383,24 @@ function verifyLoginWidget(input: Record<string, unknown>, botToken: string): Te
     })
     .join('\n')
 
-  const secret = createHash('sha256').update(botToken).digest()
+  const secret = createHash('sha256').update(token).digest()
   const computed = createHmac('sha256', secret).update(dataCheckStringWidget).digest('hex')
-  if (!timingSafeHexEqual(computed, normalized.hash)) return null
+  if (!timingSafeHexEqual(computed, normalized.hash)) {
+    logTelegramLoginRejected('hash_mismatch', payload, {
+      signedFieldCount: dataCheckStringWidget ? dataCheckStringWidget.split('\n').length : 0,
+      computedHashLength: computed.length,
+    })
+    return { ok: false, reason: 'hash_mismatch' }
+  }
+
+  return { ok: true }
+}
+
+function verifyLoginWidget(input: Record<string, unknown>): TelegramVerifiedUser | null {
+  const normalized = normalizeTelegramLoginPayload(input)
+  if (!normalized) return null
+  const check = checkTelegramLogin(input)
+  if (!check.ok) return null
 
   const user: TelegramVerifiedUser = {
     id: normalized.id,
@@ -309,22 +412,20 @@ function verifyLoginWidget(input: Record<string, unknown>, botToken: string): Te
   return user
 }
 
-export function verifyTelegramLogin(payload: TelegramLoginPayload | Record<string, unknown> | null | undefined): TelegramVerifiedUser | null {
-  const env = getServerEnv()
-  if (!env.TELEGRAM_BOT_TOKEN) {
-    throw new Error('Telegram auth is not configured on the server')
-  }
+export function verifyTelegramLogin(
+  payload: TelegramLoginPayload | Record<string, unknown> | null | undefined
+): TelegramVerifiedUser | null {
   if (!payload || typeof payload !== 'object') return null
 
   const input = payload as Record<string, unknown>
   const initData = presentString(typeof input.initData === 'string' ? input.initData : undefined)
   if (initData) {
-    return verifyMiniAppInitData(initData, env.TELEGRAM_BOT_TOKEN)
+    return verifyMiniAppInitData(initData)
   }
   if (isMiniAppObject(input)) {
     const reconstructed = objectToInitData(input)
     if (!reconstructed) return null
-    return verifyMiniAppInitData(reconstructed, env.TELEGRAM_BOT_TOKEN)
+    return verifyMiniAppInitData(reconstructed)
   }
-  return verifyLoginWidget(input, env.TELEGRAM_BOT_TOKEN)
+  return verifyLoginWidget(input)
 }

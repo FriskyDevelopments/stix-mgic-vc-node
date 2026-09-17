@@ -1,9 +1,15 @@
 import { createHash, createHmac } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { normalizeTelegramLoginPayload, verifyTelegramLogin, type TelegramLoginPayload } from './auth-providers'
+import {
+  checkTelegramLogin,
+  normalizeTelegramLoginPayload,
+  verifyTelegramLogin,
+  type TelegramLoginPayload,
+} from './auth-providers'
 import { resetServerEnvCache } from './env'
 
 const BOT_TOKEN = '123456:TEST-telegram-bot-token'
+const OTHER_BOT_TOKEN = '999999:TEST-other-telegram-bot-token'
 
 function signWidget(token: string, fields: Omit<TelegramLoginPayload, 'hash' | 'initData'>): TelegramLoginPayload {
   const entries = Object.entries(fields)
@@ -31,11 +37,13 @@ describe('Telegram login verification', () => {
     process.env.NODE_ENV = 'test'
     process.env.TELEGRAM_BOT_TOKEN = BOT_TOKEN
     process.env.OPERATOR_TOKEN_SECRET = 'test-operator-token-secret'
+    delete process.env.TELEGRAM_LOGIN_BOT_TOKEN
   })
 
   afterEach(() => {
     resetServerEnvCache()
     delete process.env.TELEGRAM_BOT_TOKEN
+    delete process.env.TELEGRAM_LOGIN_BOT_TOKEN
   })
 
   describe('Login Widget (SHA256(bot_token))', () => {
@@ -51,6 +59,7 @@ describe('Telegram login verification', () => {
         first_name: 'June',
         username: 'operator',
       })
+      expect(checkTelegramLogin(payload)).toEqual({ ok: true })
     })
 
     it('ignores extra keys and empty optional fields when hashing', () => {
@@ -77,38 +86,41 @@ describe('Telegram login verification', () => {
         id: 99,
         first_name: 'Stix',
       })
+      expect(checkTelegramLogin(noisy)).toEqual({ ok: true })
     })
 
-    it("accepts auth_date and id as decimal strings", () => {
+    it('accepts auth_date and id as decimal strings', () => {
       const authDate = Math.floor(Date.now() / 1000)
       const payload = signWidget(BOT_TOKEN, {
-        id: "424242",
-        first_name: "Stringy",
+        id: '424242',
+        first_name: 'Stringy',
         auth_date: String(authDate),
       })
       expect(verifyTelegramLogin(payload)).toEqual({
         id: 424242,
-        first_name: "Stringy",
+        first_name: 'Stringy',
       })
     })
 
-    it("rejects scientific-notation ids that would poison the HMAC string", () => {
+    it('rejects scientific-notation ids that would poison the HMAC string', () => {
       const payload = signWidget(BOT_TOKEN, {
-        id: "7.77e+9",
-        first_name: "Nope",
+        id: '7.77e+9',
+        first_name: 'Nope',
         auth_date: Math.floor(Date.now() / 1000),
       })
       expect(normalizeTelegramLoginPayload(payload)).toBeNull()
       expect(verifyTelegramLogin(payload)).toBeNull()
+      expect(checkTelegramLogin(payload)).toEqual({ ok: false, reason: 'malformed_payload' })
     })
 
     it('rejects a payload signed by a different bot token', () => {
-      const payload = signWidget('999:other-bot', {
+      const payload = signWidget(OTHER_BOT_TOKEN, {
         id: 1,
         first_name: 'Nope',
         auth_date: Math.floor(Date.now() / 1000),
       })
       expect(verifyTelegramLogin(payload)).toBeNull()
+      expect(checkTelegramLogin(payload)).toEqual({ ok: false, reason: 'hash_mismatch' })
     })
 
     it('rejects an expired auth_date', () => {
@@ -118,6 +130,48 @@ describe('Telegram login verification', () => {
         auth_date: Math.floor(Date.now() / 1000) - 90_000,
       })
       expect(verifyTelegramLogin(payload)).toBeNull()
+      expect(checkTelegramLogin(payload)).toEqual({ ok: false, reason: 'auth_date_expired' })
+    })
+
+    it('rejects a future auth_date', () => {
+      const payload = signWidget(BOT_TOKEN, {
+        id: 7,
+        first_name: 'Future',
+        auth_date: Math.floor(Date.now() / 1000) + 600,
+      })
+      expect(verifyTelegramLogin(payload)).toBeNull()
+      expect(checkTelegramLogin(payload)).toEqual({ ok: false, reason: 'auth_date_in_future' })
+    })
+
+    it('uses TELEGRAM_LOGIN_BOT_TOKEN in preference to the webhook bot token', () => {
+      process.env.TELEGRAM_BOT_TOKEN = OTHER_BOT_TOKEN
+      process.env.TELEGRAM_LOGIN_BOT_TOKEN = BOT_TOKEN
+      resetServerEnvCache()
+      const payload = signWidget(BOT_TOKEN, {
+        id: 12345,
+        first_name: 'Francisco',
+        auth_date: Math.floor(Date.now() / 1000),
+      })
+      expect(verifyTelegramLogin(payload)).toEqual({
+        id: 12345,
+        first_name: 'Francisco',
+      })
+      expect(checkTelegramLogin(payload)).toEqual({ ok: true })
+    })
+
+    it('reports malformed_payload when the hash is missing', () => {
+      const payload = { id: 12345, first_name: 'Francisco', auth_date: 1 } as unknown as TelegramLoginPayload
+      expect(verifyTelegramLogin(payload)).toBeNull()
+      expect(checkTelegramLogin(payload)).toEqual({ ok: false, reason: 'malformed_payload' })
+    })
+
+    it('throws when no verification token is configured at all', () => {
+      delete process.env.TELEGRAM_BOT_TOKEN
+      delete process.env.TELEGRAM_LOGIN_BOT_TOKEN
+      resetServerEnvCache()
+      expect(() =>
+        checkTelegramLogin({ id: 1, first_name: 'a', auth_date: 1, hash: 'x' })
+      ).toThrow(/not configured/i)
     })
   })
 

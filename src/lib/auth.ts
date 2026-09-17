@@ -37,6 +37,80 @@ export function isDiscordConfigured(): boolean {
   return discordClientId().length > 0
 }
 
+function openMockAuthPopup(title: string, messageType: 'telegram-auth' | 'discord-auth', userJson: string): void {
+  const width = 600
+  const height = 650
+  const left = (window.screen.width - width) / 2
+  const top = (window.screen.height - height) / 2
+
+  const authWindow = window.open(
+    '',
+    title.replace(/\s+/g, ''),
+    `width=${width},height=${height},left=${left},top=${top}`
+  )
+
+  if (!authWindow) {
+    throw new Error('Popup blocked — allow popups to complete demo authorization')
+  }
+
+  authWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>${title}</title>
+        <style>
+          body {
+            margin: 0;
+            padding: 40px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: oklch(0.15 0.01 260);
+            color: oklch(0.95 0.01 260);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+          }
+          .container { text-align: center; max-width: 400px; }
+          h1 { font-size: 24px; margin-bottom: 16px; font-weight: 600; }
+          p { font-size: 14px; line-height: 1.6; margin-bottom: 24px; color: oklch(0.8 0.01 260); }
+          pre { background: oklch(0.2 0.01 260); padding: 16px; border-radius: 8px; text-align: left; font-size: 12px; overflow-x: auto; }
+          button { background: oklch(0.6 0.15 260); color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 14px; cursor: pointer; }
+          button:hover { background: oklch(0.65 0.15 260); }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>${title}</h1>
+          <p>This is a simulated authorization for local development. No real platform token is exchanged.</p>
+          <pre>${userJson}</pre>
+          <button onclick="window.close()">Complete ${messageType === 'telegram-auth' ? 'Telegram' : 'Discord'} Demo Auth</button>
+        </div>
+      </body>
+    </html>
+  `)
+  authWindow.document.close()
+}
+
+export function initiateTelegramAuth(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    try {
+      openMockAuthPopup(
+        'Telegram Authorization (Demo)',
+        'telegram-auth',
+        `{
+          id: ${Date.now()},
+          first_name: 'Operator',
+          username: 'stix_operator',
+          photo_url: null
+        }`
+      )
+      resolve()
+    } catch (error) {
+      reject(error)
+    }
+  })
+}
+
 export function telegramVerifyBody(payload: Record<string, unknown>): Record<string, unknown> {
   const initData = typeof payload.initData === 'string' ? payload.initData.trim() : ''
   if (initData) return { initData }
