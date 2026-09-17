@@ -1,4 +1,7 @@
 import { createHash, createHmac } from 'node:crypto'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp } from './app'
 import { resetServerEnvCache } from './env'
@@ -123,6 +126,26 @@ describe('control plane API', () => {
     expect(body.error).toBe('Operator token required')
   })
 
+  it('mounts Telegram group controls for a signed-in operator', async () => {
+    const app = createApp()
+    expect((await app.request('/v1/telegram-vc/link')).status).toBe(401)
+    expect((await app.request('/v1/telegram-vc/camera-policy')).status).toBe(401)
+
+    const session = mintOperatorToken({
+      sub: 'supabase-auth-users-id',
+      platform: 'supabase',
+      name: 'Social Operator',
+    })
+    const headers = { Cookie: `vc_session=${encodeURIComponent(session)}` }
+    const link = await app.request('/v1/telegram-vc/link', { headers })
+    expect(link.status).toBe(200)
+    expect(await link.json()).toMatchObject({ linked: false })
+
+    const groups = await app.request('/v1/telegram-vc/groups', { headers })
+    expect(groups.status).toBe(403)
+    expect(await groups.json()).toMatchObject({ error: expect.stringContaining('Connect your Telegram account') })
+  })
+
   it('keeps RTMP publish credentials behind verified Telegram ownership', async () => {
     process.env.RTMP_INGEST_ENABLED = 'true'
     process.env.RTMP_PUBLIC_HOST = 'stream.example.test'
@@ -139,6 +162,40 @@ describe('control plane API', () => {
     const body = await res.json()
     expect(body.error).toContain('owner')
     expect(body).not.toHaveProperty('publishUrl')
+  })
+
+  it('returns RTMP publish credentials to the linked Telegram node owner', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'vc-rtmp-owner-'))
+    process.env.RTMP_INGEST_ENABLED = 'true'
+    process.env.RTMP_PUBLIC_HOST = 'stream.example.test'
+    process.env.RTMP_PUBLISH_USER = 'operator'
+    process.env.RTMP_PUBLISH_PASSWORD = 'a-secure-test-stream-password'
+    process.env.MTPROTO_STATE_DIR = directory
+    process.env.TELEGRAM_GROUP_ACCESS_PATH = join(directory, 'access.json')
+    writeFileSync(join(directory, 'access.json'), JSON.stringify({
+      links: [{ operatorId: 'supabase-auth-users-id', telegramUserId: '42', username: 'operator', verifiedAt: 1 }],
+      groups: [],
+    }))
+    writeFileSync(join(directory, 'verified.json'), JSON.stringify({ id: '42', username: 'operator' }))
+    resetServerEnvCache()
+    try {
+      const app = createApp()
+      const session = mintOperatorToken({
+        sub: 'supabase-auth-users-id',
+        platform: 'supabase',
+        name: 'Social Operator',
+      })
+      const res = await app.request('/v1/rtmp/publish', {
+        headers: { Cookie: `vc_session=${encodeURIComponent(session)}` },
+      })
+      expect(res.status).toBe(200)
+      const body = await res.json() as { publishUrl?: string }
+      expect(body.publishUrl).toContain('stream.example.test')
+    } finally {
+      delete process.env.MTPROTO_STATE_DIR
+      delete process.env.TELEGRAM_GROUP_ACCESS_PATH
+      rmSync(directory, { recursive: true, force: true })
+    }
   })
 
   it('rejects an unsigned Telegram webhook', async () => {
@@ -189,6 +246,35 @@ describe('control plane API', () => {
     })
     expect(res.status).toBe(403)
     expect(await res.json()).toMatchObject({ error: expect.stringContaining('owner') })
+
+    for (const path of ['/v1/telegram-vc/pair/start', '/v1/telegram-vc/pair/confirm'] as const) {
+      const blocked = await app.request(path, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: `vc_session=${encodeURIComponent(session)}`,
+        },
+        body: JSON.stringify({ phone: '+15555550100', code: '12345' }),
+      })
+      expect(blocked.status).toBe(403)
+      expect(await blocked.json()).toMatchObject({ error: expect.stringContaining('owner') })
+    }
+  })
+
+  it('accepts the studio session cookie for live session control', async () => {
+    process.env.AUTH_REQUIRED = 'true'
+    resetServerEnvCache()
+    const app = createApp()
+    const session = mintOperatorToken({
+      sub: 'supabase-auth-users-id',
+      platform: 'supabase',
+      name: 'Social Operator',
+    })
+    const res = await app.request('/v1/sessions/current', {
+      headers: { Cookie: `vc_session=${encodeURIComponent(session)}` },
+    })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ status: 'standby', source: 'live-api' })
   })
 
   it('mints anonymous operator tokens', async () => {
@@ -702,6 +788,7 @@ describe('room REST API', () => {
       { path: '/v1/stickers' },
       { path: '/v1/media' },
       { path: '/v1/media/files' },
+      { path: '/v1/media/sfu/session', method: 'POST' },
       { path: '/v1/media/upload', method: 'POST', body: { name: 'a.mp4', data: Buffer.from('x').toString('base64') } },
       { path: '/v1/audio/devices' },
       { path: '/v1/audio/source', method: 'POST', body: { source: 'mic' } },

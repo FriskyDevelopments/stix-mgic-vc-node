@@ -26,6 +26,7 @@ describe('getSessionApi', () => {
     resetAppEnvCache()
     resetSessionApi()
     vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
   })
 
   it('selects the live API without a demo fallback', () => {
@@ -42,5 +43,27 @@ describe('getSessionApi', () => {
       protocol: 'rtmp',
       mode: 'operator',
     })).rejects.toThrow('node unavailable')
+  })
+
+  it('sends a cookie-authenticated session start when AUTH_REQUIRED and no bearer is stored', async () => {
+    vi.stubEnv('VITE_AUTH_REQUIRED', 'true')
+    resetAppEnvCache()
+    resetSessionApi()
+    sessionStorage.clear()
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ status: 'standby', source: 'live-api' }), { status: 200 })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const api = getSessionApi()
+    await expect(api.startSession({
+      platform: 'telegram',
+      protocol: 'dj-mode',
+      mode: 'dj',
+    })).resolves.toMatchObject({ status: 'standby', source: 'live-api' })
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/v1/sessions/start',
+      expect.objectContaining({ method: 'POST', credentials: 'include' }),
+    )
   })
 })

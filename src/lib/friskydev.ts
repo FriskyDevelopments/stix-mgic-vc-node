@@ -105,7 +105,6 @@ export async function fetchFriskyDevMe(): Promise<{
   account: FriskyDevAccount
   linked: LinkedPlatformIdentity[]
 } | null> {
-  if (!getFriskyDevSessionToken()) return null
   try {
     return await accountRequest('/v1/account/me')
   } catch {

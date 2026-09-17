@@ -67,6 +67,7 @@ import { oidcCallback, oidcLogout, oidcMe, oidcStart, sessionClaimsFromCookie } 
 import { supabaseSession } from './supabase-auth'
 import { handleTelegramUpdate, isTelegramWebhookAuthorized, WEBHOOK_HEADER } from './telegram-bot'
 import { assertTelegramNodeOwner } from './telegram-group-access'
+import { createTelegramControls } from './telegram-controls'
 import { buildIdentityCatalog, publicSupabaseIdentity } from './identity-catalog'
 import { getNebuAuth, isNebuBetterAuthConfigured, listConfiguredSocialProviders } from './betterAuth'
 
@@ -655,6 +656,15 @@ export function createApp() {
   app.use('/v1/sessions/*', async (c, next) => {
     const header = c.req.header('authorization') || ''
     const token = header.startsWith('Bearer ') ? header.slice(7) : ''
+    const cookieClaims = !token ? sessionClaimsFromCookie(c.req.header('cookie')) : null
+
+    if (cookieClaims) {
+      c.set('operatorId', cookieClaims.sub)
+      c.set('operatorName', cookieClaims.name)
+      c.set('operatorPlatform', cookieClaims.platform)
+      await next()
+      return
+    }
 
     if (!token) {
       if (env.AUTH_REQUIRED) {
@@ -743,7 +753,8 @@ export function createApp() {
 
   // Room CRUD — the REST half of the media plane.
   // Auth is the same as sessions: anonymous when allowed, token-verified otherwise.
-  app.use('/v1/rooms/*', async (c, next) => {
+  // Mount both `/v1/rooms` and `/v1/rooms/*` — Hono's `/*` pattern does not match the collection.
+  const requireRoomOperator = async (c: Context<{ Variables: Variables }>, next: () => Promise<void>) => {
     const header = c.req.header('authorization') || ''
     const token = header.startsWith('Bearer ') ? header.slice(7) : ''
     const cookieClaims = !token ? sessionClaimsFromCookie(c.req.header('cookie')) : null
@@ -787,7 +798,9 @@ export function createApp() {
     c.set('operatorPlatform', claims.platform)
     if (claims.accountId) c.set('friskyAccountId', claims.accountId)
     await next()
-  })
+  }
+  app.use('/v1/rooms/*', requireRoomOperator)
+  app.use('/v1/rooms', requireRoomOperator)
 
   app.post('/v1/rooms', async (c) => {
     const body = await c.req.json<{
@@ -810,26 +823,6 @@ export function createApp() {
         iceServers: await getIceServersAsync(),
       },
     })
-  })
-
-  // Bootstrap a Cloudflare Realtime SFU session for a caller who has already been admitted
-  // to the operator plane. The app secret never leaves the server; the client receives only
-  // the session id it negotiates its push/pull tracks against. 503 when the SFU is not
-  // configured so the client falls back to mesh rather than silently believing it scaled.
-  app.post('/v1/media/sfu/session', async (c) => {
-    if (!env.cloudflareRealtimeConfigured) {
-      return c.json({ error: 'Cloudflare Realtime SFU is not configured on this node' }, 503)
-    }
-    try {
-      const session = await createSfuSession()
-      if (!session) {
-        return c.json({ error: 'Cloudflare Realtime SFU is not configured on this node' }, 503)
-      }
-      return c.json({ sessionId: session.sessionId })
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to create SFU session'
-      return c.json({ error: message }, 502)
-    }
   })
 
   app.patch('/v1/rooms/:id/schedule', async (c) => {
@@ -1019,6 +1012,7 @@ export function createApp() {
   // browser-readable bearer token; rejecting that cookie here made the authenticated
   // operator unable even to inspect or pair the adapter.
   app.use('/v1/telegram-vc/*', requireLiveOperator)
+  app.route('/v1/telegram-vc', createTelegramControls())
 
   // DJ simplify live-control / upload surfaces — same privilege as telegram-vc.
   // Unauthenticated callers must not mutate shared playlists or drive adapter.source.
@@ -1033,17 +1027,29 @@ export function createApp() {
   app.use('/v1/music/*', requireLiveOperator)
   app.use('/v1/music', requireLiveOperator)
 
+  // Bootstrap a Cloudflare Realtime SFU session for a caller who has already been admitted
+  // to the operator plane. Registered after requireLiveOperator so the handler cannot run
+  // without a cookie or bearer. 503 when the SFU is not configured so the client falls
+  // back to mesh rather than silently believing it scaled.
+  app.post('/v1/media/sfu/session', async (c) => {
+    if (!env.cloudflareRealtimeConfigured) {
+      return c.json({ error: 'Cloudflare Realtime SFU is not configured on this node' }, 503)
+    }
+    try {
+      const session = await createSfuSession()
+      if (!session) {
+        return c.json({ error: 'Cloudflare Realtime SFU is not configured on this node' }, 503)
+      }
+      return c.json({ sessionId: session.sessionId })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to create SFU session'
+      return c.json({ error: message }, 502)
+    }
+  })
+
   // RTMP credentials are the keys to publish into the live pipeline. They follow the
   // same social-session/operator-token boundary as the Telegram VC controls.
-  app.use('/v1/rtmp/*', async (c, next) => {
-    const header = c.req.header('authorization') || ''
-    const token = header.startsWith('Bearer ') ? header.slice(7) : ''
-    const cookieClaims = !token ? sessionClaimsFromCookie(c.req.header('cookie')) : null
-    if (cookieClaims) { await next(); return }
-    if (!token) return c.json({ error: 'Operator token required' }, 401)
-    if (verifyFriskyDevToken(token) || verifyOperatorToken(token)) { await next(); return }
-    return c.json({ error: 'Invalid or expired operator token' }, 401)
-  })
+  app.use('/v1/rtmp/*', requireLiveOperator)
 
   app.get('/v1/rtmp/publish', async (c) => {
     try {
@@ -1055,14 +1061,16 @@ export function createApp() {
     return config.ready ? c.json(config) : c.json({ error: 'RTMP ingest is not configured' }, 503)
   })
 
-  app.get('/v1/telegram-vc/pair/status', async (c) => {
+  app.use('/v1/telegram-vc/pair/*', async (c, next) => {
     try {
       await assertTelegramNodeOwner(c.get('operatorId'))
     } catch {
       return c.json({ error: 'Only the connected Telegram account owner can inspect adapter pairing.' }, 403)
     }
-    return c.json(pairingStatus())
+    await next()
   })
+
+  app.get('/v1/telegram-vc/pair/status', (c) => c.json(pairingStatus()))
 
   app.post('/v1/telegram-vc/pair/start', async (c) => {
     const body: { phone?: string } = await c.req.json<{ phone?: string }>().catch(() => ({}))
@@ -1142,74 +1150,6 @@ export function createApp() {
     const body: { on?: boolean } = await c.req.json<{ on?: boolean }>().catch(() => ({}))
     try { await telegramVcAdapter.setCamera(!!body.on); return c.json({ call: (await telegramStatus()).call }) }
     catch (error) { return c.json({ error: error instanceof Error ? error.message : 'Could not toggle camera' }, 503) }
-  })
-
-  app.get('/v1/telegram-vc/groups', async (c) => {
-    try { return c.json(await telegramVcAdapter.groups()) }
-    catch (error) { return c.json({ error: error instanceof Error ? error.message : 'Could not load Telegram groups' }, 503) }
-  })
-  app.get('/v1/telegram-vc/participants', async (c) => {
-    const chatId = c.req.query('chatId')
-    try {
-      if (chatId) {
-        return c.json(await telegramVcAdapter.participants(chatId))
-      }
-      const result = await telegramVcAdapter.participants()
-      return c.json({
-        participants: result.participants ?? [],
-        count: result.count ?? 0,
-        pendingMtproto: result.pendingMtproto ?? null,
-        active: result.active,
-        chatId: result.chatId ?? null,
-        source: result.source ?? null,
-        title: result.title ?? null,
-      })
-    } catch (error) {
-      return c.json({ error: error instanceof Error ? error.message : 'Could not load participants' }, 503)
-    }
-  })
-  app.post('/v1/telegram-vc/mute', async (c) => {
-    const body = await c.req
-      .json<{
-        chatId?: string
-        participantId?: string
-        target?: string
-        expectedCallId?: string
-        onlyIfCameraOff?: boolean
-      }>()
-      .catch(() => ({} as {
-        chatId?: string
-        participantId?: string
-        target?: string
-        expectedCallId?: string
-        onlyIfCameraOff?: boolean
-      }))
-    const target = (body.target || body.participantId || '').trim()
-    if (body.chatId && body.participantId) {
-      try {
-        const res = await telegramVcAdapter.mute(
-          body.chatId,
-          body.participantId,
-          body.expectedCallId || '',
-          { onlyIfCameraOff: !!body.onlyIfCameraOff }
-        )
-        return c.json({ ok: true, ...res })
-      } catch (error) {
-        return c.json({ error: error instanceof Error ? error.message : 'Mute failed' }, 503)
-      }
-    }
-    if (!target) return c.json({ error: 'target user id is required' }, 400)
-    try {
-      const result = await telegramVcAdapter.mute(target)
-      return c.json({
-        ok: true,
-        participants: result.participants,
-        count: result.count,
-        pendingMtproto: result.pendingMtproto ?? null,
-      })
-    } catch (error) {
-      return c.json({ error: error instanceof Error ? error.message : 'Could not mute participant' }, 503)
-    }
   })
 
   // Playlists / queue (Bug 3)

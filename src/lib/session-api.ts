@@ -52,6 +52,7 @@ async function liveRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(apiUrl(path), {
     ...init,
     headers: apiHeaders(init?.headers),
+    credentials: 'include',
   })
 
   if (!response.ok) {
@@ -113,11 +114,7 @@ class LiveSessionApi implements SessionApi {
 
   async startSession(request: StartSessionRequest): Promise<SessionSnapshot> {
     log.info('session', 'Live startSession', request)
-    const token = await this.ensureOperatorToken()
-    if (getAppEnv().authRequired && !token) {
-      // Bug 7: surface clear sign-in message instead of letting it 401/403 deep in preflight
-      throw new Error('Sign in with your operator account first (AUTH_REQUIRED is enabled)')
-    }
+    await this.ensureOperatorToken()
     const snapshot = await liveRequest<SessionSnapshot>('/v1/sessions/start', {
       method: 'POST',
       body: JSON.stringify(request),
