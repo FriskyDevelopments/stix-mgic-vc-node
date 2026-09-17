@@ -8,6 +8,7 @@ import { getServerEnv } from './env'
 import { attachSignaling, SIGNALING_PATH } from './signaling'
 import { setSignalingReady } from './sessions'
 import { configureRoomPersistence, sweepEmptyRooms } from './rooms'
+import { cameraPolicies } from './telegram-controls'
 
 const env = getServerEnv()
 configureRoomPersistence(env.ROOMS_STATE_PATH)
@@ -26,6 +27,9 @@ if (env.NODE_ENV === 'production') {
   app.use('/vc-node-icon.png', serveStatic({ root: distDir }))
   app.use('/vc-node-icon-256.png', serveStatic({ root: distDir }))
   app.use('/vc-node-icon-512.png', serveStatic({ root: distDir }))
+  app.use('/nebu-icon.svg', serveStatic({ root: distDir }))
+  app.use('/nebu-mark-yellow.svg', serveStatic({ root: distDir }))
+  app.use('/nebu-wordmark-paper.svg', serveStatic({ root: distDir }))
   app.use('/manifest.webmanifest', serveStatic({ root: distDir }))
   app.get('*', (c) => {
     const path = c.req.path
@@ -89,6 +93,8 @@ const sweeper = setInterval(() => {
   sweepEmptyRooms()
 }, 60_000)
 sweeper.unref?.()
+const cameraChecks = setInterval(() => { void cameraPolicies.tick() }, 5_000)
+cameraChecks.unref?.()
 
 async function shutdown(signal: NodeJS.Signals): Promise<void> {
   console.info(
@@ -101,6 +107,8 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
     })
   )
   clearInterval(sweeper)
+  clearInterval(cameraChecks)
+  cameraPolicies.stop()
   // Close signalling first so participants are told, rather than discovering it by timeout.
   await signaling.close()
   server.close(() => process.exit(0))

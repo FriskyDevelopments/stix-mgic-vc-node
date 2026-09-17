@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
-import { handleSpotifyCallback } from '@/lib/spotify'
+import { useEffect, useRef } from 'react'
+import { clearSpotifyAuthRequest, handleSpotifyCallback, type SpotifyTokenResult } from '@/lib/spotify'
 
 interface SpotifyCallbackProps {
   onAuthComplete: (accessToken: string) => void
@@ -7,40 +7,54 @@ interface SpotifyCallbackProps {
 }
 
 export function SpotifyCallback({ onAuthComplete, onAuthError }: SpotifyCallbackProps) {
+  const exchangeRef = useRef<Promise<SpotifyTokenResult | null> | null>(null)
+  const deliveredRef = useRef(false)
   useEffect(() => {
+    let active = true
     const params = new URLSearchParams(window.location.search)
     const code = params.get('code')
     const state = params.get('state')
     const error = params.get('error')
 
-    if (error) {
-      onAuthError()
+    const fail = () => {
+      if (!active || deliveredRef.current) return
+      deliveredRef.current = true
+      clearSpotifyAuthRequest()
       if (window.opener) {
+        window.opener.postMessage({ type: 'spotify-auth-error', state }, window.location.origin)
+        window.close()
+      } else onAuthError()
+    }
+
+    if (error || !code || !state) {
+      fail()
+      return
+    }
+
+    if (window.opener) {
+      if (!deliveredRef.current) {
+        deliveredRef.current = true
+        // sessionStorage may not be copied into a popup. The initiating tab
+        // owns the PKCE verifier and performs the exchange itself.
+        window.opener.postMessage({ type: 'spotify-auth-code', code, state }, window.location.origin)
         window.close()
       }
       return
     }
 
-    if (code && state) {
-      handleSpotifyCallback(code, state).then((result) => {
+    // Reuse the one-time exchange when React repeats an effect; the callback
+    // must consume the PKCE verifier and authorization code only once.
+    exchangeRef.current ??= handleSpotifyCallback(code, state)
+    exchangeRef.current.then((result) => {
+        if (!active || deliveredRef.current) return
         if (result?.accessToken) {
-          if (window.opener) {
-            window.opener.postMessage(
-              { type: 'spotify-auth', accessToken: result.accessToken },
-              window.location.origin
-            )
-            window.close()
-          } else {
-            onAuthComplete(result.accessToken)
-          }
+          deliveredRef.current = true
+          onAuthComplete(result.accessToken)
         } else {
-          onAuthError()
-          if (window.opener) {
-            window.close()
-          }
+          fail()
         }
-      })
-    }
+      }).catch(fail)
+    return () => { active = false }
   }, [onAuthComplete, onAuthError])
 
   return (

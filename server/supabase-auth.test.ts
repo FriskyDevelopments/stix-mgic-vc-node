@@ -7,6 +7,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp } from './app'
 import { resetServerEnvCache } from './env'
+import { mintOperatorToken } from './tokens'
+import { savePreferredDisplayName } from './display-names'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 const SUPABASE_URL = 'https://yqevglppbhuoxxfsfnih.supabase.co'
 const ANON_KEY = 'sb_publishable_test'
@@ -54,6 +59,28 @@ afterEach(() => {
 })
 
 describe('supabase session exchange', () => {
+  it('returns the explicitly selected VC alias while preserving the shared identity', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'vc-supabase-display-name-'))
+    vi.stubEnv('DISPLAY_NAMES_PATH', join(directory, 'names.json'))
+    try {
+      savePreferredDisplayName('supabase', USER_ID, 'Frisky')
+      mockSupabaseUser({ id: USER_ID, user_metadata: { full_name: 'Provider Full Name' } })
+      const app = createApp()
+      const response = await app.request('/v1/auth/supabase/session', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ access_token: 'valid' }),
+      })
+      expect(response.status).toBe(200)
+      expect(await response.json()).toMatchObject({ user: { id: USER_ID, name: 'Frisky' } })
+      const me = await app.request('/v1/auth/oidc/me', { headers: { cookie: sessionCookie(response)! } })
+      expect(await me.json()).toMatchObject({ user: { id: USER_ID, name: 'Frisky' } })
+    } finally {
+      vi.unstubAllEnvs()
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
   it('rejects a token Supabase does not accept', async () => {
     mockSupabaseUser(null)
     const app = createApp()

@@ -31,6 +31,7 @@ import { setCookie } from 'hono/cookie'
 import { getServerEnv } from './env'
 import { mintOperatorToken } from './tokens'
 import { SESSION_COOKIE } from './oidc'
+import { getPreferredDisplayName } from './display-names'
 
 /** The subset of Supabase's user object this node relies on. */
 type SupabaseUser = {
@@ -154,10 +155,11 @@ export async function supabaseSession(c: Context) {
 
   // `sub` is the bare auth.users.id — no prefix. This IS the Fenrir master identity, and
   // it is what rooms.ts scopes ownership and membership by.
+  const name = getPreferredDisplayName('supabase', user.id, displayName(user))
   const session = mintOperatorToken({
     sub: user.id,
     platform: 'supabase',
-    name: displayName(user),
+    name,
   })
   setCookie(c, SESSION_COOKIE, session, cookieOptions(env.OPERATOR_TOKEN_TTL_SECONDS))
 
@@ -168,6 +170,6 @@ export async function supabaseSession(c: Context) {
 
   return c.json({
     authenticated: true,
-    user: { id: user.id, name: displayName(user) },
+    user: { id: user.id, name },
   })
 }

@@ -110,3 +110,24 @@ curl -s -X POST "$SB/auth/v1/admin/generate_link" \
 
 If it echoes `vc.friskydev.com`, the allow-list is correct. If it echoes
 `www.myfenrir.com`, it is not — do not switch.
+
+## Zeabur deployment (nebuquest project)
+
+A second deployment of this repo runs on the Zeabur dedicated node ("Little creek",
+38.45.67.217). It is **not** the production target above — production stays on hermes.
+
+| | |
+|---|---|
+| Project | `nebuquest` (`6aab14d10f0f0a129012be76`), env `production` (`6aab14d14d2aa0a7f85afbcc`) |
+| Service | `stix-mgic-vc-node` (`6aab14f70f0f0a129012be7a`), GitHub `main` auto-deploy |
+| URL | `https://stix-mgic-vc-node.zeabur.app` |
+| Env | mirrored from `/opt/vc-node.env` on hermes, except: fresh `OPERATOR_TOKEN_SECRET` (this env only), `SESSION_ISSUER=stix-mgic-vc-node.zeabur.app`, `CORS_ALLOWED_ORIGINS` set to the Zeabur URL, no Discord vars, and no `HOST`/`NODE_ENV`/`PORT` (image/Dockerfile and Zeabur defaults win) |
+| State | `/data/rooms.json` inside the container — **not persisted**; add a Zeabur volume at `/data` before relying on room state |
+
+The app refuses to boot in production without `OPERATOR_TOKEN_SECRET` and
+`AUTH_REQUIRED=true` (`server/env.ts`) — a bare GitHub-connected service crash-loops
+with `Error: OPERATOR_TOKEN_SECRET is required in production` until those are set.
+
+The Supabase redirect allow-list must also include
+`https://stix-mgic-vc-node.zeabur.app/**` (added 2026-09-16) or sign-in on the Zeabur
+URL dead-ends into `www.myfenrir.com`, same check as above.

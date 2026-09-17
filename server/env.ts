@@ -57,6 +57,7 @@ const serverEnvSchema = z.object({
   RTMP_PUBLISH_PASSWORD: z.string().min(16).optional().transform((v) => v?.trim() || undefined),
   RTMP_PATH: z.string().default('vc').transform((v) => v.trim().replace(/^\/+|\/+$/g, '') || 'vc'),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+  SPOTIFY_CLIENT_ID: z.string().optional().transform((v) => v?.trim() || undefined),
   CORS_ALLOWED_ORIGINS: z.string().optional(),
   AUTHENTIK_ISSUER: z.string().url().optional().transform((v) => v?.replace(/\/$/, '')),
   OIDC_CLIENT_ID: z.string().optional().transform((v) => v?.trim() || undefined),

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { CallStage } from '@/components/CallStage'
+import type { OutputChange } from '@/hooks/use-studio-output'
 import { GlassCard } from '@/components/GlassCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -10,10 +11,12 @@ import {
   createRoom,
   getMediaPlaneStatus,
   getRoom,
+  RoomsApiError,
   type MediaPlaneStatus,
   type RoomView,
 } from '@/lib/rooms-api'
 import { shareToTelegram } from '@/lib/telegram-webapp'
+import { roomIdFromInput, roomInviteUrl } from '@/lib/room-invites'
 
 /**
  * RoomPanel — open a room, or join one someone sent you, and see who is on the call.
@@ -28,15 +31,11 @@ export type RoomPanelProps = {
   /** The operator's own camera/microphone, already acquired by the preview. */
   localStream: MediaStream | null
   onRoomChange?: (roomId: string | null) => void
+  onLocalStreamChange?: (result: OutputChange) => void
   /** Selected speaker deviceId, routed down to the remote tiles. */
   sinkId?: string
   /** Surfaces the live CallClient so the shell can switch devices mid-call. */
   onClientReady?: (client: import('@/lib/webrtc-client').CallClient | null) => void
-  localMicEnabled?: boolean
-  localCameraEnabled?: boolean
-  onToggleLocalMic?: () => void
-  onToggleLocalCamera?: () => void
-  isHost?: boolean
 }
 
 function adapterTone(state: MediaPlaneStatus['adapters'][number]['state']): string {
@@ -50,21 +49,12 @@ function adapterTone(state: MediaPlaneStatus['adapters'][number]['state']): stri
   }
 }
 
-export function RoomPanel({
-  localStream,
-  onRoomChange,
-  sinkId,
-  onClientReady,
-  localMicEnabled = true,
-  localCameraEnabled = true,
-  onToggleLocalMic,
-  onToggleLocalCamera,
-  isHost = true,
-}: RoomPanelProps) {
+export function RoomPanel({ localStream, onRoomChange, sinkId, onClientReady, onLocalStreamChange }: RoomPanelProps) {
   const [room, setRoom] = useState<RoomView | null>(null)
   const [joinId, setJoinId] = useState(() => new URLSearchParams(window.location.search).get('room') || '')
   const [busy, setBusy] = useState(false)
   const [media, setMedia] = useState<MediaPlaneStatus | null>(null)
+  const [roomError, setRoomError] = useState<string | null>(null)
 
   useEffect(() => { onRoomChange?.(room?.id || null) }, [room?.id, onRoomChange])
 
@@ -83,22 +73,30 @@ export function RoomPanel({
   }, [])
 
   useEffect(() => {
+    if (joinId && !room) {
+      void handleJoin()
+      return
+    }
     const action = new URLSearchParams(window.location.search).get('action')
     if (action === 'new-room') {
       void handleCreate()
       return
     }
-    if (joinId && !room) void handleJoin()
     // The invite UUID is read once on mount; manual edits still use the Join button.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function handleCreate(): Promise<void> {
     setBusy(true)
+    setRoomError(null)
     try {
       const { room: created } = await createRoom({ platform: 'web' })
       setRoom(created)
+      setJoinId(created.id)
+      window.history.replaceState(null, '', roomInviteUrl(created.id))
       toast.success('Room opened', { description: created.id })
     } catch (error) {
+      setRoomError(error instanceof Error ? error.message : 'Could not open a room')
       toast.error('Could not open a room', {
         description: error instanceof Error ? error.message : 'Unknown error',
       })
@@ -108,15 +106,34 @@ export function RoomPanel({
   }
 
   async function handleJoin(): Promise<void> {
-    const id = joinId.trim()
-    if (!id) return
     setBusy(true)
+    setRoomError(null)
+    let id = ''
     try {
+      id = roomIdFromInput(joinId)
+      if (!id) return
       const { room: found } = await getRoom(id)
       setRoom(found)
+      setJoinId(found.id)
+      window.history.replaceState(null, '', roomInviteUrl(found.id))
     } catch (error) {
+      const missing = error instanceof RoomsApiError && error.status === 404
+      const message = missing
+        ? 'This room link is invalid or the room has closed. Open a room or paste another invite.'
+        : error instanceof Error ? error.message : 'Could not join that room'
+      if (missing) {
+        // Stop retrying a confirmed missing invitation on every refresh/sign-in. Keep
+        // the field visible for correction; never silently create a different room.
+        const current = new URL(window.location.href)
+        if (current.searchParams.get('room')?.trim() === id) {
+          current.searchParams.delete('room')
+          current.searchParams.delete('action')
+          window.history.replaceState(null, '', current.toString())
+        }
+      }
+      setRoomError(message)
       toast.error('Could not join that room', {
-        description: error instanceof Error ? error.message : 'Unknown error',
+        description: message,
       })
     } finally {
       setBusy(false)
@@ -126,6 +143,9 @@ export function RoomPanel({
   async function handleLeave(): Promise<void> {
     const current = room
     setRoom(null) // Unmounting CallStage is what actually leaves the call.
+    setJoinId('')
+    setRoomError(null)
+    window.history.replaceState(null, '', window.location.pathname)
     if (!current) return
     try {
       await closeRoom(current.id)
@@ -140,17 +160,17 @@ export function RoomPanel({
     <div className="space-y-4">
       <GlassCard className="p-4">
         <div className="mb-3 flex items-center justify-between gap-2">
-          <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Room</span>
+          <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Call room</span>
           {webrtc && (
             <Badge variant="outline" className={`font-mono text-[10px] ${adapterTone(webrtc.state)}`}>
-              webrtc: {webrtc.state}
+              {webrtc.state === 'ready' ? 'Ready for calls' : webrtc.state === 'degraded' ? 'Limited connection' : 'Calls unavailable'}
             </Badge>
           )}
         </div>
 
         {webrtc && webrtc.state !== 'ready' && (
           <p className="mb-3 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-200/90">
-            {webrtc.reason}
+            {webrtc.state === 'degraded' ? 'Some networks may have trouble connecting. Check your connection before starting a call.' : 'Calls are unavailable right now. Please try again shortly.'}
           </p>
         )}
 
@@ -161,10 +181,14 @@ export function RoomPanel({
               variant="outline"
               size="sm"
               className="h-8 font-mono text-[10px]"
-              onClick={() => {
-                const invite = `${window.location.origin}/?room=${encodeURIComponent(room.id)}`
-                void navigator.clipboard?.writeText(invite)
-                toast.success('Invite link copied')
+              onClick={async () => {
+                try {
+                  if (!navigator.clipboard?.writeText) throw new Error('Clipboard is unavailable')
+                  await navigator.clipboard.writeText(roomInviteUrl(room.id))
+                  toast.success('Invite link copied')
+                } catch {
+                  toast.error('Could not copy the invite', { description: 'Select the invite link below to copy it manually.' })
+                }
               }}
             >
               Copy invite
@@ -174,7 +198,7 @@ export function RoomPanel({
               size="sm"
               className="h-8 font-mono text-[10px]"
               onClick={() => {
-                const invite = `${window.location.origin}/?room=${encodeURIComponent(room.id)}`
+                const invite = roomInviteUrl(room.id)
                 shareToTelegram(invite, 'Join my VC Node room')
               }}
             >
@@ -192,7 +216,8 @@ export function RoomPanel({
             <Input
               value={joinId}
               onChange={(event) => setJoinId(event.target.value)}
-              placeholder="or paste a room id"
+              placeholder="Paste a room ID or invite link"
+              aria-label="Room ID or invite link"
               className="h-8 max-w-xs font-mono text-[11px]"
             />
             <Button
@@ -206,29 +231,23 @@ export function RoomPanel({
             </Button>
           </div>
         )}
+        {room && (
+          <div className="mt-3 space-y-2">
+            <label className="block text-xs text-muted-foreground" htmlFor="room-invite">Invite link</label>
+            <Input id="room-invite" readOnly value={roomInviteUrl(room.id)} onFocus={(event) => event.currentTarget.select()} />
+            <a className="block break-all text-xs text-accent underline" href={roomInviteUrl(room.id)}>Open room invite</a>
+          </div>
+        )}
+        {roomError && <p role="alert" className="mt-3 text-sm text-destructive">{roomError}</p>}
       </GlassCard>
 
       {room && (
         <CallStage
           roomId={room.id}
           localStream={localStream}
+          onLocalStreamChange={onLocalStreamChange}
           sinkId={sinkId}
           onClientReady={onClientReady}
-          localMicEnabled={localMicEnabled}
-          localCameraEnabled={localCameraEnabled}
-          onToggleLocalMic={onToggleLocalMic}
-          onToggleLocalCamera={onToggleLocalCamera}
-          isHost={isHost}
-          inviteUrl={`${window.location.origin}/?room=${encodeURIComponent(room.id)}`}
-          sessionHealth={webrtc?.state === 'ready' ? 'healthy' : webrtc ? 'degraded' : 'unknown'}
-          onCopyInvite={() => {
-            const invite = `${window.location.origin}/?room=${encodeURIComponent(room.id)}`
-            void navigator.clipboard?.writeText(invite)
-            toast.success('Invite link copied')
-          }}
-          onEndSession={() => {
-            void handleLeave()
-          }}
         />
       )}
     </div>

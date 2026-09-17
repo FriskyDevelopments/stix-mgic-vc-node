@@ -32,6 +32,8 @@ function fakePeerConnection(): PeerConnectionLike {
     ontrack: null,
     onconnectionstatechange: null,
     addTrack: vi.fn(),
+    addTransceiver: vi.fn((track: MediaStreamTrack | string) => ({ sender: { track: typeof track === 'string' ? null : track, replaceTrack: vi.fn(), setStreams: vi.fn() } })),
+    getTransceivers: vi.fn(() => []),
     close: vi.fn(),
     createOffer: vi.fn(async () => ({ type: 'offer', sdp: 'v=0 offer' })),
     createAnswer: vi.fn(async () => ({ type: 'answer', sdp: 'v=0 answer' })),
@@ -54,11 +56,13 @@ function joinedSnapshot(transport: ReturnType<typeof fakeSocket>) {
 
 describe('CallClient — reconnection', () => {
   beforeEach(() => {
+    vi.stubGlobal('MediaStream', class { getTracks() { return [] } })
     sessionStorage.clear()
     vi.useFakeTimers()
   })
   afterEach(() => {
     vi.useRealTimers()
+    vi.unstubAllGlobals()
   })
 
   it('re-opens the socket and re-joins after an unexpected drop', async () => {

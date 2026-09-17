@@ -3,7 +3,6 @@ import { apiHeaders, apiUrl } from '@/lib/api-client'
 import { getClientId } from '@/lib/client-id'
 import { log } from '@/lib/log'
 import { getOperatorToken } from '@/lib/operator-token'
-import type { HostControlWirePayload } from '@/lib/nebu-host-controls'
 
 /**
  * webrtc-client.ts — the browser half of the media plane.
@@ -55,14 +54,14 @@ export type CallEvents = {
   onPeersChange?: (peers: RemotePeer[]) => void
   /** Surfaced to the operator; the client keeps running unless the state also goes `error`. */
   onError?: (error: { code: string; message: string }) => void
-  /** Host-control / Nebu transmission payloads relayed through signaling. */
-  onHostControl?: (payload: HostControlWirePayload, fromParticipantId: string) => void
 }
 
 /** Minimal structural view of what this client uses, so a test can supply a double. */
 export type PeerConnectionLike = Pick<
   RTCPeerConnection,
   | 'addTrack'
+  | 'addTransceiver'
+  | 'getTransceivers'
   | 'close'
   | 'createOffer'
   | 'createAnswer'
@@ -73,7 +72,7 @@ export type PeerConnectionLike = Pick<
 > & {
   connectionState: string
   onicecandidate: ((event: { candidate: RTCIceCandidate | null }) => void) | null
-  ontrack: ((event: { streams: MediaStream[] }) => void) | null
+  ontrack: ((event: { streams: MediaStream[]; track?: MediaStreamTrack }) => void) | null
   onconnectionstatechange: (() => void) | null
   localDescription: RTCSessionDescription | null
   remoteDescription: RTCSessionDescription | null
@@ -125,6 +124,8 @@ type PeerEntry = {
   /** The senders for the local tracks, kept so a device switch can replaceTrack in place. */
   videoSender?: RTCRtpSender
   audioSender?: RTCRtpSender
+  videoTransceiver?: RTCRtpTransceiver
+  audioTransceiver?: RTCRtpTransceiver
 }
 
 const SIGNALING_PATH = '/v1/signal'
@@ -170,9 +171,14 @@ export class CallClient {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   /** Stable for this browser participant across signaling reconnects, unique across tabs. */
   private readonly anonymousClientId: string
+  private localStream: MediaStream | null
+  /** A stable SDP stream id groups reserved audio/video receivers, including listeners. */
+  private readonly outboundStream = new MediaStream()
+  private mediaOperations: Promise<void> = Promise.resolve()
 
   constructor(private readonly options: CallClientOptions) {
     this.anonymousClientId = getClientId()
+    this.localStream = options.localStream
   }
 
   getState(): CallState {
@@ -187,43 +193,74 @@ export class CallClient {
     }))
   }
 
-  getSelfId(): string | null {
-    return this.selfId
+  private enqueueMedia<T>(operation: () => Promise<T> | T): Promise<T> {
+    const result = this.mediaOperations.then(operation)
+    this.mediaOperations = result.then(() => {}, () => {})
+    return result
   }
 
-  /**
-   * Relay a Nebu host-control payload through signaling.
-   * `to` targets one participant; omit to broadcast to everyone else in the room.
-   */
-  sendHostControl(payload: HostControlWirePayload, to?: string): boolean {
-    if (!this.socket || this.state !== 'joined') return false
-    this.send({ type: 'host-control', to, payload })
-    return true
+  /** Atomically select one audio/video source for all current and future peers. */
+  replaceLocalStream(stream: MediaStream | null): Promise<void> {
+    return this.enqueueMedia(() => this.applyLocalStream(stream))
   }
 
-  /**
-   * Swap the local camera or microphone track on every peer connection without
-   * renegotiating — `RTCRtpSender.replaceTrack` changes the source mid-call, so a device
-   * switch never drops the call. The local stream reference is kept current so a
-   * reconnection re-attaches the track the operator actually chose.
-   */
-  async replaceLocalTrack(track: MediaStreamTrack): Promise<void> {
+  /** Compatibility for device controls. Never mutate or stop the caller's stream. */
+  replaceLocalTrack(track: MediaStreamTrack): Promise<void> {
+    return this.enqueueMedia(() => this.applyLocalStream(new MediaStream([
+      ...(this.localStream?.getTracks().filter((previous) => previous.kind !== track.kind) ?? []), track,
+    ])))
+  }
+
+  private async applyLocalStream(stream: MediaStream | null): Promise<void> {
+    if (this.closedByClient) throw new Error('The call has ended. Join a room before switching its source.')
+    const tracks = stream?.getTracks() ?? []
+    if (tracks.some((track) => track.readyState === 'ended')) throw new Error('The selected source has stopped. Start it again before sending it to the room.')
+    if (tracks.some((track) => !['audio', 'video'].includes(track.kind)) || ['audio', 'video'].some((kind) => tracks.filter((track) => track.kind === kind).length > 1)) {
+      throw new Error('Choose a source with at most one camera/video track and one audio track.')
+    }
+    const changes: Array<{ entry: PeerEntry; sender: RTCRtpSender; next: MediaStreamTrack | null; previous: MediaStreamTrack | null }> = []
     for (const entry of this.peers.values()) {
-      const sender = track.kind === 'video' ? entry.videoSender : entry.audioSender
-      if (!sender) continue
-      try {
-        await sender.replaceTrack(track)
-      } catch {
-        // A failed replace on one peer must not abort the switch on the others.
+      for (const kind of ['audio', 'video'] as const) {
+        const next = tracks.find((track) => track.kind === kind) ?? null
+        const sender = kind === 'audio' ? entry.audioSender : entry.videoSender
+        const transceiver = kind === 'audio' ? entry.audioTransceiver : entry.videoTransceiver
+        // The answering side has no senders until the first offer arrives. Its answer
+        // will use the latest committed localStream after this serialized operation.
+        if (!sender) {
+          if (next && entry.connection.remoteDescription) throw new Error(`This peer has no negotiated ${kind} channel. Rejoin the room to enable it.`)
+          continue
+        }
+        if (next && transceiver?.currentDirection && !['sendrecv', 'sendonly'].includes(transceiver.currentDirection)) {
+          throw new Error(`This peer cannot receive ${kind} on the current connection. Rejoin the room to enable it.`)
+        }
+        if (sender.track !== next) changes.push({ entry, sender, next, previous: sender.track })
       }
     }
-    // Keep the stream the client re-attaches on reconnect in sync with the live choice.
-    const stream = this.options.localStream
-    if (stream) {
-      for (const existing of stream.getTracks()) {
-        if (existing.kind === track.kind && existing !== track) stream.removeTrack(existing)
+    const applied: typeof changes = []
+    try {
+      for (const change of changes) {
+        if (this.peers.get(change.entry.participant.id) !== change.entry) continue
+        await change.sender.replaceTrack(change.next)
+        applied.push(change)
       }
-      if (!stream.getTracks().includes(track)) stream.addTrack(track)
+      if (this.closedByClient) throw new Error('The call ended before its source could change.')
+      this.localStream = stream
+    } catch (cause) {
+      let rollbackFailed = false
+      for (const change of applied.reverse()) {
+        if (this.peers.get(change.entry.participant.id) !== change.entry) continue
+        try { await change.sender.replaceTrack(change.previous) } catch {
+          rollbackFailed = true
+          change.entry.connection.close()
+          this.peers.delete(change.entry.participant.id)
+        }
+      }
+      if (rollbackFailed) this.emitPeers()
+      const message = rollbackFailed
+        ? 'Source switching failed and could not be fully restored. Affected peer connections were closed; leave and rejoin the room.'
+        : `Source switching failed. The previous source is retained. ${cause instanceof Error ? cause.message : 'The browser rejected the replacement.'}`
+      this.fail('source_switch_failed', message)
+      throw new Error(message)
     }
   }
 
@@ -312,6 +349,8 @@ export class CallClient {
             settled = true
             resolve()
           }
+        }).catch((cause: unknown) => {
+          if (!this.closedByClient) this.fail('media_setup_failed', cause instanceof Error ? cause.message : 'Could not prepare peer media.')
         })
       }
     })
@@ -384,7 +423,7 @@ export class CallClient {
         // rule says this side offers.
         for (const participant of room.participants) {
           if (participant.id === self.id) continue
-          const entry = this.ensurePeer(participant)
+          const entry = await this.ensurePeer(participant)
           if (shouldInitiateOffer(self.id, participant.id)) await this.makeOffer(entry)
         }
 
@@ -396,7 +435,7 @@ export class CallClient {
 
       case 'peer-joined': {
         const participant = message.participant as Participant
-        const entry = this.ensurePeer(participant)
+        const entry = await this.ensurePeer(participant)
         if (this.selfId && shouldInitiateOffer(this.selfId, participant.id)) {
           await this.makeOffer(entry)
         }
@@ -435,21 +474,17 @@ export class CallClient {
         }
         return
 
-      case 'host-control': {
-        const from = String(message.from ?? '')
-        const payload = message.payload as HostControlWirePayload
-        if (from && payload && typeof payload === 'object' && 'kind' in payload) {
-          this.options.events?.onHostControl?.(payload, from)
-        }
-        return
-      }
-
       default:
         return
     }
   }
 
-  private ensurePeer(participant: Participant): PeerEntry {
+  private ensurePeer(participant: Participant): Promise<PeerEntry> {
+    return this.enqueueMedia(() => this.createPeer(participant))
+  }
+
+  private createPeer(participant: Participant): PeerEntry {
+    if (this.closedByClient) throw new Error('The call has ended.')
     const existing = this.peers.get(participant.id)
     if (existing) return existing
 
@@ -468,11 +503,14 @@ export class CallClient {
       makingOffer: false,
     }
 
-    if (this.options.localStream) {
-      for (const track of this.options.localStream.getTracks()) {
-        const sender = connection.addTrack(track, this.options.localStream)
-        if (track.kind === 'video') entry.videoSender = sender
-        else if (track.kind === 'audio') entry.audioSender = sender
+    if (this.selfId && shouldInitiateOffer(this.selfId, participant.id)) {
+      // Reserve both media sections even when joining without media. The answering
+      // side adopts the offered transceivers instead of creating duplicate m-lines.
+      for (const kind of ['audio', 'video'] as const) {
+        const track = this.localStream?.getTracks().find((item) => item.kind === kind)
+        const transceiver = connection.addTransceiver(track ?? kind, { direction: 'sendrecv', streams: [this.outboundStream] })
+        if (kind === 'audio') { entry.audioTransceiver = transceiver; entry.audioSender = transceiver.sender }
+        else { entry.videoTransceiver = transceiver; entry.videoSender = transceiver.sender }
       }
     }
 
@@ -482,7 +520,11 @@ export class CallClient {
     }
 
     connection.ontrack = (event) => {
-      entry.stream = event.streams[0] ?? null
+      if (event.streams[0]) entry.stream = event.streams[0]
+      else if (event.track) {
+        entry.stream ??= new MediaStream()
+        if (!entry.stream.getTracks().includes(event.track)) entry.stream.addTrack(event.track)
+      }
       this.emitPeers()
     }
 
@@ -516,6 +558,9 @@ export class CallClient {
   }
 
   private async handleOffer(from: string, sdp: string): Promise<void> {
+    // A peer-created message may be waiting behind a source switch. Do not discard
+    // its immediately-following offer/candidates before the connection exists.
+    await this.mediaOperations
     const entry = this.peers.get(from)
     if (!entry) {
       this.fail('unknown_peer', 'Received an offer from someone not in this room')
@@ -523,7 +568,19 @@ export class CallClient {
     }
 
     try {
-      await entry.connection.setRemoteDescription({ type: 'offer', sdp } as RTCSessionDescriptionInit)
+      await this.enqueueMedia(async () => {
+        await entry.connection.setRemoteDescription({ type: 'offer', sdp } as RTCSessionDescriptionInit)
+        for (const kind of ['audio', 'video'] as const) {
+          const transceiver = entry.connection.getTransceivers().find((item) => item.receiver.track.kind === kind && item.mid !== null)
+          if (!transceiver) continue
+          transceiver.direction = 'sendrecv'
+          transceiver.sender.setStreams(this.outboundStream)
+          const track = this.localStream?.getTracks().find((item) => item.kind === kind) ?? null
+          await transceiver.sender.replaceTrack(track)
+          if (kind === 'audio') { entry.audioTransceiver = transceiver; entry.audioSender = transceiver.sender }
+          else { entry.videoTransceiver = transceiver; entry.videoSender = transceiver.sender }
+        }
+      })
       await this.flushCandidates(entry)
       const answer = await entry.connection.createAnswer()
       await entry.connection.setLocalDescription(answer)
@@ -534,6 +591,7 @@ export class CallClient {
   }
 
   private async handleAnswer(from: string, sdp: string): Promise<void> {
+    await this.mediaOperations
     const entry = this.peers.get(from)
     if (!entry) return
     try {
@@ -545,6 +603,7 @@ export class CallClient {
   }
 
   private async handleCandidate(from: string, candidate: RTCIceCandidateInit): Promise<void> {
+    await this.mediaOperations
     const entry = this.peers.get(from)
     if (!entry) return
 

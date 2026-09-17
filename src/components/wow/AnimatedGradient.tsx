@@ -9,9 +9,12 @@ interface AnimatedGradientProps {
   opacity?: number;
 }
 
+// Keep the default palette stable so normal page updates do not restart the canvas.
+const DEFAULT_COLORS = ["#06b6d4", "#3b82f6", "#8b5cf6", "#06b6d4"];
+
 export function AnimatedGradient({
   className,
-  colors = ["#06b6d4", "#3b82f6", "#8b5cf6", "#06b6d4"],
+  colors = DEFAULT_COLORS,
   speed = 0.002,
   blur = "120px",
   opacity = 0.12,

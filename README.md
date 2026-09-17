@@ -36,7 +36,11 @@ npm run dev
 
 This runs:
 - API on `127.0.0.1:8787`
-- Vite UI on `http://localhost:5000` (proxies `/v1` + `/healthz`)
+- Vite UI on `http://localhost:5001` (proxies `/v1` + `/healthz`)
+
+NEBU consumer studio (two-person browser call): `http://localhost:5001/studio`
+Operator console: `http://localhost:5001/ops` (also `/`)
+See `NEBU-MVP.md`.
 
 ## Production
 

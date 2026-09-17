@@ -5,25 +5,30 @@ import { Toaster } from 'sonner'
 import App from './App.tsx'
 import { DiscordCallback } from './components/DiscordCallback.tsx'
 import { SpotifyCallback } from './components/SpotifyCallback.tsx'
-import { NebuLogin } from './components/NebuLogin.tsx'
-import { NebuLanding } from './components/NebuLanding.tsx'
-import { NebuAshyWalkthrough } from './components/NebuAshyWalkthrough.tsx'
+import { NebuStudio } from './components/NebuStudio.tsx'
+import { lazy, Suspense } from 'react'
 import { ErrorFallback } from './ErrorFallback.tsx'
 import {
   getAnalyticsClient,
   initAnalytics,
   isAnalyticsEnabled,
 } from './lib/analytics'
-import { fetchPublicConfig, getCachedPublicConfig } from './lib/public-config'
+import { isNebuStudioRoute } from './lib/nebu-host'
 
 import "./main.css"
 
 initAnalytics()
-await fetchPublicConfig()
 
-/** Selects the top-level application surface for the current browser path. */
+const OverlayStudio = lazy(() => import('./components/OverlayStudio').then(module => ({ default: module.OverlayStudio })))
+const OverlayOutput = lazy(() => import('./components/OverlayStudio').then(module => ({ default: module.OverlayOutputView })))
+
 function Root() {
   const path = window.location.pathname
+
+  if (path === '/overlay-studio') return <Suspense fallback={<p>Opening Overlay Studio…</p>}><OverlayStudio /></Suspense>
+  if (path === '/overlay-output') return <Suspense fallback={null}><OverlayOutput /></Suspense>
+  if (path === '/ops') return <App />
+  if (isNebuStudioRoute(path, window.location.hostname)) return <NebuStudio />
 
   if (path === '/auth/discord/callback') {
     return (
@@ -49,31 +54,6 @@ function Root() {
         }}
       />
     )
-  }
-
-  if (path === '/login') {
-    const config = getCachedPublicConfig()
-    return (
-      <NebuLogin
-        authConfigured={Boolean(config?.nebuBetterAuthConfigured)}
-        socialProviders={config?.nebuSocialProviders}
-      />
-    )
-  }
-
-  // Marketing home for nebu.quest; /welcome works on any host for local preview.
-  const host = window.location.hostname
-  const isNebuHost =
-    host === 'nebu.quest' ||
-    host === 'www.nebu.quest' ||
-    host.endsWith('.nebu.quest')
-  if (path === '/welcome' || (path === '/' && isNebuHost)) {
-    return <NebuLanding />
-  }
-
-  // Ashy-first mega-easy walkthrough (marketing + local preview).
-  if (path === '/units/ashy' || path === '/units/ashy/') {
-    return <NebuAshyWalkthrough />
   }
 
   return <App />

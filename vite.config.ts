@@ -17,8 +17,8 @@ export default defineConfig({
     }
   },
   server: {
-    host: '0.0.0.0',
-    port: 5000,
+    // 5000 is often taken on macOS by AirPlay Receiver (Control Center).
+    port: 5001,
     strictPort: true,
     proxy: {
       '/v1': {
@@ -26,9 +26,6 @@ export default defineConfig({
         ws: true,
       },
       '/healthz': 'http://127.0.0.1:8787',
-      '/api': {
-        target: 'http://127.0.0.1:8787',
-      },
     },
   },
 });

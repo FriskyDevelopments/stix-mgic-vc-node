@@ -33,7 +33,7 @@ Out of scope (nice-to-have, explicitly deferred):
 ```bash
 cp .env.example .env      # optional; sensible dev defaults exist
 npm install
-npm run dev               # API on 127.0.0.1:8787, UI on http://localhost:5000
+npm run dev               # API on 127.0.0.1:8787, UI on http://localhost:5001
 ```
 
 Production-style single process:
@@ -60,7 +60,7 @@ OPERATOR_TOKEN_SECRET=... NODE_ENV=production npm start   # binds 0.0.0.0:$PORT
    `peer-joined`, `offer(from A)`, `answer(from B)`, `ice(from A)` and to refuse a
    non-member addressing a participant. (This was run and passed.)
 
-3. **Two browser tabs (visual A/V)** — open `http://localhost:5000` in two tabs (or two
+3. **Two browser tabs (visual A/V)** — open `http://localhost:5001/studio` in two tabs (or two
    machines), create a room in one, join it by id in the other, allow camera/mic in both.
    Each tab should show the other's video. Behind symmetric NAT this needs TURN (below).
 

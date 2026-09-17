@@ -2,15 +2,18 @@
  * media-compositor.ts — Canvas-based video compositor.
  *
  * Draws video frames (from camera or <video> element) onto a canvas,
- * composites the STIX MAGIC sticker overlay on top, and outputs a
+ * composites the Frisky Developments overlay on top, and outputs a
  * capturable MediaStream via canvas.captureStream().
  *
  * This is the video half of DJ Mode's "mini-OBS" — the audio half is in audio-mixer.ts.
  */
 
+import { createOverlayPainter, validateOverlayPack, type OverlayPack, type OverlayValues, type OverlayPainter } from '../overlays'
+
 export type VideoSource = 
   | { type: 'camera'; stream: MediaStream }
   | { type: 'file'; element: HTMLVideoElement }
+  | { type: 'image'; image: HTMLImageElement }
   | { type: 'none' }
 
 export type OverlayConfig = {
@@ -45,12 +48,14 @@ export class MediaCompositor {
   private ctx: CanvasRenderingContext2D
   private source: VideoSource = { type: 'none' }
   private overlay: OverlayConfig
+  private overlayScene: { paint: OverlayPainter; values?: OverlayValues } | null = null
   private animFrameId: number | null = null
   private outputStream: MediaStream | null = null
   private width: number
   private height: number
   private fps: number
   private running = false
+  private cancelCameraPreparation: (() => void) | null = null
 
   constructor(options: CompositorOptions = {}) {
     this.width = options.width ?? 640
@@ -61,12 +66,52 @@ export class MediaCompositor {
     this.canvas = document.createElement('canvas')
     this.canvas.width = this.width
     this.canvas.height = this.height
-    this.ctx = this.canvas.getContext('2d')!
+    const context = this.canvas.getContext('2d')
+    if (!context) throw new Error('Canvas preview is unavailable in this browser.')
+    this.ctx = context
   }
 
-  /** Set the video source. Call this to switch between camera and file. */
+  /** Set the visual source. Images must be loaded with CORS before use. */
   setSource(source: VideoSource): void {
+    this.releaseCameraVideo()
     this.source = source
+  }
+
+  /** Prepare actual camera frames before reporting a capturable preview. */
+  async prepareSource(): Promise<void> {
+    const source = this.source
+    if (source.type !== 'camera') return
+    const video = this.getCameraVideo()!
+    await new Promise<void>((resolve, reject) => {
+      let settled = false
+      let playing = false
+      const cleanup = () => {
+        clearTimeout(timeout)
+        video.removeEventListener('loadeddata', ready)
+        video.removeEventListener('error', failed)
+        this.cancelCameraPreparation = null
+      }
+      const finish = (error?: unknown) => {
+        if (settled) return
+        settled = true
+        cleanup()
+        if (error) reject(error)
+        else resolve()
+      }
+      const ready = () => {
+        if (this.source !== source || video.srcObject !== source.stream) {
+          finish(new Error('Camera preview was cancelled.'))
+        } else if (playing && video.readyState >= 2) finish()
+      }
+      const failed = () => finish(new Error('The camera did not produce a video frame.'))
+      const timeout = setTimeout(failed, 10_000)
+      this.cancelCameraPreparation = () => finish(new Error('Camera preview was cancelled.'))
+      video.addEventListener('loadeddata', ready)
+      video.addEventListener('error', failed)
+      try {
+        Promise.resolve(video.play()).then(() => { playing = true; ready() }, finish)
+      } catch (cause) { finish(cause) }
+    })
   }
 
   /** Update overlay config on the fly. */
@@ -74,12 +119,28 @@ export class MediaCompositor {
     this.overlay = { ...this.overlay, ...config }
   }
 
+  /** Explicit pack selection replaces the default mark, including a truly empty scene. */
+  setOverlayScene(pack: OverlayPack | null, screenId?: string, values?: OverlayValues): void {
+    if (!pack) { this.overlayScene = null; return }
+    const result = validateOverlayPack(pack)
+    if (!result.ok || !result.pack.screens.some(screen => screen.id === screenId)) {
+      throw new Error('Choose a valid overlay pack and scene.')
+    }
+    this.overlayScene = { paint: createOverlayPainter(result.pack, screenId!), values: values ? { ...values } : undefined }
+  }
+
   /** Start rendering and return the composited MediaStream. */
   start(): MediaStream {
     if (this.running) return this.outputStream!
 
-    this.running = true
+    if (typeof this.canvas.captureStream !== 'function') throw new Error('Video output capture is unavailable in this browser.')
+    if (this.source.type === 'none') throw new Error('Choose a video source first.')
+    if (this.source.type === 'file' && this.source.element.readyState < 2) throw new Error('The video is still loading.')
+    if (this.source.type === 'camera' && this.getCameraVideo()!.readyState < 2) throw new Error('The camera is still loading.')
+    // Paint first so capture starts with the selected content rather than a blank frame.
+    this.drawFrame()
     this.outputStream = this.canvas.captureStream(this.fps)
+    this.running = true
     this.render()
     return this.outputStream
   }
@@ -95,6 +156,7 @@ export class MediaCompositor {
       this.outputStream.getTracks().forEach(t => t.stop())
       this.outputStream = null
     }
+    this.releaseCameraVideo()
   }
 
   /** Get the canvas element (for preview rendering in the UI). */
@@ -136,10 +198,23 @@ export class MediaCompositor {
       if (el.readyState >= 2) {
         this.drawCover(el)
       }
+    } else if (this.source.type === 'image') {
+      const image = this.source.image
+      const sourceWidth = image.naturalWidth
+      const sourceHeight = image.naturalHeight
+      if (sourceWidth > 0 && sourceHeight > 0) {
+        const scale = Math.min(width / sourceWidth, height / sourceHeight)
+        const imageWidth = sourceWidth * scale
+        const imageHeight = sourceHeight * scale
+        ctx.drawImage(image, (width - imageWidth) / 2, (height - imageHeight) / 2, imageWidth, imageHeight)
+      }
     }
 
     // Draw overlay
-    if (this.overlay.enabled) {
+    if (this.overlayScene) {
+      const { paint, values } = this.overlayScene
+      paint(ctx, { width, height, values })
+    } else if (this.overlay.enabled) {
       this.drawOverlay()
     }
   }
@@ -177,29 +252,30 @@ export class MediaCompositor {
       const { x, y } = this.getOverlayPosition(imgW, imgH)
       ctx.drawImage(overlay.image, x, y, imgW, imgH)
     } else {
-      // Default: text watermark "STIX MΛGIC"
-      const fontSize = Math.round(width * 0.035)
-      ctx.font = `bold ${fontSize}px monospace`
-      ctx.fillStyle = '#fff'
-      ctx.shadowColor = 'rgba(0,0,0,0.6)'
-      ctx.shadowBlur = 4
-
-      const text = '✦ STIX MΛGIC'
-      const metrics = ctx.measureText(text)
-      const textW = metrics.width
-      const textH = fontSize
-      const { x, y } = this.getOverlayPosition(textW + 16, textH + 12)
-      
-      // Background pill
-      ctx.fillStyle = 'rgba(0,0,0,0.5)'
-      ctx.beginPath()
-      ctx.roundRect(x, y, textW + 16, textH + 12, 6)
-      ctx.fill()
-      
-      // Text
-      ctx.fillStyle = '#FFD100'
+      // Native Frisky Developments lockup; flat Folios colors, no raster sticker.
+      const titleSize = Math.max(12, Math.round(width * 0.024))
+      const brandSize = Math.max(8, Math.round(width * 0.014))
+      const title = 'VC NODE'
+      const brand = 'FRISKY DEVELOPMENTS'
+      ctx.font = `600 ${titleSize}px ui-sans-serif, system-ui, sans-serif`
+      const titleWidth = ctx.measureText(title).width
+      ctx.font = `500 ${brandSize}px ui-sans-serif, system-ui, sans-serif`
+      const boxWidth = Math.max(titleWidth, ctx.measureText(brand).width) + 32
+      const boxHeight = titleSize + brandSize + 25
+      const { x, y } = this.getOverlayPosition(boxWidth, boxHeight)
+      ctx.shadowColor = 'transparent'
       ctx.shadowBlur = 0
-      ctx.fillText(text, x + 8, y + textH + 2)
+      ctx.fillStyle = '#111a1c'
+      ctx.beginPath()
+      ctx.roundRect(x, y, boxWidth, boxHeight, 6)
+      ctx.fill()
+      ctx.fillStyle = '#3ea384'
+      ctx.fillRect(x + 10, y + 11, 3, boxHeight - 22)
+      ctx.fillStyle = '#f5f2ec'
+      ctx.font = `600 ${titleSize}px ui-sans-serif, system-ui, sans-serif`
+      ctx.fillText(title, x + 21, y + 10 + titleSize)
+      ctx.font = `500 ${brandSize}px ui-sans-serif, system-ui, sans-serif`
+      ctx.fillText(brand, x + 21, y + titleSize + brandSize + 15)
     }
 
     ctx.restore()
@@ -218,19 +294,26 @@ export class MediaCompositor {
 
   // For camera sources, we need a <video> element to draw from
   private cameraVideo: HTMLVideoElement | null = null
+  private releaseCameraVideo(): void {
+    this.cancelCameraPreparation?.()
+    if (this.cameraVideo) {
+      this.cameraVideo.pause()
+      this.cameraVideo.srcObject = null
+    }
+  }
+
   private getCameraVideo(): HTMLVideoElement | null {
     if (this.source.type !== 'camera') return null
     
     if (!this.cameraVideo) {
       this.cameraVideo = document.createElement('video')
-      this.cameraVideo.autoplay = true
+      this.cameraVideo.autoplay = false
       this.cameraVideo.playsInline = true
       this.cameraVideo.muted = true
     }
 
     if (this.cameraVideo.srcObject !== this.source.stream) {
       this.cameraVideo.srcObject = this.source.stream
-      this.cameraVideo.play().catch(() => {})
     }
 
     return this.cameraVideo
