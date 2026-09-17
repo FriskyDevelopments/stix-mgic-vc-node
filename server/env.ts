@@ -70,7 +70,6 @@ const serverEnvSchema = z.object({
   SUPABASE_URL: z.string().url().optional().transform((v) => v?.replace(/\/$/, '')),
   SUPABASE_ANON_KEY: z.string().optional().transform((v) => v?.trim() || undefined),
   SUPABASE_PUBLISHABLE_KEY: z.string().optional().transform((v) => v?.trim() || undefined),
-  SPOTIFY_CLIENT_ID: z.string().optional().transform((v) => v?.trim() || undefined),
   // VC Node has one primary identity plane: FriskyDev/Supabase social SSO. Keep this
   // explicit even though it has one value so an old environment cannot revive Authentik.
   IDENTITY_PROVIDER: z.literal('supabase').default('supabase'),

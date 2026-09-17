@@ -4,7 +4,14 @@ import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { getServerEnv } from './env'
 
-type Result = { paired: boolean; active: boolean; chatId: number | null; source: string | null }
+export type TelegramVcStatusResult = {
+  paired: boolean
+  active: boolean
+  chatId: number | null
+  source: string | null
+  camera?: boolean
+  paused?: boolean
+}
 export type TelegramVcGroup = { id: string; title: string; kind: 'group' | 'channel'; canManageCalls?: boolean }
 export type TelegramVcParticipant = {
   id: string
@@ -22,6 +29,24 @@ export type TelegramVcParticipants = {
   canManageCalls: boolean
 }
 export type TelegramVcMuteResult = TelegramVcParticipants & { participantId: string; confirmed: true }
+export type TelegramVcAdminParticipant = {
+  id: string
+  name: string
+  muted: boolean
+  volume?: number
+  speaking?: boolean
+  pinned?: boolean
+}
+export type TelegramVcAdminResult = {
+  participants: TelegramVcAdminParticipant[]
+  count: number
+  /** Set when the action is accepted locally but MTProto mapping is still pending. */
+  pendingMtproto?: string
+  active?: boolean
+  chatId?: number | null
+  source?: string | null
+  title?: string | null
+}
 type Reply<T = unknown> = { id?: string; ok: boolean; result?: T; error?: string }
 
 type Bridge = {
@@ -31,16 +56,23 @@ type Bridge = {
 }
 
 let child: Bridge | null = null
-type WaitingRequest = { payload: Record<string, string>; signal?: AbortSignal; cleanup: () => void; resolve: (value: unknown) => void; reject: (error: unknown) => void }
+type WaitingRequest = {
+  payload: Record<string, string>
+  signal?: AbortSignal
+  cleanup: () => void
+  resolve: (value: unknown) => void
+  reject: (error: unknown) => void
+}
 const waiting: WaitingRequest[] = []
 let requestActive = false
 const MAX_WAITING_REQUESTS = 4
 
-function sessionPath() { return `${process.env.MTPROTO_STATE_DIR || '/data/mtproto'}/operator.session` }
+function sessionPath() {
+  return `${process.env.MTPROTO_STATE_DIR || '/data/mtproto'}/operator.session`
+}
 
 function failBridge(bridge: Bridge, message: string, exited = false): void {
   bridge.failure = message
-  // Events from a failed process can arrive after its replacement has started.
   if (exited && child === bridge) child = null
   bridge.pending?.complete({ ok: false, error: message })
 }
@@ -53,10 +85,19 @@ function launch(): Bridge {
   const env = getServerEnv()
   if (!env.mtprotoConfigured) throw new Error('Telegram MTProto credentials are not configured')
   if (!existsSync(sessionPath())) throw new Error('Telegram operator has not been paired')
-  const next = spawn(process.env.MTPROTO_PYTHON || 'python3', [resolve(process.cwd(), 'scripts/telegram_vc_adapter.py')], {
-    env: { ...process.env, STIX_TELEGRAM_API_ID: String(env.STIX_TELEGRAM_API_ID), STIX_TELEGRAM_API_HASH: env.STIX_TELEGRAM_API_HASH, STIX_MTPROTO_SESSION_PATH: sessionPath() },
-    stdio: ['pipe', 'pipe', 'pipe'],
-  })
+  const next = spawn(
+    process.env.MTPROTO_PYTHON || 'python3',
+    [resolve(process.cwd(), 'scripts/telegram_vc_adapter.py')],
+    {
+      env: {
+        ...process.env,
+        STIX_TELEGRAM_API_ID: String(env.STIX_TELEGRAM_API_ID),
+        STIX_TELEGRAM_API_HASH: env.STIX_TELEGRAM_API_HASH,
+        STIX_MTPROTO_SESSION_PATH: sessionPath(),
+      },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    }
+  )
   const bridge: Bridge = { process: next, pending: null, failure: null }
   child = bridge
   let buffer = ''
@@ -67,43 +108,56 @@ function launch(): Bridge {
       const raw = buffer.slice(0, line)
       buffer = buffer.slice(line + 1)
       let reply: Reply
-      try { reply = JSON.parse(raw) as Reply } catch { continue }
-      // Only the executing request may release its slot, including a late reply
-      // after its caller timed out. Ignore unrelated output without logging it.
-      if (!reply || !bridge.pending || reply.id !== bridge.pending.id) continue
-      bridge.pending.complete(typeof reply.ok === 'boolean'
-        ? reply
-        : { ok: false, error: 'Telegram adapter returned an invalid response' })
+      try {
+        reply = JSON.parse(raw) as Reply
+      } catch {
+        continue
+      }
+      if (!reply || !bridge.pending || reply.id !== bridge.pending.id) {
+        // unmatched or no pending: safe drop (prevents poison)
+        continue
+      }
+      bridge.pending.complete(
+        typeof reply.ok === 'boolean'
+          ? reply
+          : { ok: false, error: 'Telegram adapter returned an invalid response' }
+      )
     }
   })
-  // Drain stderr to avoid blocking the child when an SDK is noisy. Never expose its
-  // output: it may contain Telegram metadata or media source credentials.
   next.stderr.resume()
   next.on('error', () => failBridge(bridge, 'Telegram adapter could not start', true))
   next.on('exit', () => failBridge(bridge, 'Telegram adapter stopped unexpectedly', true))
-  // A broken input pipe does not prove the active call has stopped. Do not spawn a
-  // competing client against the same Telegram session until this process exits.
   next.stdin.on('error', () => failBridge(bridge, 'Telegram adapter input is unavailable'))
   return bridge
 }
 
-async function performRequest<T = Result>(payload: Record<string, string>): Promise<T> {
+async function performRequest<T = TelegramVcStatusResult>(payload: Record<string, string>): Promise<T> {
   const bridge = launch()
   if (bridge.pending) throw new Error('Telegram adapter is busy')
   const id = randomUUID()
   const reply = await new Promise<Reply>((resolveReply, reject) => {
     const timer = setTimeout(() => {
-      // The HTTP caller stops waiting, but synchronous Python may still be running
-      // this job. Keep its slot until the matching reply drains or the process exits;
-      // otherwise later mutes would become an uncancellable backlog in stdin.
+      // Hung Python must not wedge the control plane: clear the slot and kill the child
+      // so drainRequests / a fresh launch can proceed without waiting for process exit.
+      if (bridge.pending?.id === id) bridge.pending = null
+      try {
+        bridge.process.kill('SIGKILL')
+      } catch {
+        /* already exited */
+      }
+      if (child === bridge) child = null
+      bridge.failure = 'Telegram adapter timed out'
       reject(new Error('Telegram adapter timed out'))
     }, 20_000)
-    bridge.pending = { id, complete: (value) => {
-      clearTimeout(timer)
-      bridge.pending = null
-      resolveReply(value)
-      drainRequests()
-    } }
+    bridge.pending = {
+      id,
+      complete: (value) => {
+        clearTimeout(timer)
+        bridge.pending = null
+        resolveReply(value)
+        drainRequests()
+      },
+    }
     try {
       bridge.process.stdin.write(`${JSON.stringify({ ...payload, id })}\n`, (error) => {
         if (error) failBridge(bridge, 'Telegram adapter input is unavailable')
@@ -127,42 +181,135 @@ function drainRequests(): void {
     return
   }
   requestActive = true
-  void performRequest(next.payload).then((value) => {
-    requestActive = false
-    next.resolve(value)
-    drainRequests()
-  }, (error: unknown) => {
-    requestActive = false
-    next.reject(error)
-    drainRequests()
-  })
+  void performRequest(next.payload).then(
+    (value) => {
+      requestActive = false
+      next.resolve(value)
+      drainRequests()
+    },
+    (error: unknown) => {
+      requestActive = false
+      next.reject(error)
+      drainRequests()
+    }
+  )
 }
 
-function request<T = Result>(payload: Record<string, string>, signal?: AbortSignal): Promise<T> {
+function request<T = TelegramVcStatusResult>(payload: Record<string, string>, signal?: AbortSignal): Promise<T> {
   if (signal?.aborted) return Promise.reject(new Error('Telegram action cancelled'))
-  if (waiting.length >= MAX_WAITING_REQUESTS) return Promise.reject(new Error('Telegram adapter is busy. Try again shortly'))
+  if (waiting.length >= MAX_WAITING_REQUESTS) {
+    return Promise.reject(new Error('Telegram adapter is busy. Try again shortly'))
+  }
   return new Promise<T>((resolveResult, reject) => {
     const onAbort = () => {
       const index = waiting.indexOf(next)
-      if (index < 0) return // An already-dispatched SDK request cannot be retracted.
+      if (index < 0) return
       waiting.splice(index, 1)
       next.cleanup()
       reject(new Error('Telegram action cancelled'))
     }
-    const next: WaitingRequest = { payload, signal, cleanup: () => signal?.removeEventListener('abort', onAbort), resolve: (value) => resolveResult(value as T), reject }
+    const next: WaitingRequest = {
+      payload,
+      signal,
+      cleanup: () => signal?.removeEventListener('abort', onAbort),
+      resolve: (value) => resolveResult(value as T),
+      reject,
+    }
     signal?.addEventListener('abort', onAbort, { once: true })
     waiting.push(next)
     drainRequests()
   })
 }
 
+function participants(): Promise<TelegramVcAdminResult>
+function participants(chatId: string): Promise<TelegramVcParticipants>
+function participants(chatId?: string): Promise<TelegramVcAdminResult | TelegramVcParticipants> {
+  return chatId
+    ? request<TelegramVcParticipants>({ action: 'participants', chatId })
+    : request<TelegramVcAdminResult>({ action: 'participants' })
+}
+
+function mute(target: string): Promise<TelegramVcAdminResult>
+function mute(
+  chatId: string,
+  participantId: string,
+  expectedCallId: string,
+  options?: { signal?: AbortSignal; onlyIfCameraOff?: boolean }
+): Promise<TelegramVcMuteResult>
+function mute(
+  chatIdOrTarget: string,
+  participantId?: string,
+  expectedCallId?: string,
+  options?: { signal?: AbortSignal; onlyIfCameraOff?: boolean }
+): Promise<TelegramVcAdminResult | TelegramVcMuteResult> {
+  if (participantId !== undefined) {
+    return request<TelegramVcMuteResult>(
+      {
+        action: 'mute',
+        chatId: chatIdOrTarget,
+        participantId,
+        expectedCallId: expectedCallId || '',
+        onlyIfCameraOff: options?.onlyIfCameraOff ? 'true' : 'false',
+      },
+      options?.signal
+    )
+  }
+  return request<TelegramVcAdminResult>({ action: 'mute', target: chatIdOrTarget })
+}
+
+function kick(target: string): Promise<TelegramVcAdminResult>
+function kick(
+  chatId: string,
+  participantId: string
+): Promise<{ chatId: string; participantId: string; kicked: boolean }>
+function kick(
+  chatIdOrTarget: string,
+  participantId?: string
+): Promise<TelegramVcAdminResult | { chatId: string; participantId: string; kicked: boolean }> {
+  if (participantId !== undefined) {
+    return request<{ chatId: string; participantId: string; kicked: boolean }>({
+      action: 'kick',
+      chatId: chatIdOrTarget,
+      participantId,
+    })
+  }
+  return request<TelegramVcAdminResult>({ action: 'kick', target: chatIdOrTarget })
+}
+
+function pin(target: string): Promise<TelegramVcAdminResult>
+function pin(chatId: string, messageId: string | number): Promise<{ chatId: string; pinned: boolean }>
+function pin(
+  chatIdOrTarget: string,
+  messageId?: string | number
+): Promise<TelegramVcAdminResult | { chatId: string; pinned: boolean }> {
+  if (messageId !== undefined) {
+    return request<{ chatId: string; pinned: boolean }>({
+      action: 'pin',
+      chatId: chatIdOrTarget,
+      messageId: String(messageId),
+    })
+  }
+  return request<TelegramVcAdminResult>({ action: 'pin', target: chatIdOrTarget })
+}
+
 export const telegramVcAdapter = {
-  status: () => request({ action: 'status' }),
-  join: (chatId: string, source: string) => request({ action: 'join', chatId, source }),
-  leave: () => request({ action: 'leave' }),
-  source: (source: string) => request({ action: 'source', source }),
+  status: () => request<TelegramVcStatusResult>({ action: 'status' }),
+  join: (chatId: string, source: string, camera: boolean = true) =>
+    request<TelegramVcStatusResult>({ action: 'join', chatId, source, camera: camera ? 'true' : 'false' }),
+  leave: () => request<TelegramVcStatusResult>({ action: 'leave' }),
+  source: (source: string) => request<TelegramVcStatusResult>({ action: 'source', source }),
+  pause: () => request<TelegramVcStatusResult>({ action: 'pause' }),
+  resume: () => request<TelegramVcStatusResult>({ action: 'resume' }),
+  skip: () => request<TelegramVcStatusResult>({ action: 'skip' }),
+  stop: () => request<TelegramVcStatusResult>({ action: 'stop' }),
+  setCamera: (on: boolean) => request<TelegramVcStatusResult>({ action: 'cam', on: on ? 'true' : 'false' }),
   groups: () => request<{ groups: TelegramVcGroup[] }>({ action: 'groups' }),
-  participants: (chatId: string) => request<TelegramVcParticipants>({ action: 'participants', chatId }),
-  mute: (chatId: string, participantId: string, expectedCallId: string, options?: { signal?: AbortSignal; onlyIfCameraOff?: boolean }) =>
-    request<TelegramVcMuteResult>({ action: 'mute', chatId, participantId, expectedCallId, onlyIfCameraOff: options?.onlyIfCameraOff ? 'true' : 'false' }, options?.signal),
+  participants,
+  mute,
+  unmute: (target: string) => request<TelegramVcAdminResult>({ action: 'unmute', target }),
+  kick,
+  pin,
+  end: () => request<TelegramVcAdminResult>({ action: 'end' }),
+  title: (title: string) => request<TelegramVcAdminResult>({ action: 'title', title }),
+  invite: (target: string) => request<TelegramVcAdminResult>({ action: 'invite', target }),
 }

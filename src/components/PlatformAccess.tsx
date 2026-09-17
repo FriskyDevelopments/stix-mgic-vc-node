@@ -35,13 +35,14 @@ interface PlatformAccessProps {
   discordError: string | null
   friskyDevSignedIn: boolean
   telegramBotUsername?: string | null
-  telegramAuthReady: boolean
-  telegramAuthReason: string
-  discordAuthReady: boolean
-  discordAuthReason: string
+  telegramAuthReady?: boolean
+  telegramAuthReason?: string
+  discordAuthReady?: boolean
+  discordAuthReason?: string
   telegramLinked?: boolean
   discordLinked?: boolean
   onTelegramWidgetAuth: (payload: Record<string, unknown>) => void
+  onTelegramDemoAuth?: () => void
   onTelegramDisconnect: () => void
   onDiscordAuth: () => void
   onDiscordDisconnect: () => void
@@ -56,13 +57,14 @@ export function PlatformAccess({
   discordError,
   friskyDevSignedIn,
   telegramBotUsername,
-  telegramAuthReady,
-  telegramAuthReason,
-  discordAuthReady,
-  discordAuthReason,
+  telegramAuthReady = false,
+  telegramAuthReason = 'Checking Telegram configuration',
+  discordAuthReady = false,
+  discordAuthReason = 'Checking Discord configuration',
   telegramLinked,
   discordLinked,
   onTelegramWidgetAuth,
+  onTelegramDemoAuth,
   onTelegramDisconnect,
   onDiscordAuth,
   onDiscordDisconnect,
@@ -212,11 +214,29 @@ export function PlatformAccess({
                     onAuth={onTelegramWidgetAuth}
                     disabled={!friskyDevSignedIn}
                   />
-                ) : (
+                ) : telegramBotUsername ? (
                   <div className="rounded-lg border border-warning/30 bg-warning/5 p-3">
                     <p className="text-xs font-medium text-warning">Telegram unavailable</p>
                     <p className="mt-1 text-xs text-muted-foreground">{telegramAuthReason}</p>
                   </div>
+                ) : (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      Real Telegram Login Widget needs bot username + server token.
+                    </p>
+                    {onTelegramDemoAuth && (
+                      <Button
+                        onClick={onTelegramDemoAuth}
+                        variant="outline"
+                        size="sm"
+                        className="w-full gap-2"
+                        disabled={!friskyDevSignedIn}
+                      >
+                        <SignIn size={16} />
+                        Demo Telegram (no bot configured)
+                      </Button>
+                    )}
+                  </>
                 )}
               </div>
             )}

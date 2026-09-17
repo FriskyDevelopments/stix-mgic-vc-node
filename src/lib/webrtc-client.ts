@@ -193,6 +193,16 @@ export class CallClient {
     }))
   }
 
+  getSelfId(): string | null {
+    return this.selfId
+  }
+
+  sendHostControl(payload: unknown, to?: string): boolean {
+    if (!this.socket || this.state !== 'joined') return false
+    this.send({ type: 'host-control', payload, to })
+    return true
+  }
+
   private enqueueMedia<T>(operation: () => Promise<T> | T): Promise<T> {
     const result = this.mediaOperations.then(operation)
     this.mediaOperations = result.then(() => {}, () => {})
