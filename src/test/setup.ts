@@ -22,18 +22,26 @@ function createMockStorage(): Storage {
   }
 }
 
-if (typeof window !== 'undefined' && !window.localStorage) {
-  Object.defineProperty(window, 'localStorage', {
-    value: createMockStorage(),
-    writable: true,
-    configurable: true,
-  })
+if (typeof window !== 'undefined') {
+  try {
+    Object.defineProperty(window, 'localStorage', {
+      value: createMockStorage(),
+      writable: true,
+      configurable: true,
+    })
+  } catch {
+    // Some environments expose a non-configurable localStorage; ignore.
+  }
 }
 
-if (typeof globalThis !== 'undefined' && !globalThis.localStorage) {
-  Object.defineProperty(globalThis, 'localStorage', {
-    value: createMockStorage(),
-    writable: true,
-    configurable: true,
-  })
+if (typeof globalThis !== 'undefined') {
+  try {
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: createMockStorage(),
+      writable: true,
+      configurable: true,
+    })
+  } catch {
+    // Some environments expose a non-configurable localStorage; ignore.
+  }
 }
