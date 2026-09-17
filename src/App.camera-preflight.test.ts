@@ -6,7 +6,6 @@ import { RoomPanel } from '@/components/RoomPanel'
 import { CameraSetupWizard, type CameraSetupSelection } from '@/components/CameraSetupWizard'
 import { getSessionApi } from '@/lib/session-api'
 import { CameraReadyPreview } from '@/components/CameraReadyPreview'
-import { StudioMonitor } from '@/components/StudioMonitor'
 
 // Keep the real App state, device preferences, preview and entry controls. Isolate
 // unrelated provider/canvas panels and the two already-tested media boundaries.

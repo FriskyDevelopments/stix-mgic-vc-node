@@ -7,7 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp } from './app'
 import { resetServerEnvCache } from './env'
-import { mintOperatorToken } from './tokens'
+
 import { savePreferredDisplayName } from './display-names'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'

@@ -58,7 +58,7 @@ export function TelegramGroupsPanel({ accessGranted = true }: { accessGranted?: 
     } finally { if (mounted.current) setLoading(false) }
   }
 
-  useEffect(() => { if (accessGranted) void loadGroups() }, [accessGranted]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (accessGranted) void loadGroups() }, [accessGranted])  
 
   useEffect(() => {
     if (!accessGranted || !linked || !chatId) return

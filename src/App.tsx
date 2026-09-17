@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { usePersistedState } from "@/hooks/use-persisted-state"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
@@ -44,12 +44,9 @@ import {
   CheckCircle,
   MonitorPlay,
   Camera,
-  Microphone,
   SpeakerHigh,
   Copy,
   ArrowsDownUp,
-  FileVideo,
-  GitBranch,
   Eye,
   Key,
   CloudArrowUp,
@@ -58,10 +55,7 @@ import {
   MusicNote,
   Funnel,
   SpotifyLogo,
-  Waveform,
   PlugsConnected,
-  Upload,
-  FilmStrip,
   Database
 } from "@phosphor-icons/react"
 import { toast } from "sonner"
@@ -149,7 +143,6 @@ function LegacyControlPlane() {
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null)
   useEffect(() => { setPreflightNotice(null); setPreflightError(null) }, [cameraStream, inputProtocol])
   const [roomId, setRoomId] = useState<string | null>(null)
-  const [cameraPermissionError, setCameraPermissionError] = useState<string | null>(null)
   const [cameraSetupOpen, setCameraSetupOpen] = useState(false)
   const [joinWithoutMedia, setJoinWithoutMedia] = useState(false)
   const [roomEntryReady, setRoomEntryReady] = useState(false)
@@ -611,20 +604,6 @@ function LegacyControlPlane() {
     toast('DJ Mode stopped')
   }
 
-  const handleUpgradeToOperator = () => {
-    if (operatorTier === 'free') {
-      toast('Upgrade to premium for live operator sessions')
-      return
-    }
-    
-    if (sessionStatus === 'dj-mode') {
-      setSessionStatus('standby')
-      addLog('info', 'SESSION', 'Switching from DJ Mode to operator session')
-      setInputProtocol('clipsflow')
-      toast.success('Ready for operator session')
-    }
-  }
-
   const handleExtendTime = () => {
     const additionalTime = 30 * 60
     setOperatorTimeRemaining((prev) => prev + additionalTime)
@@ -1078,7 +1057,6 @@ function LegacyControlPlane() {
                   setCameraStream(stream)
                   setPreviewSource('camera')
                   output.prepareCamera(stream)
-                  setCameraPermissionError(null)
                   setCameraSetupOpen(false)
                 }}
               /> : <StudioMonitor

@@ -1,7 +1,7 @@
 import { webcrypto } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetPublicConfigCache } from './public-config'
-import { clearSpotifyAuthRequest, clearSpotifySession, getSpotifyDevices, getSpotifyPlayback, handleSpotifyCallback, initiateSpotifyAuth, isSpotifyConfigured, refreshSpotifyToken, SpotifyRefreshError, SpotifyPlayerError, spotifyPlay, spotifySetVolume, spotifyTransferPlayback } from './spotify'
+import { clearSpotifyAuthRequest, clearSpotifySession, getSpotifyDevices, getSpotifyPlayback, handleSpotifyCallback, initiateSpotifyAuth, isSpotifyConfigured, refreshSpotifyToken, SpotifyPlayerError, spotifyPlay, spotifySetVolume, spotifyTransferPlayback } from './spotify'
 
 describe('Spotify runtime PKCE connection', () => {
   const popup = { location: { replace: vi.fn() }, close: vi.fn() }

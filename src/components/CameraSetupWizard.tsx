@@ -95,7 +95,7 @@ export function CameraSetupWizard({ initialVideoDeviceId = '', initialAudioDevic
     void Promise.resolve().then(() => { if (active) void startPreview() })
     return () => { active = false }
     // autoStart is an entry action; device changes are tested by their own button.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [autoStart])
 
   useEffect(() => {

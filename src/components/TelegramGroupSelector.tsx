@@ -51,7 +51,7 @@ export function TelegramGroupSelector({
     setLoading(false)
     void refresh()
     // Invalidate the latest request, including a manual refresh started after this effect.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     return () => { generation.current++ }
   }, [refresh])
 

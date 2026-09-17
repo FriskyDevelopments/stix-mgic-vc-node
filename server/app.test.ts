@@ -338,7 +338,6 @@ describe('control plane API', () => {
     })
     expect(res.status).toBe(401)
   })
-  })
 })
 
 describe('room REST API', () => {

@@ -144,7 +144,7 @@ export function CallStage({ roomId, localStream, onStateChange, sinkId, onClient
       callbacks.current.onClientReady?.(null)
     }
     // Room changes create a new client; source changes use replaceLocalStream below.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [roomId])
 
   useEffect(() => {
