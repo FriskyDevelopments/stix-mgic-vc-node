@@ -9,6 +9,7 @@ export default defineConfig({
       ['server/**', 'node'],
       ['workers/**', 'node'],
     ],
+    setupFiles: ['./src/test/setup.ts'],
   },
   resolve: {
     alias: {

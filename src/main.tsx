@@ -6,6 +6,9 @@ import App from './App.tsx'
 import { DiscordCallback } from './components/DiscordCallback.tsx'
 import { SpotifyCallback } from './components/SpotifyCallback.tsx'
 import { NebuStudio } from './components/NebuStudio.tsx'
+import { NebuLogin } from './components/NebuLogin.tsx'
+import { NebuLanding } from './components/NebuLanding.tsx'
+import { NebuAshyWalkthrough } from './components/NebuAshyWalkthrough.tsx'
 import { lazy, Suspense } from 'react'
 import { ErrorFallback } from './ErrorFallback.tsx'
 import {
@@ -13,11 +16,13 @@ import {
   initAnalytics,
   isAnalyticsEnabled,
 } from './lib/analytics'
+import { fetchPublicConfig, getCachedPublicConfig } from './lib/public-config'
 import { isNebuStudioRoute } from './lib/nebu-host'
 
 import "./main.css"
 
 initAnalytics()
+await fetchPublicConfig()
 
 const OverlayStudio = lazy(() => import('./components/OverlayStudio').then(module => ({ default: module.OverlayStudio })))
 const OverlayOutput = lazy(() => import('./components/OverlayStudio').then(module => ({ default: module.OverlayOutputView })))
@@ -54,6 +59,31 @@ function Root() {
         }}
       />
     )
+  }
+
+  if (path === '/login') {
+    const config = getCachedPublicConfig()
+    return (
+      <NebuLogin
+        authConfigured={Boolean(config?.nebuBetterAuthConfigured)}
+        socialProviders={config?.nebuSocialProviders}
+      />
+    )
+  }
+
+  // Marketing home for nebu.quest; /welcome works on any host for local preview.
+  const host = window.location.hostname
+  const isNebuHost =
+    host === 'nebu.quest' ||
+    host === 'www.nebu.quest' ||
+    host.endsWith('.nebu.quest')
+  if (path === '/welcome' || (path === '/' && isNebuHost)) {
+    return <NebuLanding />
+  }
+
+  // Ashy-first mega-easy walkthrough (marketing + local preview).
+  if (path === '/units/ashy' || path === '/units/ashy/') {
+    return <NebuAshyWalkthrough />
   }
 
   return <App />

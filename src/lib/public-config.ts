@@ -12,6 +12,7 @@
  */
 import { useEffect, useState } from 'react'
 import { apiUrl } from '@/lib/api-client'
+import type { NebuSocialProvider } from '@/lib/nebu-auth-client'
 
 export type PublicConfig = {
   discordClientId: string | null
@@ -25,6 +26,8 @@ export type PublicConfig = {
   spotifyClientId?: string | null
   identityProvider: string
   identityReady: boolean
+  nebuBetterAuthConfigured?: boolean
+  nebuSocialProviders?: NebuSocialProvider[]
 }
 
 let cached: PublicConfig | null = null

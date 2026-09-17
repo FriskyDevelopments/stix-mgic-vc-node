@@ -54,7 +54,7 @@ describe('local overlay draft and output boundary', () => {
   it('does not report or emit a sent output when storage rejects it', () => {
     const listener = vi.fn()
     const unsubscribe = subscribeOverlayOutput(listener)
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('Storage full', 'QuotaExceededError') })
+    vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => { throw new DOMException('Storage full', 'QuotaExceededError') })
     expect(() => sendOverlayOutput(createStarterPack(), 'screen-01')).toThrow('Storage full')
     expect(listener).not.toHaveBeenCalled()
     unsubscribe()
