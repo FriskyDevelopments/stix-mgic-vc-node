@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { AURA_SOURCES, aurasContent } from './auras'
+import { AURA_SOURCES } from '../vendor/auras'
+import { aurasContent } from './auras'
 
 describe('aurasContent', () => {
   it('returns exactly 7 aura discs with images and accents', () => {
