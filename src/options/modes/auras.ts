@@ -1,12 +1,18 @@
 import type { ModeContent } from '../discs'
+import { AURA_SOURCES } from '../vendor/auras'
 
-/** Stub — real 7-aura body lands in Task 3. Signature is frozen. */
 export function aurasContent(): ModeContent {
   return {
     mode: 'auras',
-    discs: [],
+    discs: AURA_SOURCES.map((a) => ({
+      id: `aura-${a.aura}`,
+      title: a.label,
+      subtitle: `${a.aura} aura`,
+      imageUrl: a.imageUrl,
+      accent: a.accent,
+    })),
     palette: { sky: '#0B0614', ribbon: '#C084FC', particle: '192, 132, 252' },
     headline: 'Aura Discs',
-    subcopy: 'Seven auras.',
+    subcopy: 'Seven auras. Pick a disc to dock it.',
   }
 }
