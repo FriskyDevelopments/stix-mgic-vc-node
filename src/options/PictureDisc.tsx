@@ -6,15 +6,18 @@ interface PictureDiscProps {
   size: number
   spinning: boolean
   selected: boolean
+  disabled?: boolean
   onSelect: () => void
 }
 
-export function PictureDisc({ disc, size, spinning, selected, onSelect }: PictureDiscProps): React.ReactElement {
+export function PictureDisc({ disc, size, spinning, selected, disabled, onSelect }: PictureDiscProps): React.ReactElement {
   return (
     <button
       type="button"
       data-testid={`disc-${disc.id}`}
       aria-label={disc.title}
+      aria-disabled={disabled || undefined}
+      tabIndex={disabled ? -1 : undefined}
       onClick={onSelect}
       className={cn(
         'options-disc relative shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-black',
@@ -25,7 +28,9 @@ export function PictureDisc({ disc, size, spinning, selected, onSelect }: Pictur
         height: size,
         borderColor: selected ? disc.accent : 'rgba(255,255,255,0.14)',
         boxShadow: `0 0 28px ${disc.accent}55, 0 8px 30px rgba(0,0,0,0.55)`,
-        animationPlayState: spinning ? 'running' : 'paused',
+        // Only ever force 'paused': an inline 'running' would beat the
+        // stylesheet hover/focus pause rule. Omitting it lets the spin run.
+        ...(spinning ? {} : { animationPlayState: 'paused' as const }),
       }}
     >
       <img

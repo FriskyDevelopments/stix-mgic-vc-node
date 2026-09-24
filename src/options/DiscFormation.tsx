@@ -30,6 +30,7 @@ export function DiscFormation({ discs, locked }: DiscFormationProps): React.Reac
               size={selectedId === disc.id ? 168 : 128}
               spinning={!locked}
               selected={selectedId === disc.id}
+              disabled={locked}
               onSelect={() => {
                 if (locked) return
                 setSelectedId((prev) => (prev === disc.id ? null : disc.id))
@@ -39,7 +40,7 @@ export function DiscFormation({ discs, locked }: DiscFormationProps): React.Reac
         ))}
       </div>
       {selected && !locked && (
-        <div data-testid="docked-disc" className="options-docked" style={{ borderColor: `${selected.accent}66` }}>
+        <div data-testid="docked-disc" aria-live="polite" className="options-docked" style={{ borderColor: `${selected.accent}66` }}>
           <p className="options-docked__title">{selected.title}</p>
           <p className="options-docked__subtitle">{selected.subtitle}</p>
         </div>

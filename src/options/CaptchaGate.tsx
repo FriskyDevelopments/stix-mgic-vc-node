@@ -74,13 +74,32 @@ export function CaptchaGate({ onVerified }: CaptchaGateProps): React.ReactElemen
       }
     }
 
-    void import('altcha').then(() => {
+    void import('altcha').then(async () => {
+      if (cancelled) return
+      try {
+        await import('altcha/i18n')
+        const registry = (globalThis as unknown as { $altcha?: { i18n?: { get: (l: string) => Record<string, string>; set: (l: string, v: Record<string, string>) => void } } }).$altcha?.i18n
+        if (registry) {
+          registry.set('en', {
+            ...registry.get('en'),
+            label: "I'm pack, not a bot",
+            verify: 'Verify',
+            verifying: "Verifying you're pack…",
+            verified: 'Pack confirmed',
+            error: "That didn't land. Try again, pup.",
+            expired: 'Challenge expired — grabbing a fresh one.',
+            footer: 'Protected by FR!SKY pack verification',
+          })
+        }
+      } catch {
+        // Stock English strings stand if the i18n module can't load.
+      }
       if (cancelled) return
       widget = document.createElement('altcha-widget')
       widget.setAttribute('challenge', `${getAppEnv().apiBaseUrl}/v1/altcha/challenge`)
       widget.setAttribute('type', 'checkbox')
       widget.setAttribute('auto', 'onload')
-      widget.setAttribute('hideFooter', '')
+      widget.setAttribute('configuration', JSON.stringify({ hideFooter: false }))
       widget.setAttribute('class', 'options-altcha')
       widget.addEventListener('statechange', handleState)
       host.appendChild(widget)

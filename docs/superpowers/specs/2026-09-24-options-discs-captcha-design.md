@@ -75,6 +75,14 @@ particle layer inside `MovingBackground` where they fit; `GlassCard`,
 5. Challenge endpoint down/non-200 → gallery-only fallback with notice
    ("verification unavailable — preview mode"); the page never dead-ends.
 
+Gate honesty note: the gate is a proof-of-work speed-bump, not an
+enforcement boundary. The solved payload is not spent against a protected
+action (there is none on this route — it only unlocks client-side content),
+and `Continue to preview` bypasses it by design. If a future mode hides
+real content or actions behind the gate, that work must POST the payload to
+`verifyAltcha` server-side (same pattern as `/v1/account/register`) and
+remove the bypass.
+
 ## 5. Error handling
 
 - No images (Spotify logged out + empty library): fallback discs, notice

@@ -209,16 +209,24 @@
   background: rgba(143, 193, 255, 0.14);
 }
 
-/* ALTCHA widget dark skin — property names per node_modules/altcha README
-   theming (CSS custom properties on the altcha-widget element). */
+/* ALTCHA widget dark skin — token names per
+   node_modules/altcha/dist/external/altcha.css. */
 .options-altcha {
-  --altcha-color-border: rgba(143, 193, 255, 0.4);
-  --altcha-color-text: #f2f5fa;
-  --altcha-color-background: rgba(10, 12, 17, 0.9);
+  --altcha-color-base: rgba(10, 12, 17, 0.9);
+  --altcha-color-base-content: #f2f5fa;
+  --altcha-border-color: rgba(143, 193, 255, 0.4);
+  --altcha-color-primary: #8fc1ff;
+  --altcha-color-primary-content: #05070d;
+  --altcha-max-width: 320px;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .options-disc {
     animation: none;
+    transition: none;
+  }
+  .options-disc:hover,
+  .options-disc:focus-visible {
+    transform: none;
   }
 }

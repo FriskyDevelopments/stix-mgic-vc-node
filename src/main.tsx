@@ -33,7 +33,7 @@ function Root() {
 
   if (path === '/overlay-studio') return <Suspense fallback={<p>Opening Overlay Studio…</p>}><OverlayStudio /></Suspense>
   if (path === '/overlay-output') return <Suspense fallback={null}><OverlayOutput /></Suspense>
-  if (path === '/options') return <Suspense fallback={<p>Opening Options…</p>}><OptionsPage /></Suspense>
+  if (path === '/options' || path === '/options/') return <Suspense fallback={<p>Opening Options…</p>}><OptionsPage /></Suspense>
   if (path === '/ops') return <App />
   if (isNebuStudioRoute(path, window.location.hostname)) return <NebuStudio />
 

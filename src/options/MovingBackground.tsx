@@ -18,6 +18,8 @@ export function MovingBackground({ palette, speed = 1 }: { palette: ModePalette;
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
+    // Poster fallback: a static palette gradient behind the canvas so a
+    // missing 2D context still shows the mode's sky, never a hole.
     if (!ctx) return
 
     let raf = 0
@@ -92,8 +94,14 @@ export function MovingBackground({ palette, speed = 1 }: { palette: ModePalette;
       && window.matchMedia('(prefers-reduced-motion: reduce)').matches
     draw()
     if (!reduced) {
+      let visible = true
+      const visibility = new IntersectionObserver((entries) => {
+        const entry = entries[entries.length - 1]
+        visible = entry ? entry.isIntersecting : true
+      })
+      visibility.observe(canvas)
       const tick = (now: number) => {
-        if (now - last >= 33) {
+        if (visible && now - last >= 33) {
           last = now
           phase += 0.02 * speed
           draw()
@@ -101,6 +109,11 @@ export function MovingBackground({ palette, speed = 1 }: { palette: ModePalette;
         raf = window.requestAnimationFrame(tick)
       }
       raf = window.requestAnimationFrame(tick)
+      return () => {
+        window.cancelAnimationFrame(raf)
+        observer.disconnect()
+        visibility.disconnect()
+      }
     }
 
     return () => {
@@ -115,6 +128,7 @@ export function MovingBackground({ palette, speed = 1 }: { palette: ModePalette;
       data-testid="options-bg"
       aria-hidden="true"
       className={cn('absolute inset-0 h-full w-full pointer-events-none')}
+      style={{ background: `linear-gradient(180deg, ${palette.sky}, #000)` }}
     />
   )
 }

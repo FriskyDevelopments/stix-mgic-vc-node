@@ -47,4 +47,9 @@ describe('MovingBackground', () => {
     // Still frame only: the loop must NOT be scheduled under reduced motion.
     expect(raf).toHaveBeenCalledTimes(0)
   })
+  it('paints a palette poster behind the canvas for no-context fallback', () => {
+    show(createElement(MovingBackground, { palette }))
+    const canvas = container.querySelector('[data-testid="options-bg"]') as HTMLElement
+    expect(canvas.style.background).toContain('#05070D')
+  })
 })
