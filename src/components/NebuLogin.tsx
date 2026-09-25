@@ -28,9 +28,7 @@ export function NebuLogin({
   socialProviders,
 }: NebuLoginProps) {
   const providers = useMemo(() => {
-    const allowed = socialProviders?.length
-      ? SOCIAL_PROVIDERS.filter((p) => socialProviders.includes(p.id))
-      : SOCIAL_PROVIDERS
+    const allowed = SOCIAL_PROVIDERS.filter((p) => socialProviders?.includes(p.id))
     return allowed
   }, [socialProviders])
 
@@ -65,8 +63,8 @@ export function NebuLogin({
     try {
       const result =
         mode === 'signin'
-          ? await nebuAuthClient.signIn.email({ email, password, callbackURL: '/' })
-          : await nebuAuthClient.signUp.email({ name, email, password, callbackURL: '/' })
+          ? await nebuAuthClient.signIn.email({ email, password, callbackURL: '/studio' })
+          : await nebuAuthClient.signUp.email({ name, email, password, callbackURL: '/studio' })
 
       if (result.error) {
         setError(result.error.message ?? 'Could not complete sign-in.')
@@ -80,7 +78,7 @@ export function NebuLogin({
         return
       }
 
-      window.location.replace('/')
+      window.location.replace('/studio')
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not complete sign-in.')
     } finally {
@@ -99,7 +97,7 @@ export function NebuLogin({
     try {
       const result = await nebuAuthClient.signIn.social({
         provider,
-        callbackURL: '/',
+        callbackURL: '/studio',
       })
       if (!result.error) return
 
@@ -168,6 +166,11 @@ export function NebuLogin({
             NEBU product login — Google, Apple, Microsoft, or email. Set the scene and pick up
             where you left off.
           </p>
+          {!authConfigured && (
+            <p role="alert" className="mt-5 rounded-2xl border border-amber-500/40 bg-amber-50 p-3 text-sm text-amber-950">
+              Sign-in is temporarily unavailable while NEBU account setup is completed.
+            </p>
+          )}
 
           <div className="mt-7 grid gap-3" role="group" aria-label="Social sign-in providers">
             {providers.map((provider) => (
@@ -194,7 +197,7 @@ export function NebuLogin({
 
           <div className="my-6 flex items-center gap-3 text-[11px] font-bold tracking-[0.16em] text-black/40">
             <span className="h-px flex-1 bg-black/15" aria-hidden="true" />
-            <span>OR EMAIL</span>
+            <span>{providers.length ? 'OR EMAIL' : 'EMAIL'}</span>
             <span className="h-px flex-1 bg-black/15" aria-hidden="true" />
           </div>
 
@@ -313,7 +316,7 @@ export function NebuLogin({
             )}
 
             <button
-              disabled={busy}
+              disabled={busy || !authConfigured}
               type="submit"
               className="nebu-cta group flex min-h-12 w-full items-center justify-between rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-60"
               style={{ backgroundColor: NEBU_YELLOW, color: NEBU_BRAND.ink }}
