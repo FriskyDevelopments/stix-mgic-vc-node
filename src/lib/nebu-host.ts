@@ -1,7 +1,8 @@
 /** NEBU studio lives at /studio locally and on any nebu.quest host. */
 
 export function isNebuHostname(hostname: string): boolean {
-  return hostname === 'nebu.quest' || hostname.endsWith('.nebu.quest')
+  return hostname === 'nebu.quest' || hostname.endsWith('.nebu.quest') ||
+    hostname === 'stix-mgic-vc-node.zeabur.app'
 }
 
 export function isNebuStudioPath(pathname: string): boolean {
@@ -14,6 +15,8 @@ export function isNebuStudioPath(pathname: string): boolean {
  */
 export function isNebuStudioRoute(pathname: string, hostname: string): boolean {
   if (pathname === '/ops') return false
+  if (pathname === '/login' || pathname === '/welcome') return false
+  if (pathname === '/' && hostname !== 'studio.nebu.quest') return false
   if (pathname.startsWith('/overlay') || pathname.startsWith('/auth') || pathname === '/spotify-callback') {
     return false
   }
