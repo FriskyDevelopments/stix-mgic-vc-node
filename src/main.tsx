@@ -17,7 +17,7 @@ import {
   isAnalyticsEnabled,
 } from './lib/analytics'
 import { fetchPublicConfig, getCachedPublicConfig } from './lib/public-config'
-import { isNebuStudioRoute } from './lib/nebu-host'
+import { isNebuHostname, isNebuStudioRoute } from './lib/nebu-host'
 
 import "./main.css"
 
@@ -72,12 +72,7 @@ function Root() {
   }
 
   // Marketing home for nebu.quest; /welcome works on any host for local preview.
-  const host = window.location.hostname
-  const isNebuHost =
-    host === 'nebu.quest' ||
-    host === 'www.nebu.quest' ||
-    host.endsWith('.nebu.quest')
-  if (path === '/welcome' || (path === '/' && isNebuHost)) {
+  if (path === '/welcome' || (path === '/' && isNebuHostname(window.location.hostname))) {
     return <NebuLanding />
   }
 
