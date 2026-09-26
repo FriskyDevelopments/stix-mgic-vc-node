@@ -1,4 +1,10 @@
+<p align="center">
+  <img src="public/vc-node-icon-256.png" alt="STIX MΛGIC VC NODE icon" width="96">
+</p>
+
 # stix-mgic-vc-node
+
+[![CI](https://github.com/FriskyDevelopments/stix-mgic-vc-node/actions/workflows/ci.yml/badge.svg)](https://github.com/FriskyDevelopments/stix-mgic-vc-node/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white) ![React](https://img.shields.io/badge/React-20232A?logo=react&logoColor=61DAFB) ![Hono](https://img.shields.io/badge/Hono-E36002?logo=hono&logoColor=white) ![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
 
 STIX MΛGIC VC NODE — production control-plane for multi-platform session operations (Telegram + Discord). React 19 + Vite UI served by a Hono Node API.
 
@@ -25,6 +31,34 @@ an RTMP source can be published to the protected VC Node ingest and selected in 
 
 Session telemetry is measured by the participants and reported upward; with nothing
 connected it reads zero and `telemetrySource: "unavailable"`, never an invented bitrate.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  browser([Browser · React 19 + Vite UI]) -->|REST /v1/*| api[Hono Node API<br/>server/index.ts]
+  browser <-->|ws /v1/signal| api
+  browser <-.->|WebRTC audio/video · peer to peer| peer([Other participants])
+  api --> auth[Identity<br/>FriskyDev account · better-auth]
+  auth -->|link| tg[Telegram Login Widget]
+  auth -->|link| dc[Discord OAuth]
+  tgbot([Telegram]) -->|signed /vc webhook| api
+  api -->|/v1/telegram-vc/*| mt[Paired MTProto operator<br/>Telethon + py-tgcalls]
+  mt --> tgvc[Telegram group calls]
+  obs([RTMP source · OBS]) -->|authenticated publish| mtx[MediaMTX sidecar<br/>deploy/mediamtx.yml]
+  mtx --> api
+  api --> sb[(Supabase identity)]
+  adapters([stixmagic-bot / stixmagic-web]) -->|/v1/media/*| api
+```
+
+### Self-host on Cloudflare Containers
+
+```mermaid
+flowchart LR
+  client([Client]) --> w[Worker nebu-ashy-unit<br/>workers/ashy-unit.ts]
+  w -->|HTTP + WebSocket proxy| do[Durable Object AshyUnit]
+  do --> c[Container · same Dockerfile<br/>Node app on :10000]
+```
 
 ## Local development
 
