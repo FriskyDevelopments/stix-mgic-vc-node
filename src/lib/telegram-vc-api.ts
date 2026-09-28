@@ -27,16 +27,30 @@ export type TelegramVcParticipant = {
   id: string
   name: string
   muted: boolean
-  volume: number
-  date: number
+  cameraOn: boolean | null
+  isSelf: boolean
+  isAdmin: boolean
 }
 
 export type TelegramVcParticipantsResponse = {
   participants: TelegramVcParticipant[]
-  count: number
+  chatId: string
+  callId: string
+  complete: boolean
+  canManageCalls: boolean
 }
 
-export type TelegramVcGroup = { id: string; title: string; kind: 'group' | 'channel' }
+export type TelegramVcGroup = { id: string; title: string; kind: 'group' | 'channel'; botCanSendMessages: boolean; botCanManageCalls: boolean; userCanManageCalls: boolean }
+
+export type TelegramLinkStatus = { linked: boolean; username?: string | null }
+export type CameraPolicy = { chatId: string; enabled: boolean; graceSeconds: 0 | 30 | 60; callId: string | null; status?: string; error?: string | null }
+
+export function getTelegramLinkStatus(): Promise<TelegramLinkStatus> { return request('/link') }
+export function beginTelegramLink(): Promise<{ url: string; expiresAt: number; botUsername: string }> { return request('/link', { method: 'POST' }) }
+export function getCameraPolicy(chatId: string): Promise<CameraPolicy> { return request(`/camera-policy?chatId=${encodeURIComponent(chatId)}`) }
+export function setCameraPolicy(chatId: string, enabled: boolean, graceSeconds: 0 | 30 | 60, expectedCallId?: string): Promise<CameraPolicy> {
+  return request('/camera-policy', { method: 'PUT', body: JSON.stringify({ chatId, enabled, graceSeconds, expectedCallId }) })
+}
 
 export type TelegramPairStatus = {
   available: boolean
@@ -113,16 +127,16 @@ export async function switchSource(
   return request('/source', { method: 'POST', body: JSON.stringify({ type, config }) })
 }
 
-export async function getParticipants(): Promise<TelegramVcParticipantsResponse> {
-  return request('/participants')
+export async function getParticipants(chatId: string): Promise<TelegramVcParticipantsResponse> {
+  return request(`/participants?chatId=${encodeURIComponent(chatId)}`)
 }
 
-export async function getTelegramGroups(): Promise<{ groups: TelegramVcGroup[] }> {
+export async function getTelegramGroups(): Promise<{ groups: TelegramVcGroup[]; botUsername: string; discoveryPartial: boolean }> {
   return request('/groups')
 }
 
-export async function muteParticipant(participantId: string): Promise<{ ok: boolean }> {
-  return request('/mute', { method: 'POST', body: JSON.stringify({ participantId }) })
+export async function muteParticipant(chatId: string, participantId: string, callId: string): Promise<{ ok: boolean }> {
+  return request('/mute', { method: 'POST', body: JSON.stringify({ chatId, participantId, callId }) })
 }
 
 export async function getRtmpPublishConfig(): Promise<RtmpPublishConfig> {

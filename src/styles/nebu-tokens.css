@@ -1,0 +1,19 @@
+/* Canonical NEBU tokens — keep in lockstep with NEBU_BRAND in src/lib/nebu-ashy-walkthrough.ts.
+   Night purple ground + yellow CTA sparingly. Secondary accents are ash/smoke, not carnival neon. */
+:root {
+  --nebu-night: #0B001A;
+  --nebu-bg: #0B001A;
+  --nebu-bg-2: #16121F;
+  --nebu-yellow: #FFD100;
+  --nebu-purple: #7A4FB8;
+  --nebu-violet: #7A4FB8;
+  --nebu-cyan: #5EA8B8;
+  --nebu-ash: #9A93A0;
+  --nebu-paper: #F4F1EC;
+  --nebu-ink: #0C021A;
+  --nebu-smoke: #8B8494;
+  --nebu-panel: #16121F;
+  --nebu-hairline: #3C3646;
+  --nebu-danger: #B57A7A;
+  --nebu-live: #7A9B86;
+}

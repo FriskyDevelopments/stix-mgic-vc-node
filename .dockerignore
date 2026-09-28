@@ -4,6 +4,11 @@ dist
 data
 .env
 .env.*
+.dev.vars
+.wrangler
 .auth-proof
 coverage
 *.log
+workers
+wrangler.jsonc
+docs

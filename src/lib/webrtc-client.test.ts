@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   CallClient,
   buildSignalingUrl,
@@ -42,6 +42,8 @@ function fakePeerConnection(): PeerConnectionLike & { added: RTCIceCandidateInit
     onconnectionstatechange: null as PeerConnectionLike['onconnectionstatechange'],
     added: [] as RTCIceCandidateInit[],
     addTrack: vi.fn(),
+    addTransceiver: vi.fn((track: MediaStreamTrack | string) => ({ sender: { track: typeof track === 'string' ? null : track, replaceTrack: vi.fn(), setStreams: vi.fn() } })),
+    getTransceivers: vi.fn(() => []),
     close: vi.fn(),
     createOffer: vi.fn(async () => ({ type: 'offer', sdp: 'v=0 offer' })),
     createAnswer: vi.fn(async () => ({ type: 'answer', sdp: 'v=0 answer' })),
@@ -92,8 +94,10 @@ async function joined(options: { peers?: typeof PEER[]; pc?: ReturnType<typeof f
 }
 
 beforeEach(() => {
+  vi.stubGlobal('MediaStream', class { getTracks() { return [] } })
   sessionStorage.clear()
 })
+afterEach(() => vi.unstubAllGlobals())
 
 describe('buildSignalingUrl', () => {
   it('upgrades the scheme and carries the operator token', () => {
@@ -174,7 +178,7 @@ describe('CallClient — joining', () => {
     transport.deliver({ type: 'joined', self: SELF, room: { participants: [SELF, PEER] }, iceServers: [] })
     await joining
 
-    expect(pc.addTrack).toHaveBeenCalledWith(track, stream)
+    expect(pc.addTransceiver).toHaveBeenCalledWith(track, expect.objectContaining({ direction: 'sendrecv', streams: expect.any(Array) }))
   })
 })
 

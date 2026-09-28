@@ -1,9 +1,16 @@
 # Deploying VC node
 
-`render.yaml` and `vercel.json` are **not** how production runs. Production is a Docker
-container on the `hermes` box, published through a cloudflared tunnel. Reading `render.yaml`
-and assuming a git-push deploy will waste your time — its `MEDIA_PLANE_ENABLED: "false"`
-disagrees with live, and `stix-mgic-vc-node.onrender.com` returns 404.
+`vc.friskydev.com` is **only** the Docker `vc-node` container on the `hermes` box,
+published through a cloudflared tunnel.
+
+Ashy’s self-hosted NEBU unit can also deploy as a **Cloudflare Containers** app (same
+`Dockerfile`, Worker + Durable Object — not Pages/Workers-only). See
+`docs/cloudflare-containers.md`. That path does not replace hermes.
+
+Do **not** deploy this repo with Vercel or Render. There is no `vercel.json`. `render.yaml`
+(if present) is not live — its `MEDIA_PLANE_ENABLED: "false"` disagrees with production, and
+`stix-mgic-vc-node.onrender.com` returns 404. Merge to `main` does not auto-deploy; follow the
+hermes rsync + docker rebuild steps below.
 
 ## What actually serves vc.friskydev.com
 
@@ -103,3 +110,24 @@ curl -s -X POST "$SB/auth/v1/admin/generate_link" \
 
 If it echoes `vc.friskydev.com`, the allow-list is correct. If it echoes
 `www.myfenrir.com`, it is not — do not switch.
+
+## Zeabur deployment (nebuquest project)
+
+A second deployment of this repo runs on the Zeabur dedicated node ("Little creek",
+38.45.67.217). It is **not** the production target above — production stays on hermes.
+
+| | |
+|---|---|
+| Project | `nebuquest` (`6aab14d10f0f0a129012be76`), env `production` (`6aab14d14d2aa0a7f85afbcc`) |
+| Service | `stix-mgic-vc-node` (`6aab14f70f0f0a129012be7a`), GitHub `main` auto-deploy |
+| URL | `https://stix-mgic-vc-node.zeabur.app` |
+| Env | mirrored from `/opt/vc-node.env` on hermes, except: fresh `OPERATOR_TOKEN_SECRET` (this env only), `SESSION_ISSUER=stix-mgic-vc-node.zeabur.app`, `CORS_ALLOWED_ORIGINS` set to the Zeabur URL, no Discord vars, and no `HOST`/`NODE_ENV`/`PORT` (image/Dockerfile and Zeabur defaults win) |
+| State | `/data/rooms.json` inside the container — **not persisted**; add a Zeabur volume at `/data` before relying on room state |
+
+The app refuses to boot in production without `OPERATOR_TOKEN_SECRET` and
+`AUTH_REQUIRED=true` (`server/env.ts`) — a bare GitHub-connected service crash-loops
+with `Error: OPERATOR_TOKEN_SECRET is required in production` until those are set.
+
+The Supabase redirect allow-list must also include
+`https://stix-mgic-vc-node.zeabur.app/**` (added 2026-09-16) or sign-in on the Zeabur
+URL dead-ends into `www.myfenrir.com`, same check as above.

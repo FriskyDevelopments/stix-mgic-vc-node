@@ -310,6 +310,31 @@ describe('signaling — relaying negotiation', () => {
     send(alice, { type: 'offer', to: 'no-such-participant', sdp: 'v=0' })
     expect((await nextMessage(alice, 'error')).code).toBe('peer_not_found')
   })
+
+  it('relays a Nebu host-control payload to one peer', async () => {
+    const { alice, bob, aliceId, bobId } = await pair()
+    const incoming = nextMessage(bob, 'host-control')
+    send(alice, {
+      type: 'host-control',
+      to: bobId,
+      payload: { kind: 'camera_request', requestId: 'r1', fromParticipantId: aliceId, toParticipantId: bobId },
+    })
+    const msg = await incoming
+    expect(msg.from).toBe(aliceId)
+    expect((msg.payload as { kind: string }).kind).toBe('camera_request')
+  })
+
+  it('broadcasts a Nebu host-control payload to the room', async () => {
+    const { alice, bob, aliceId } = await pair()
+    const incoming = nextMessage(bob, 'host-control')
+    send(alice, {
+      type: 'host-control',
+      payload: { kind: 'broadcast_notice', fromParticipantId: aliceId, message: 'Stand by' },
+    })
+    const msg = await incoming
+    expect(msg.from).toBe(aliceId)
+    expect((msg.payload as { message: string }).message).toBe('Stand by')
+  })
 })
 
 describe('signaling — hostile input', () => {

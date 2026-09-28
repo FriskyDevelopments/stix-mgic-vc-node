@@ -1,5 +1,5 @@
 import { createHash, createHmac } from 'node:crypto'
-import { describe, expect, it, beforeEach } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp } from './app'
 import { resetServerEnvCache } from './env'
 import { configureAccountStore, resetAccountStore } from './account-store'
@@ -16,6 +16,7 @@ describe('control plane API', () => {
     process.env.NODE_ENV = 'test'
     process.env.OPERATOR_TOKEN_SECRET = 'test-operator-token-secret'
     process.env.AUTH_REQUIRED = 'false'
+    delete process.env.CORS_ALLOWED_ORIGINS
     delete process.env.PUBLIC_ROOMS_ENABLED
     process.env.MEDIA_PLANE_ENABLED = 'false'
     setSignalingReady(false)
@@ -39,7 +40,39 @@ describe('control plane API', () => {
     const body = await res.json()
     expect(body.ok).toBe(true)
     expect(body.mediaPlaneEnabled).toBe(false)
+    expect(body.publicRoomsEnabled).toBe(false)
     expect(body.friskydevAccounts).toBe(true)
+  })
+
+  it('advertises public room invites on the public config', async () => {
+    process.env.PUBLIC_ROOMS_ENABLED = 'true'
+    resetServerEnvCache()
+    const app = createApp()
+    const config = await (await app.request('/v1/config/public')).json()
+    expect(config.publicRoomsEnabled).toBe(true)
+  })
+
+  it('applies the configured CORS allowlist to both public telemetry endpoints', async () => {
+    process.env.CORS_ALLOWED_ORIGINS = 'https://studio.example.test, https://preview.example.test'
+    const app = createApp()
+    for (const path of ['/healthz', '/v1/media/status']) {
+      for (const origin of ['https://studio.example.test', 'https://preview.example.test']) {
+        const response = await app.request(path, { headers: { Origin: origin } })
+        expect(response.status).toBe(200)
+        expect(response.headers.get('access-control-allow-origin')).toBe(origin)
+      }
+      const denied = await app.request(path, { headers: { Origin: 'https://unlisted.example.test' } })
+      expect(denied.headers.get('access-control-allow-origin')).toBeNull()
+    }
+  })
+
+  it('preserves the default wildcard CORS policy for public telemetry', async () => {
+    const app = createApp()
+    for (const path of ['/healthz', '/v1/media/status']) {
+      const response = await app.request(path, { headers: { Origin: 'https://studio.example.test' } })
+      expect(response.status).toBe(200)
+      expect(response.headers.get('access-control-allow-origin')).toBe('*')
+    }
   })
 
   it('reports adapter-level media availability', async () => {
@@ -90,7 +123,7 @@ describe('control plane API', () => {
     expect(body.error).toBe('Operator token required')
   })
 
-  it('keeps RTMP publish credentials behind operator authentication', async () => {
+  it('keeps RTMP publish credentials behind verified Telegram ownership', async () => {
     process.env.RTMP_INGEST_ENABLED = 'true'
     process.env.RTMP_PUBLIC_HOST = 'stream.example.test'
     process.env.RTMP_PUBLISH_USER = 'operator'
@@ -100,12 +133,12 @@ describe('control plane API', () => {
 
     expect((await app.request('/v1/rtmp/publish')).status).toBe(401)
 
-    const token = mintOperatorToken({ sub: 'rtmp-operator', platform: 'web', name: 'RTMP Operator' })
+    const token = mintOperatorToken({ sub: 'rtmp-operator', platform: 'supabase', name: 'RTMP Operator' })
     const res = await app.request('/v1/rtmp/publish', { headers: { Authorization: `Bearer ${token}` } })
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(403)
     const body = await res.json()
-    expect(body.ready).toBe(true)
-    expect(body.publishUrl).toContain('rtmp://operator:')
+    expect(body.error).toContain('owner')
+    expect(body).not.toHaveProperty('publishUrl')
   })
 
   it('rejects an unsigned Telegram webhook', async () => {
@@ -144,7 +177,7 @@ describe('control plane API', () => {
     }
   })
 
-  it('accepts the Supabase social-login session cookie for Telegram VC pairing', async () => {
+  it('requires verified Telegram ownership in addition to a social-login cookie for shared pairing', async () => {
     const app = createApp()
     const session = mintOperatorToken({
       sub: 'supabase-auth-users-id',
@@ -154,8 +187,8 @@ describe('control plane API', () => {
     const res = await app.request('/v1/telegram-vc/pair/status', {
       headers: { Cookie: `vc_session=${encodeURIComponent(session)}` },
     })
-    expect(res.status).toBe(200)
-    expect(await res.json()).toMatchObject({ available: expect.any(Boolean) })
+    expect(res.status).toBe(403)
+    expect(await res.json()).toMatchObject({ error: expect.stringContaining('owner') })
   })
 
   it('mints anonymous operator tokens', async () => {
@@ -243,6 +276,67 @@ describe('control plane API', () => {
     expect(body.endpoints.me).toBe('/v1/account/me')
     expect(body.endpoints.login).toBe('/v1/account/login')
     expect(body.endpoints.register).toBe('/v1/account/register')
+  })
+
+  it('accepts the Supabase session cookie as the account principal, keyed by auth.users.id', async () => {
+    const app = createApp()
+    const session = mintOperatorToken({
+      sub: 'supabase-auth-users-id',
+      platform: 'supabase',
+      name: 'Social Operator',
+    })
+    const res = await app.request('/v1/account/me', {
+      headers: { Cookie: `vc_session=${encodeURIComponent(session)}` },
+    })
+    expect(res.status).toBe(200)
+    const profile = await res.json()
+    // One principal: the account id IS the auth.users.id the session carries, never a
+    // second namespace minted for the same human.
+    expect(profile.account.id).toBe('supabase-auth-users-id')
+    expect(profile.account.displayName).toBe('Social Operator')
+    expect(profile.account.email).toBeNull()
+    expect(profile.linked).toEqual([])
+  })
+
+  it('refuses a telegram or anonymous session cookie as an account principal', async () => {
+    const app = createApp()
+    for (const platform of ['telegram', 'anonymous'] as const) {
+      const session = mintOperatorToken({
+        sub: `${platform}:12345`,
+        platform,
+        name: 'Not an account principal',
+      })
+      const me = await app.request('/v1/account/me', {
+        headers: { Cookie: `vc_session=${encodeURIComponent(session)}` },
+      })
+      expect(me.status).toBe(401)
+
+      const link = await app.request('/v1/account/link/telegram', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: `vc_session=${encodeURIComponent(session)}`,
+        },
+        body: JSON.stringify({ id: 1, first_name: 'A', auth_date: 1, hash: 'x' }),
+      })
+      expect(link.status).toBe(401)
+    }
+  })
+
+  it('does not fall back to the session cookie when a bearer is present but invalid', async () => {
+    const app = createApp()
+    const session = mintOperatorToken({
+      sub: 'supabase-auth-users-id',
+      platform: 'supabase',
+      name: 'Social Operator',
+    })
+    const res = await app.request('/v1/account/me', {
+      headers: {
+        Authorization: 'Bearer not-a-real-token',
+        Cookie: `vc_session=${encodeURIComponent(session)}`,
+      },
+    })
+    expect(res.status).toBe(401)
   })
 })
 
@@ -572,4 +666,209 @@ describe('room REST API', () => {
     expect(body.identity.displayName).toBe('@linked_tg')
   })
 
+  it('exposes unified room admin action endpoint (ROOM-ADMIN.md)', async () => {
+    const app = createApp()
+    const createRes = await app.request('/v1/rooms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Admin Room' }),
+    })
+    expect(createRes.status).toBe(200)
+    const { room } = (await createRes.json()) as { room: { id: string } }
+
+    const bad = await app.request(`/v1/rooms/${room.id}/admin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'ban' }),
+    })
+    expect(bad.status).toBe(400)
+
+    // Default room platform is web — Telegram-only admin gate.
+    const endRes = await app.request(`/v1/rooms/${room.id}/admin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'end' }),
+    })
+    expect(endRes.status).toBe(403)
+    const body = await endRes.json() as { code?: string }
+    expect(body.code).toBe('telegram_only')
+  })
+
+  it('requires operator auth on DJ live-control and upload routes', async () => {
+    const app = createApp()
+    const paths: Array<{ path: string; method?: string; body?: Record<string, unknown> }> = [
+      { path: '/v1/playlists' },
+      { path: '/v1/playlists', method: 'POST', body: { name: 'x' } },
+      { path: '/v1/stickers' },
+      { path: '/v1/media' },
+      { path: '/v1/media/files' },
+      { path: '/v1/media/upload', method: 'POST', body: { name: 'a.mp4', data: Buffer.from('x').toString('base64') } },
+      { path: '/v1/audio/devices' },
+      { path: '/v1/audio/source', method: 'POST', body: { source: 'mic' } },
+      { path: '/v1/music/artwork?id=1' },
+    ]
+    for (const entry of paths) {
+      const res = await app.request(entry.path, {
+        method: entry.method || 'GET',
+        headers: entry.body ? { 'Content-Type': 'application/json' } : undefined,
+        body: entry.body ? JSON.stringify(entry.body) : undefined,
+      })
+      expect(res.status, entry.path).toBe(401)
+    }
+  })
+
+  it('handles playlist routes: create, add items, list (auth required)', async () => {
+    const app = createApp()
+    const token = mintOperatorToken({ sub: 'dj-op', platform: 'friskydev', name: 'DJ' })
+    const auth = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+    const createRes = await app.request('/v1/playlists', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ name: 'Midnight Set' }),
+    })
+    expect(createRes.status).toBe(200)
+    const { playlist } = (await createRes.json()) as { playlist: { id: string } }
+
+    const itemRes = await app.request(`/v1/playlists/${playlist.id}/items`, {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ url: 'https://example.com/video1.mp4', title: 'Track 1' }),
+    })
+    expect(itemRes.status).toBe(200)
+
+    const listRes = await app.request('/v1/playlists', { headers: { Authorization: `Bearer ${token}` } })
+    expect(listRes.status).toBe(200)
+    const listBody = (await listRes.json()) as { playlists: Array<{ id: string }> }
+    expect(listBody.playlists.some((p) => p.id === playlist.id)).toBe(true)
+
+    // play/next drive the live adapter — without MTProto they must fail closed (not 200)
+    const nextRes = await app.request(`/v1/playlists/${playlist.id}/next`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    expect([503, 404]).toContain(nextRes.status)
+  })
+
+  it('handles audio devices and audio source endpoints', async () => {
+    const app = createApp()
+    const token = mintOperatorToken({ sub: 'audio-op', platform: 'friskydev', name: 'Audio' })
+    const auth = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+    const devRes = await app.request('/v1/audio/devices', { headers: { Authorization: `Bearer ${token}` } })
+    expect(devRes.status).toBe(200)
+    const devBody = (await devRes.json()) as { devices: Array<{ kind: string }>; meter: { rmsLevel: number } }
+    expect(devBody.devices.length).toBe(4)
+    expect(devBody.meter.rmsLevel).toBeGreaterThan(0)
+
+    const setRes = await app.request('/v1/audio/source', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ source: 'mic' }),
+    })
+    expect(setRes.status).toBe(200)
+    expect((await setRes.json()).activeSource).toBe('mic')
+  })
+
+  it('handles music artwork lookup endpoint', async () => {
+    const app = createApp()
+    const token = mintOperatorToken({ sub: 'music-op', platform: 'friskydev', name: 'Music' })
+    const artRes = await app.request('/v1/music/artwork?id=1440857781', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    expect(artRes.status).toBe(200)
+    const artBody = (await artRes.json()) as { artworkUrl: string }
+    expect(artBody.artworkUrl).toBeDefined()
+  })
+
+  it('handles media upload and listing endpoints', async () => {
+    const app = createApp()
+    const token = mintOperatorToken({ sub: 'media-op', platform: 'friskydev', name: 'Media' })
+    const auth = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+    const uploadRes = await app.request('/v1/media/upload', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ name: 'test-upload.mp4', data: Buffer.from('video-bytes').toString('base64') }),
+    })
+    expect(uploadRes.status).toBe(200)
+    const { file } = (await uploadRes.json()) as { file: { id: string; name: string; path: string } }
+    expect(file.id).toBeDefined()
+
+    const listRes = await app.request('/v1/media', { headers: { Authorization: `Bearer ${token}` } })
+    expect(listRes.status).toBe(200)
+    const listFiles = await app.request('/v1/media/files', { headers: { Authorization: `Bearer ${token}` } })
+    expect(listFiles.status).toBe(200)
+  })
 })
+
+describe('room admin API (ROOM-ADMIN.md)', () => {
+  it('rejects invalid admin actions', async () => {
+    const { createApp } = await import('./app')
+    const { createRoom, resetRooms } = await import('./rooms')
+    resetRooms()
+    const room = createRoom({ ownerOperatorId: 'anonymous:local', platform: 'telegram' })
+    const app = createApp()
+    const res = await app.request(`/v1/rooms/${room.id}/admin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'ban' }),
+    })
+    expect(res.status).toBe(400)
+  })
+
+  it('refuses room admin on non-telegram rooms', async () => {
+    const { createApp } = await import('./app')
+    const { createRoom, resetRooms } = await import('./rooms')
+    resetRooms()
+    const room = createRoom({ ownerOperatorId: 'anonymous:local', platform: 'web' })
+    const app = createApp()
+    const res = await app.request(`/v1/rooms/${room.id}/admin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'mute', target: '1' }),
+    })
+    expect(res.status).toBe(403)
+    const body = await res.json()
+    expect(body.code).toBe('telegram_only')
+    expect(body.canModerate).toBe(false)
+  })
+
+  it('returns canModerate on success and hydrates canModerate:false on guest 403', async () => {
+    process.env.AUTH_REQUIRED = 'false'
+    const { createApp } = await import('./app')
+    const { createRoom, resetRooms } = await import('./rooms')
+    const { telegramVcAdapter } = await import('./telegram-vc-adapter')
+    resetRooms()
+
+    const room = createRoom({ ownerOperatorId: 'anonymous:local', platform: 'telegram' })
+    const app = createApp()
+
+    vi.spyOn(telegramVcAdapter, 'mute').mockResolvedValueOnce({
+      participants: [{ id: '1', name: 'User 1', muted: true }],
+      count: 1,
+    } as never)
+
+    const okRes = await app.request(`/v1/rooms/${room.id}/admin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'mute', target: '1' }),
+    })
+    expect(okRes.status).toBe(200)
+    const okBody = await okRes.json()
+    // Fail-closed route still returns true when caps.canModerate is defined for owners.
+    expect(okBody.canModerate).toBe(true)
+
+    // Default anonymous:local is a guest on a room owned by someone else.
+    const other = createRoom({ ownerOperatorId: 'telegram:other-owner', platform: 'telegram' })
+    const guestRes = await app.request(`/v1/rooms/${other.id}/admin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'mute', target: '1' }),
+    })
+    expect(guestRes.status).toBe(403)
+    const guestBody = await guestRes.json()
+    expect(guestBody.code).toBe('forbidden')
+    expect(guestBody.role).toBe('guest')
+    expect(guestBody.canModerate).toBe(false)
+    expect(guestBody.authPlane).toBeTruthy()
+  })
+})
+

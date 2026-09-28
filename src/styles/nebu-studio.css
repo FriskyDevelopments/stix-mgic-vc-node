@@ -1,0 +1,52 @@
+.vc-shell.nebu-shell {
+  --vbg: #0b001a;
+  --vp: #191424;
+  --vl: rgba(247, 245, 242, 0.12);
+  --vt: #f7f5f2;
+  --vm: #9d96b3;
+  --va: #ffd100;
+  background:
+    radial-gradient(900px 520px at 12% -10%, rgba(157, 0, 255, 0.22), transparent 58%),
+    radial-gradient(720px 480px at 92% 8%, rgba(0, 229, 255, 0.12), transparent 62%),
+    var(--vbg);
+}
+
+.nebu-shell .vc-ambient {
+  background:
+    radial-gradient(680px 420px at 30% 12%, rgba(255, 209, 0, 0.08), transparent 64%),
+    radial-gradient(640px 520px at 88% 70%, rgba(157, 0, 255, 0.16), transparent 68%);
+}
+
+.nebu-shell .vc-primary {
+  background: var(--va);
+  color: #121212;
+}
+
+.nebu-shell .vc-control-dock button.is-active {
+  color: #121212;
+  background: var(--va);
+}
+
+.nebu-shell .vc-live i,
+.nebu-shell .vc-preview-label i {
+  background: #00e5ff;
+  box-shadow: 0 0 9px rgba(0, 229, 255, 0.75);
+}
+
+.nebu-shell .vc-brand small {
+  color: #9d96b3;
+}
+
+.nebu-listen {
+  margin-top: 10px;
+  border: 0;
+  background: none;
+  color: #9d96b3;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.nebu-listen:hover {
+  color: #f7f5f2;
+}

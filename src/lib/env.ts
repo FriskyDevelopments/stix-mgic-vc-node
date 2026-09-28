@@ -25,6 +25,7 @@ const envSchema = z.object({
   VITE_SUPABASE_URL: optionalTrimmed,
   VITE_SUPABASE_PUBLISHABLE_KEY: optionalTrimmed,
   VITE_SUPABASE_ANON_KEY: optionalTrimmed,
+  VITE_DEMO_MODE: z.enum(['true', 'false']).optional(),
 })
 
 export type AppEnv = {
@@ -35,6 +36,7 @@ export type AppEnv = {
   operatorTier: 'free' | 'premium'
   isLiveApiConfigured: boolean
   authRequired: boolean
+  demoMode: boolean
   posthogProjectToken?: string
   posthogHost: string
 }
@@ -52,6 +54,7 @@ function readRawEnv() {
     VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL as string | undefined,
     VITE_SUPABASE_PUBLISHABLE_KEY: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined,
     VITE_SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined,
+    VITE_DEMO_MODE: import.meta.env.VITE_DEMO_MODE as string | undefined,
   }
 }
 
@@ -68,6 +71,7 @@ export function getAppEnv(): AppEnv {
       operatorTier: 'premium',
       isLiveApiConfigured: true,
       authRequired: false,
+      demoMode: false,
       posthogHost: 'https://us.i.posthog.com',
     }
     return cachedEnv
@@ -81,6 +85,7 @@ export function getAppEnv(): AppEnv {
     operatorTier: parsed.data.VITE_OPERATOR_TIER,
     isLiveApiConfigured: true,
     authRequired: parsed.data.VITE_AUTH_REQUIRED === 'true',
+    demoMode: parsed.data.VITE_DEMO_MODE === 'true',
     posthogProjectToken: parsed.data.VITE_POSTHOG_PROJECT_TOKEN,
     posthogHost: parsed.data.VITE_POSTHOG_HOST || 'https://us.i.posthog.com',
   }

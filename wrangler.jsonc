@@ -1,0 +1,49 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  // Ashy’s self-hosted NEBU unit: Worker + Durable Object Container wrapping ./Dockerfile.
+  // The Node app (Hono + Vite dist + signalling) runs inside the container on port 10000.
+  // Secrets stay out of this file — `npx wrangler secret put <NAME>` (see docs/cloudflare-containers.md).
+  "name": "nebu-ashy-unit",
+  "main": "workers/ashy-unit.ts",
+  "compatibility_date": "2026-09-12",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "vars": {
+    "AUTH_REQUIRED": "true",
+    "MEDIA_PLANE_ENABLED": "true",
+    "PUBLIC_ROOMS_ENABLED": "true",
+    "IDENTITY_PROVIDER": "supabase",
+    "SESSION_ISSUER": "stix-magic-vc-node",
+    "STUN_URLS": "stun:stun.l.google.com:19302",
+    "LOG_LEVEL": "info"
+  },
+  "containers": [
+    {
+      "class_name": "AshyUnit",
+      "image": "./Dockerfile",
+      "image_build_context": ".",
+      "instance_type": "standard-1",
+      "max_instances": 2,
+      "rollout_active_grace_period": 30
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "ASHY_UNIT",
+        "class_name": "AshyUnit"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["AshyUnit"]
+    }
+  ]
+}

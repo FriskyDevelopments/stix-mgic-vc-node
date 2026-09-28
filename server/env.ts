@@ -16,6 +16,15 @@ const serverEnvSchema = z.object({
   DISCORD_BOT_TOKEN: z.string().min(20).optional().transform((v) => v?.trim() || undefined),
   TELEGRAM_BOT_TOKEN: z.string().optional().transform((v) => v?.trim() || undefined),
   TELEGRAM_BOT_USERNAME: z.string().optional().transform((v) => v?.trim() || undefined),
+  // Login Widget verification uses SHA256(bot_token) as the HMAC key, so it must be the
+  // token of the SAME bot named by TELEGRAM_BOT_USERNAME — the bot that actually signed
+  // the payload. TELEGRAM_BOT_TOKEN is also the webhook/commands bot, and the two are not
+  // always the same account: production ran TELEGRAM_BOT_USERNAME=MyFenrirTeleConnectBot
+  // while TELEGRAM_BOT_TOKEN belonged to @Myfenrir_bot, whose webhook serves
+  // gate.myfenrir.com. Every genuine login then failed the digest and there was no way to
+  // tell that apart from a forged one. Set this when the login bot differs; when unset,
+  // verification falls back to TELEGRAM_BOT_TOKEN.
+  TELEGRAM_LOGIN_BOT_TOKEN: z.string().optional().transform((v) => v?.trim() || undefined),
   /** Secret header Telegram includes with each webhook request. Never expose it to the client. */
   TELEGRAM_WEBHOOK_SECRET: z.string().min(24).optional().transform((v) => v?.trim() || undefined),
   // Telegram application credentials identify the MTProto client; they are not a user
@@ -48,6 +57,7 @@ const serverEnvSchema = z.object({
   RTMP_PUBLISH_PASSWORD: z.string().min(16).optional().transform((v) => v?.trim() || undefined),
   RTMP_PATH: z.string().default('vc').transform((v) => v.trim().replace(/^\/+|\/+$/g, '') || 'vc'),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+  SPOTIFY_CLIENT_ID: z.string().optional().transform((v) => v?.trim() || undefined),
   CORS_ALLOWED_ORIGINS: z.string().optional(),
   AUTHENTIK_ISSUER: z.string().url().optional().transform((v) => v?.replace(/\/$/, '')),
   OIDC_CLIENT_ID: z.string().optional().transform((v) => v?.trim() || undefined),
@@ -60,7 +70,6 @@ const serverEnvSchema = z.object({
   SUPABASE_URL: z.string().url().optional().transform((v) => v?.replace(/\/$/, '')),
   SUPABASE_ANON_KEY: z.string().optional().transform((v) => v?.trim() || undefined),
   SUPABASE_PUBLISHABLE_KEY: z.string().optional().transform((v) => v?.trim() || undefined),
-  SPOTIFY_CLIENT_ID: z.string().optional().transform((v) => v?.trim() || undefined),
   // VC Node has one primary identity plane: FriskyDev/Supabase social SSO. Keep this
   // explicit even though it has one value so an old environment cannot revive Authentik.
   IDENTITY_PROVIDER: z.literal('supabase').default('supabase'),

@@ -18,6 +18,7 @@ Never commit:
 - `OPERATOR_TOKEN_SECRET`
 - `DISCORD_CLIENT_SECRET`
 - `TELEGRAM_BOT_TOKEN`
+- `STIX_TELEGRAM_API_HASH` / MTProto session files under `/data/mtproto/`
 - Spotify tokens / operator bearer tokens
 
 Client `VITE_*` values are public. Server secrets must stay server-side only.

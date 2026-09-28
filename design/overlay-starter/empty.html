@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>VC Node · Empty overlay master</title>
+  <style>
+    :root {
+      --overlay-ink: #111a1c;
+      --overlay-paper: #f5f2ec;
+      --overlay-mint: #70c8ac;
+      --overlay-line: #334144;
+      --overlay-serif: Georgia, "Times New Roman", serif;
+      --overlay-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --overlay-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: transparent; }
+    body { position: relative; width: 1920px; height: 1080px; }
+    /* This is the entire export surface. Add authored overlay layers here. */
+    #overlay-root {
+      position: relative;
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      isolation: isolate;
+      background: transparent;
+      pointer-events: none;
+    }
+    /* Optional editing reference: a sibling, never an overlay layer. */
+    #overlay-guides {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      overflow: hidden;
+      pointer-events: none;
+      color: var(--overlay-paper);
+      font: 16px/1.5 var(--overlay-mono);
+      background-color: var(--overlay-ink);
+      background-image: conic-gradient(#1c292b 25%, transparent 0 50%, #1c292b 0 75%, transparent 0);
+      background-size: 48px 48px;
+      border: 1px solid var(--overlay-line);
+    }
+    #overlay-guides[hidden] { display: none; }
+    .guide-note { position: absolute; top: 12px; left: 24px; margin: 0; }
+    .guide-safe {
+      position: absolute;
+      inset: 54px 96px;
+      border: 1px dashed var(--overlay-mint);
+    }
+    .guide-safe span { position: absolute; top: 10px; left: 12px; }
+    .guide-source {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-content: center;
+      gap: 12px;
+      text-align: center;
+    }
+    .guide-source strong { font: 400 44px/1.1 var(--overlay-serif); }
+    .guide-source p { margin: 0; }
+    @media print { #overlay-guides { display: none !important; } }
+  </style>
+</head>
+<body>
+  <!-- Empty means zero authored layers. Camera/screen/studio media is composed below this root by VC Node. -->
+  <main id="overlay-root" data-overlay-root data-scene-id="empty-master" data-canvas-width="1920" data-canvas-height="1080" aria-label="Empty broadcast overlay master"></main>
+
+  <!-- Reference only. Whole-page capture with ?guides=1 WILL include these guides. -->
+  <aside id="overlay-guides" data-export-exclude aria-hidden="true" hidden>
+    <p class="guide-note">REFERENCE GUIDES · 1920 × 1080 · remove ?guides=1 before capture</p>
+    <div class="guide-safe"><span>Suggested text safe area · 96px sides / 54px top and bottom</span></div>
+    <div class="guide-source">
+      <strong>Transparent media area</strong>
+      <p>Camera / screen / studio is supplied by VC Node below the overlay.</p>
+      <p>Empty master · no graphics, media, or status text</p>
+    </div>
+  </aside>
+
+  <!-- Optional DOM convention for future authored scenes. Templates do not render.
+       A source slot reserves transparent space; it does not open a camera or embed a player.
+       Source-slot names are design conventions, not additional pack manifest fields. -->
+  <template id="source-slot-reference" data-export-exclude>
+    <div data-source-slot="primary" style="position:absolute;inset:0;background:transparent"></div>
+  </template>
+  <script>
+    // Offline guide toggle only. No media acquisition, network requests, or storage.
+    document.getElementById('overlay-guides').hidden =
+      new URLSearchParams(window.location.search).get('guides') !== '1';
+  </script>
+</body>
+</html>

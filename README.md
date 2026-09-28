@@ -1,4 +1,10 @@
+<p align="center">
+  <img src="public/vc-node-icon-256.png" alt="STIX MΛGIC VC NODE icon" width="96">
+</p>
+
 # stix-mgic-vc-node
+
+[![CI](https://github.com/FriskyDevelopments/stix-mgic-vc-node/actions/workflows/ci.yml/badge.svg)](https://github.com/FriskyDevelopments/stix-mgic-vc-node/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white) ![React](https://img.shields.io/badge/React-20232A?logo=react&logoColor=61DAFB) ![Hono](https://img.shields.io/badge/Hono-E36002?logo=hono&logoColor=white) ![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
 
 STIX MΛGIC VC NODE — production control-plane for multi-platform session operations (Telegram + Discord). React 19 + Vite UI served by a Hono Node API.
 
@@ -11,7 +17,8 @@ STIX MΛGIC VC NODE — production control-plane for multi-platform session oper
 | Discord OAuth code exchange (server secret) | **Ready** when `DISCORD_CLIENT_*` set |
 | Telegram Login Widget HMAC verify + signed `/vc` bot webhook | **Ready** when `TELEGRAM_BOT_TOKEN` + `TELEGRAM_WEBHOOK_SECRET` are set |
 | Operator session tokens (HMAC) | **Ready** |
-| Static deploy (Vercel) / Render blueprint / Docker | **Ready** |
+| Production deploy (hermes Docker + cloudflared) | **Ready** |
+| Ashy self-host (Cloudflare Containers) | **Ready** — `wrangler.jsonc` + `docs/cloudflare-containers.md` |
 | Media plane — WebRTC rooms + signalling (`/v1/rooms`, `ws /v1/signal`) | **Ready** (`degraded` without a TURN relay) |
 | Media plane — Telegram VC join (paired MTProto operator) | **Ready** — operator-only controls at `/v1/telegram-vc/*` |
 | Media plane — authenticated RTMP ingest | **Ready** — MediaMTX sidecar, one protected `vc` path; endpoint is operator-only at `/v1/rtmp/publish` |
@@ -25,6 +32,34 @@ an RTMP source can be published to the protected VC Node ingest and selected in 
 Session telemetry is measured by the participants and reported upward; with nothing
 connected it reads zero and `telemetrySource: "unavailable"`, never an invented bitrate.
 
+## Architecture
+
+```mermaid
+flowchart LR
+  browser([Browser · React 19 + Vite UI]) -->|REST /v1/*| api[Hono Node API<br/>server/index.ts]
+  browser <-->|ws /v1/signal| api
+  browser <-.->|WebRTC audio/video · peer to peer| peer([Other participants])
+  api --> auth[Identity<br/>FriskyDev account · better-auth]
+  auth -->|link| tg[Telegram Login Widget]
+  auth -->|link| dc[Discord OAuth]
+  tgbot([Telegram]) -->|signed /vc webhook| api
+  api -->|/v1/telegram-vc/*| mt[Paired MTProto operator<br/>Telethon + py-tgcalls]
+  mt --> tgvc[Telegram group calls]
+  obs([RTMP source · OBS]) -->|authenticated publish| mtx[MediaMTX sidecar<br/>deploy/mediamtx.yml]
+  mtx --> api
+  api --> sb[(Supabase identity)]
+  adapters([stixmagic-bot / stixmagic-web]) -->|/v1/media/*| api
+```
+
+### Self-host on Cloudflare Containers
+
+```mermaid
+flowchart LR
+  client([Client]) --> w[Worker nebu-ashy-unit<br/>workers/ashy-unit.ts]
+  w -->|HTTP + WebSocket proxy| do[Durable Object AshyUnit]
+  do --> c[Container · same Dockerfile<br/>Node app on :10000]
+```
+
 ## Local development
 
 ```bash
@@ -35,7 +70,11 @@ npm run dev
 
 This runs:
 - API on `127.0.0.1:8787`
-- Vite UI on `http://localhost:5000` (proxies `/v1` + `/healthz`)
+- Vite UI on `http://localhost:5001` (proxies `/v1` + `/healthz`)
+
+NEBU consumer studio (two-person browser call): `http://localhost:5001/studio`
+Operator console: `http://localhost:5001/ops` (also `/`)
+See `NEBU-MVP.md`.
 
 ## Production
 
@@ -48,7 +87,7 @@ Binds `0.0.0.0:$PORT` (Render/Fly/Docker compatible).
 
 ### Render
 
-`render.yaml` included. Set Discord/Telegram secrets in the dashboard.
+Optional `render.yaml` is **not** production (see `DEPLOY.md`). Production secrets live in `/opt/vc-node.env` on hermes.
 
 ### Docker
 
@@ -56,6 +95,19 @@ Binds `0.0.0.0:$PORT` (Render/Fly/Docker compatible).
 docker build -t stix-mgic-vc-node .
 docker run --rm -p 10000:10000 -e PORT=10000 -e OPERATOR_TOKEN_SECRET=... stix-mgic-vc-node
 ```
+
+### Cloudflare Containers (Ashy self-host)
+
+Same `Dockerfile`, not Pages/Workers-only. Worker `nebu-ashy-unit` proxies HTTP + WebSocket
+to the container on port 10000 (`/units/ashy`, `/healthz`, `/v1/signal`).
+
+```bash
+npx wrangler login          # owner step — no tokens in this repo
+npx wrangler secret put OPERATOR_TOKEN_SECRET
+npx wrangler deploy         # needs Docker running
+```
+
+See `docs/cloudflare-containers.md` for secrets, health checks, and what stays on hermes (RTMP).
 
 ## Environment
 
@@ -97,6 +149,9 @@ docker run --rm -p 10000:10000 -e PORT=10000 -e OPERATOR_TOKEN_SECRET=... stix-m
 | `npm run typecheck` | Client + server types |
 | `npm run test:ci` | Vitest (UI + API) |
 | `npm run lint` | ESLint |
+| `npm run cf:whoami` | Confirm Wrangler login (owner) |
+| `npm run cf:dev` | Worker + local container (`wrangler dev`, Docker required) |
+| `npm run cf:deploy` | Build image, upload Worker, roll out Containers |
 
 ## Identity layers
 
@@ -112,3 +167,5 @@ Required secrets for real platform login:
 ## Related
 
 stixmagic-bot / stixmagic-web — media-plane adapters report through `/v1/media/*`.
+
+Telegram dens / VC is a Telethon **user** session (not BotFather). Pair with `python3 scripts/ashy_telethon_setup.py` — `docs/ASHY-TELETHON-FOR-DUMMIES.md`.

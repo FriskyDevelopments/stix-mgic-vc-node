@@ -1,14 +1,13 @@
 import { timingSafeEqual } from 'node:crypto'
 import { getServerEnv } from './env'
+import { consumeTelegramLinkUpdate, recordTelegramGroupUpdate, type TelegramAccessUpdate } from './telegram-group-access'
 
 type TelegramMessage = {
   text?: string
   chat?: { id?: number }
 }
 
-export type TelegramUpdate = {
-  message?: TelegramMessage
-}
+export type TelegramUpdate = TelegramAccessUpdate & { message?: TelegramMessage }
 
 const WEBHOOK_HEADER = 'x-telegram-bot-api-secret-token'
 
@@ -33,14 +32,14 @@ export function telegramWebhookStatus() {
 }
 
 function command(text: string | undefined): string | null {
-  const first = text?.trim().split(/\s+/, 1)[0]
+  const first = typeof text === 'string' ? text.trim().split(/\s+/, 1)[0] : undefined
   if (!first?.startsWith('/')) return null
   return first.slice(1).split('@', 1)[0].toLowerCase()
 }
 
 function replyFor(update: TelegramUpdate): { chatId: number; text: string } | null {
   const chatId = update.message?.chat?.id
-  if (!Number.isFinite(chatId)) return null
+  if (!Number.isSafeInteger(chatId)) return null
 
   switch (command(update.message?.text)) {
     case 'start':
@@ -53,7 +52,7 @@ function replyFor(update: TelegramUpdate): { chatId: number; text: string } | nu
     case 'status':
       return {
         chatId: chatId!,
-        text: 'VC NODE is online. Private WebRTC rooms and TURN relay are ready. Use /studio to launch the creator console.',
+        text: 'VC NODE is online. Private video rooms are ready. Use /studio to open your broadcast tools.',
       }
     case 'help':
       return {
@@ -83,22 +82,28 @@ async function sendReply(reply: { chatId: number; text: string }): Promise<void>
 }
 
 /**
- * Handles only explicit commands. Returning 200 for an otherwise valid update prevents
+ * Handles explicit commands and authenticated membership/link events. Returning 200 for an otherwise valid update prevents
  * Telegram retrying a harmless update indefinitely; a failed reply is logged without any
  * chat, user, token, or message content.
  */
 export async function handleTelegramUpdate(update: TelegramUpdate): Promise<{ handled: boolean }> {
-  const reply = replyFor(update)
-  if (!reply) return { handled: false }
+  if (!update || typeof update !== 'object') return { handled: false }
+  const membershipHandled = await recordTelegramGroupUpdate(update)
+  const link = consumeTelegramLinkUpdate(update)
+  const reply = link.handled && update.message?.chat?.type === 'private' && Number.isSafeInteger(update.message.chat.id)
+    ? { chatId: update.message.chat.id!, text: link.linked
+      ? 'Telegram connected. Return to VC NODE to choose a group you manage.'
+      : 'This connection link is expired, already used, or unavailable. Return to VC NODE and request a new link.' }
+    : link.handled ? null : replyFor(update)
+  if (!reply) return { handled: membershipHandled || link.handled }
   try {
     await sendReply(reply)
-  } catch (error) {
+  } catch {
     console.warn(JSON.stringify({
       ts: new Date().toISOString(),
       level: 'warn',
       scope: 'telegram-bot',
       message: 'could not deliver bot reply',
-      data: { reason: error instanceof Error ? error.message : 'unknown' },
     }))
   }
   return { handled: true }

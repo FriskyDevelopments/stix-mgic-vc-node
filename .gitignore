@@ -25,6 +25,9 @@ dist-ssr
 *.sw?
 
 .env
+.env.*
+!.env.example
+.auth-proof/
 **/agent-eval-report*
 packages
 pids
@@ -34,7 +37,13 @@ data/
 
 .spark-workbench-id
 .vercel
+.wrangler/
+.dev.vars
 
 # Python bytecode from the Telegram VC adapter scripts
 __pycache__/
 *.pyc
+
+# Telethon dens sessions — never commit
+*.session
+*.session-journal

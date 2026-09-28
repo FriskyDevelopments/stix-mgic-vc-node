@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "packId": "vc-node-master",
+  "version": "0.1.0",
+  "title": "VC Node",
+  "author": "",
+  "status": "draft",
+  "commercialStatus": "unreviewed",
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "background": "transparent"
+  },
+  "tokens": {
+    "ink": "#111a1c",
+    "paper": "#f5f2ec",
+    "mint": "#70c8ac",
+    "line": "#334144"
+  },
+  "screens": [
+    {
+      "id": "empty-master",
+      "title": "Empty master",
+      "layers": []
+    }
+  ]
+}

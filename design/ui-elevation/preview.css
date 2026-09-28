@@ -1,0 +1,48 @@
+@import '@/main.css';
+@source inline("sr-only");
+
+html { color-scheme: dark; }
+body { margin: 0; }
+.preview-banner { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px 24px; min-height: 42px; padding: 10px 18px; border-bottom: 1px solid #597864; color: #d0e4cc; background: #20372e; font: 11px/1.5 ui-sans-serif, sans-serif; }
+.preview-banner strong { font-weight: 600; letter-spacing: .025em; }
+.preview-banner > span { color: #a9bcaf; }
+.preview-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.preview-toolbar > p { max-width: 560px; color: #b1bfbc; font-size: 12px; line-height: 1.7; }
+.preview-toolbar > div { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.preview-toolbar button, .preview-copy button { min-height: 44px; padding: 10px 14px; border: 1px solid #3e574c; border-radius: 999px; color: #cce0cf; background: transparent; font-size: 11px; cursor: pointer; }
+.preview-toolbar button:hover { background: #ffffff05; border-color: #729784; }
+.preview-room-tag, .preview-room-status { font: 10px/1.5 ui-monospace, monospace; color: #a6c9b4; }
+.preview-room-status { border: 1px solid #405a4e; padding: 7px 10px; border-radius: 999px; }
+.preview-disclosures { display: grid; gap: 16px; }
+.preview-copy { padding: 18px; font-size: 13px; line-height: 1.8; color: #b1bfbc; }
+.preview-copy h3 { margin-bottom: 12px; font: 25px/1.3 Georgia, serif; color: #f5f2ec; }
+.preview-copy button { margin-top: 18px; cursor: not-allowed; opacity: .6; }
+.preview-footer { display: flex; align-items: center; justify-content: space-between; gap: 18px; color: #91a59e; font-size: 11px; line-height: 1.7; padding-top: 4px; }
+@media (max-width: 760px) {
+  .preview-toolbar { align-items: stretch; flex-direction: column; gap: 12px; }
+  .preview-toolbar > div { flex-wrap: wrap; }
+  .preview-toolbar button { flex: 1; }
+  .preview-footer { align-items: start; flex-direction: column; gap: 6px; }
+}
+
+/* The preview points to real account access instead of imitating a login. */
+.preview-banner { color: #121212; background: #ffd100; border-color: #fff; }
+.preview-banner > span { color: #332a00; }
+.preview-account { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; padding: clamp(22px, 3vw, 36px); border: 2px solid #fff; border-radius: 20px; background: #191424; box-shadow: 5px 5px 0 #9d00ff; scroll-margin-top: 20px; }
+.preview-account:focus { outline: 3px solid #00e5ff; outline-offset: 6px; }
+.preview-account__eyebrow { color: #ffd100; font: 750 10px/1.5 ui-monospace, monospace; letter-spacing: .12em; }
+.preview-account h2 { margin: 12px 0; color: #fff; font: 850 clamp(26px, 3vw, 40px)/1.08 "Arial Black", sans-serif; letter-spacing: -.04em; }
+.preview-account p { max-width: 440px; color: #c9c3d5; font-size: 13px; line-height: 1.7; }
+.preview-account ol { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
+.preview-account li { display: grid; gap: 4px; padding-left: 14px; border-left: 2px solid #00e5ff; }
+.preview-account li strong { font-size: 13px; color: #fff; }
+.preview-account li span { font-size: 12px; color: #c9c3d5; }
+.preview-account__link { grid-column: 1 / -1; justify-self: start; display: inline-flex; align-items: center; min-height: 48px; padding: 12px 20px; border: 2px solid #fff; border-radius: 10px; background: #ffd100; color: #121212; font-size: 13px; font-weight: 800; text-decoration: none; box-shadow: 3px 3px 0 #fff; }
+.preview-account__link:hover { background: #00e5ff; }
+.preview-account__link:focus-visible { outline: 3px solid #00e5ff; outline-offset: 5px; }
+.preview-toolbar > p, .preview-copy, .preview-footer { color: #c9c3d5; }
+.preview-toolbar button, .preview-copy button { border-color: #9d00ff; color: #fff; border-radius: 10px; }
+.preview-room-tag, .preview-room-status { color: #00e5ff; }
+.preview-room-status { border-color: #00e5ff70; }
+.preview-copy h3 { color: #fff; font-family: "Arial Black", sans-serif; }
+@media (max-width: 720px) { .preview-account { grid-template-columns: minmax(0, 1fr); } }

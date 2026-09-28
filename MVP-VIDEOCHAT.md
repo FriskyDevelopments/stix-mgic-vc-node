@@ -33,7 +33,7 @@ Out of scope (nice-to-have, explicitly deferred):
 ```bash
 cp .env.example .env      # optional; sensible dev defaults exist
 npm install
-npm run dev               # API on 127.0.0.1:8787, UI on http://localhost:5000
+npm run dev               # API on 127.0.0.1:8787, UI on http://localhost:5001
 ```
 
 Production-style single process:
@@ -60,7 +60,7 @@ OPERATOR_TOKEN_SECRET=... NODE_ENV=production npm start   # binds 0.0.0.0:$PORT
    `peer-joined`, `offer(from A)`, `answer(from B)`, `ice(from A)` and to refuse a
    non-member addressing a participant. (This was run and passed.)
 
-3. **Two browser tabs (visual A/V)** — open `http://localhost:5000` in two tabs (or two
+3. **Two browser tabs (visual A/V)** — open `http://localhost:5001/studio` in two tabs (or two
    machines), create a room in one, join it by id in the other, allow camera/mic in both.
    Each tab should show the other's video. Behind symmetric NAT this needs TURN (below).
 
@@ -93,7 +93,7 @@ silently.
 The media plane is **stateful**: an in-process room registry plus long-lived WebSocket
 connections. That shapes where it can run.
 
-- **Static UI** → Cloudflare Pages or Vercel (already wired: `vercel.json`). Fine on the
+- **Static UI** → hermes Docker (see `DEPLOY.md`). Fine on the
   Cloudflare account (`e2a7eccb`).
 - **Signaling node** → needs a persistent Node process with WebSocket support. Plain
   Cloudflare **Workers cannot** run this `ws` server as-is; a Workers port would mean
@@ -104,7 +104,7 @@ connections. That shapes where it can run.
 - **TURN (coturn)** → same host as the node, credentials from the Secret Center.
 
 Suggested first target: Node server + coturn on hermes/Ragnar, Cloudflare-proxied hostname,
-static UI on Cloudflare Pages/Vercel. Ship to prod only after owner approval.
+static UI from hermes `vc-node` (see `DEPLOY.md`). Ship to prod only after owner approval.
 
 ## What changed in this branch
 

@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { getServerEnv } from './env'
+import { getPreferredDisplayName } from './display-names'
 
 export type OperatorClaims = {
   sub: string
@@ -32,7 +33,7 @@ export function mintOperatorToken(input: {
   const claims: OperatorClaims = {
     sub: input.sub,
     platform: input.platform,
-    name: input.name,
+    name: getPreferredDisplayName(input.platform, input.sub, input.name),
     iat: now,
     exp: now + env.OPERATOR_TOKEN_TTL_SECONDS,
     iss: env.SESSION_ISSUER,
@@ -59,7 +60,7 @@ export function verifyOperatorToken(token: string): OperatorClaims | null {
     const claims = JSON.parse(fromB64url(payload).toString('utf8')) as OperatorClaims
     if (claims.iss !== env.SESSION_ISSUER) return null
     if (claims.exp < Math.floor(Date.now() / 1000)) return null
-    return claims
+    return { ...claims, name: getPreferredDisplayName(claims.platform, claims.sub, claims.name) }
   } catch {
     return null
   }

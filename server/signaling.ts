@@ -71,7 +71,14 @@ const simpleMessage = z.object({
   type: z.enum(['leave', 'ping']),
 })
 
-const clientMessage = z.union([joinMessage, sdpMessage, iceMessage, simpleMessage])
+/** Nebu host-control / consent payloads — opaque relay, same room-scoped rules as SDP. */
+const hostControlMessage = z.object({
+  type: z.literal('host-control'),
+  to: z.string().min(1).optional(),
+  payload: z.unknown(),
+})
+
+const clientMessage = z.union([joinMessage, sdpMessage, iceMessage, simpleMessage, hostControlMessage])
 
 export type ClientMessage = z.infer<typeof clientMessage>
 
@@ -210,6 +217,51 @@ export function attachSignaling(server: Server): SignalingHub {
     }
   }
 
+
+  /** Relay a Nebu host-control payload to one peer or broadcast in-room. */
+  function handleHostControl(
+    state: SocketState,
+    message: z.infer<typeof hostControlMessage>
+  ): void {
+    if (!state.roomId || !state.participantId) {
+      fail(state.socket, 'not_in_room', 'Join a room before signalling')
+      return
+    }
+
+    const room = getRoom(state.roomId)
+    if (!room) {
+      fail(state.socket, 'room_not_found', 'The room has closed')
+      detach(state, false)
+      return
+    }
+
+    const outbound = {
+      type: 'host-control' as const,
+      from: state.participantId,
+      payload: message.payload,
+    }
+
+    if (message.to) {
+      const target = room.participants.get(message.to)
+      if (!target) {
+        fail(state.socket, 'peer_not_found', 'No such participant in this room')
+        return
+      }
+      const targetSocket = byParticipant.get(target.id)
+      if (!targetSocket) {
+        fail(state.socket, 'peer_offline', 'That participant is not connected')
+        return
+      }
+      send(targetSocket, outbound)
+      return
+    }
+
+    for (const peer of peersOf(room, state.participantId)) {
+      const peerSocket = byParticipant.get(peer.id)
+      if (peerSocket) send(peerSocket, outbound)
+    }
+  }
+
   /** Relay one negotiation message, but only inside the sender's own room. */
   function handleRelay(state: SocketState, message: z.infer<typeof sdpMessage> | z.infer<typeof iceMessage>): void {
     if (!state.roomId || !state.participantId) {
@@ -296,6 +348,9 @@ export function attachSignaling(server: Server): SignalingHub {
         case 'answer':
         case 'ice':
           handleRelay(state, message)
+          return
+        case 'host-control':
+          handleHostControl(state, message)
           return
         case 'leave':
           detach(state)

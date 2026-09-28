@@ -17,8 +17,8 @@ export default defineConfig({
     }
   },
   server: {
-    host: '0.0.0.0',
-    port: 5000,
+    // 5000 is often taken on macOS by AirPlay Receiver (Control Center).
+    port: 5001,
     strictPort: true,
     proxy: {
       '/v1': {

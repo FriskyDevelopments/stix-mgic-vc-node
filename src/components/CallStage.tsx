@@ -26,6 +26,14 @@ export type CallStageProps = {
   sinkId?: string
   /** Hands the live CallClient up so the shell can switch camera/mic mid-call. */
   onClientReady?: (client: CallClient | null) => void
+  onLocalStreamChange?: (result: LocalStreamChangeResult) => void
+}
+
+export type LocalStreamChangeResult = {
+  status: 'switching' | 'applied' | 'failed'
+  /** The exact requested stream, so a newer UI selection can ignore stale results. */
+  stream: MediaStream | null
+  error?: string
 }
 
 const STATE_LABEL: Record<CallState, string> = {
@@ -83,14 +91,23 @@ function RemoteTile({ peer, sinkId }: { peer: RemotePeer; sinkId?: string }) {
   )
 }
 
-export function CallStage({ roomId, localStream, onStateChange, sinkId, onClientReady }: CallStageProps) {
+export function CallStage({ roomId, localStream, onStateChange, sinkId, onClientReady, onLocalStreamChange }: CallStageProps) {
   const clientRef = useRef<CallClient | null>(null)
   const [state, setState] = useState<CallState>('idle')
   const [peers, setPeers] = useState<RemotePeer[]>([])
   const [error, setError] = useState<{ code: string; message: string } | null>(null)
+  const callbacks = useRef({ onStateChange, onClientReady, onLocalStreamChange })
+  callbacks.current = { onStateChange, onClientReady, onLocalStreamChange }
+  const lastRequested = useRef<MediaStream | null>(localStream)
+  const joining = useRef<Promise<void> | null>(null)
+  const requestVersion = useRef(0)
 
   useEffect(() => {
     if (!roomId) return
+    let active = true
+    const version = ++requestVersion.current
+    lastRequested.current = localStream
+    callbacks.current.onLocalStreamChange?.({ status: 'switching', stream: localStream })
 
     const client = new CallClient({
       roomId,
@@ -101,25 +118,59 @@ export function CallStage({ roomId, localStream, onStateChange, sinkId, onClient
       events: {
         onStateChange: (next) => {
           setState(next)
-          onStateChange?.(next)
+          if (active) callbacks.current.onStateChange?.(next)
         },
         onPeersChange: setPeers,
         onError: setError,
       },
     })
     clientRef.current = client
-    onClientReady?.(client)
+    callbacks.current.onClientReady?.(client)
 
     // A join that never resolves still surfaces through onError/onStateChange.
-    void client.join().catch(() => {})
+    joining.current = client.join()
+    void joining.current.then(() => {
+      if (active && requestVersion.current === version) callbacks.current.onLocalStreamChange?.({ status: 'applied', stream: localStream })
+    }).catch((cause: unknown) => {
+      if (active && requestVersion.current === version) callbacks.current.onLocalStreamChange?.({ status: 'failed', stream: localStream, error: cause instanceof Error ? cause.message : 'Could not join the room.' })
+    })
 
     return () => {
+      active = false
+      requestVersion.current += 1
       client.close()
       clientRef.current = null
-      onClientReady?.(null)
+      joining.current = null
+      callbacks.current.onClientReady?.(null)
     }
-    // Re-joining on a localStream change would drop the call; tracks are attached at join.
+    // Room changes create a new client; source changes use replaceLocalStream below.
+     
   }, [roomId])
+
+  useEffect(() => {
+    const client = clientRef.current
+    if (!client || lastRequested.current === localStream) return
+    const version = ++requestVersion.current
+    lastRequested.current = localStream
+    let active = true
+    callbacks.current.onLocalStreamChange?.({ status: 'switching', stream: localStream })
+    void (async () => {
+      try {
+        await joining.current
+        if (!active || clientRef.current !== client) return
+        await client.replaceLocalStream(localStream)
+        if (!active || requestVersion.current !== version) return
+        setError((current) => current?.code === 'source_switch_failed' ? null : current)
+        callbacks.current.onLocalStreamChange?.({ status: 'applied', stream: localStream })
+      } catch (cause) {
+        if (!active || requestVersion.current !== version) return
+        const message = cause instanceof Error ? cause.message : 'The source could not be changed.'
+        setError({ code: 'source_switch_failed', message })
+        callbacks.current.onLocalStreamChange?.({ status: 'failed', stream: localStream, error: message })
+      }
+    })()
+    return () => { active = false }
+  }, [roomId, localStream])
 
   return (
     <GlassCard className="p-4">

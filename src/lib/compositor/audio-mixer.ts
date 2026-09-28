@@ -25,6 +25,8 @@ export class AudioMixer {
   private destination: MediaStreamAudioDestinationNode
   private sources: Map<AudioSourceId, { node: MediaStreamAudioSourceNode | MediaElementAudioSourceNode; gain: GainNode }> = new Map()
   private gains: Map<AudioSourceId, number> = new Map()
+  // A media element can only be attached once per AudioContext, including retries.
+  private mediaElementNodes = new WeakMap<HTMLMediaElement, MediaElementAudioSourceNode>()
 
   constructor(options: AudioMixerOptions = {}) {
     this.ctx = new AudioContext()
@@ -55,7 +57,11 @@ export class AudioMixer {
   /** Add audio from a <video> or <audio> element (for file playback). */
   addMediaElement(element: HTMLMediaElement): void {
     this.removeSource('file')
-    const source = this.ctx.createMediaElementSource(element)
+    let source = this.mediaElementNodes.get(element)
+    if (!source) {
+      source = this.ctx.createMediaElementSource(element)
+      this.mediaElementNodes.set(element, source)
+    }
     const gain = this.ctx.createGain()
     gain.gain.value = this.gains.get('file') ?? 0.8
     source.connect(gain)
@@ -123,6 +129,7 @@ export class AudioMixer {
     for (const [id] of this.sources) {
       this.removeSource(id)
     }
+    this.destination.stream.getTracks().forEach(track => track.stop())
     this.ctx.close().catch(() => {})
   }
 }

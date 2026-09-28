@@ -1,0 +1,32 @@
+/* Adapted from React Bits. Full license: licenses/react-bits.txt. */
+.rb-spotlight-card {
+  position: relative;
+  --rb-mouse-x: 50%;
+  --rb-mouse-y: 50%;
+  --rb-spotlight-color: rgba(154, 215, 218, 0.16);
+}
+
+.rb-spotlight-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    480px circle at var(--rb-mouse-x) var(--rb-mouse-y),
+    var(--rb-spotlight-color),
+    transparent 80%
+  );
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .rb-spotlight-card::before {
+    transition: opacity 240ms ease;
+  }
+
+  .rb-spotlight-card:hover::before,
+  .rb-spotlight-card:focus-within::before {
+    opacity: 0.65;
+  }
+}

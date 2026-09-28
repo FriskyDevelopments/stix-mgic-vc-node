@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1440" />
+<title>STIX VC NODE — Live Surface 1440</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: oklch(0.15 0.01 260);
+    --card: oklch(0.25 0.02 260);
+    --muted: oklch(0.20 0.01 260);
+    --primary: oklch(0.55 0.18 250);
+    --accent: oklch(0.75 0.14 195);
+    --destructive: oklch(0.55 0.22 25);
+    --success: oklch(0.65 0.15 145);
+    --warning: oklch(0.70 0.15 70);
+    --fg: oklch(0.95 0.01 260);
+    --fg-dim: oklch(0.55 0.01 260);
+    --glass: oklch(0.20 0.02 260 / 0.5);
+    --border: oklch(0.35 0.03 260 / 0.5);
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: 1440px;
+    min-height: 900px;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: Inter, system-ui, sans-serif;
+    padding: 24px 32px 32px;
+  }
+  .mono { font-family: "JetBrains Mono", monospace; }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .brand { display: flex; gap: 12px; align-items: center; }
+  .mark {
+    width: 36px; height: 36px; border-radius: 8px;
+    background: var(--primary);
+    box-shadow: 0 0 18px oklch(0.55 0.18 250 / 0.45);
+  }
+  .brand strong { display: block; letter-spacing: 0.08em; font-size: 13px; }
+  .brand small { color: var(--fg-dim); font-size: 10px; letter-spacing: 0.16em; }
+  .live {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 11px; letter-spacing: 0.14em; color: var(--success);
+  }
+  .live i {
+    width: 8px; height: 8px; border-radius: 99px; background: var(--success);
+    box-shadow: 0 0 10px var(--success);
+  }
+  .stage {
+    position: relative;
+    width: 1376px; height: 520px;
+    border-radius: var(--radius);
+    overflow: hidden;
+    background:
+      radial-gradient(1200px 400px at 50% 20%, oklch(0.25 0.04 250 / 0.5), transparent),
+      linear-gradient(180deg, oklch(0.18 0.02 260), oklch(0.12 0.01 260));
+    border: 1px solid var(--border);
+  }
+  .stage-label, .stage-mode {
+    position: absolute; top: 16px;
+    background: var(--glass); backdrop-filter: blur(12px);
+    border: 1px solid var(--border); border-radius: 999px;
+    padding: 6px 12px; font-size: 11px; letter-spacing: 0.12em;
+  }
+  .stage-label { left: 16px; color: var(--accent); }
+  .stage-mode { right: 16px; }
+  .metrics {
+    position: absolute; left: 16px; bottom: 16px; display: flex; gap: 10px;
+  }
+  .metric {
+    background: var(--glass); backdrop-filter: blur(12px);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 10px; min-width: 92px;
+  }
+  .metric span { display: block; font-size: 10px; color: var(--fg-dim); letter-spacing: 0.08em; }
+  .metric b { font-size: 14px; }
+  .action {
+    margin: 16px 0 20px; display: flex; gap: 12px; align-items: center;
+  }
+  .primary {
+    background: var(--primary); color: white; border: 0;
+    border-radius: var(--radius); padding: 14px 22px;
+    font-weight: 600; letter-spacing: 0.02em;
+    box-shadow: 0 0 24px oklch(0.55 0.18 250 / 0.35);
+  }
+  .ghost {
+    background: transparent; color: var(--destructive);
+    border: 1px solid oklch(0.55 0.22 25 / 0.5);
+    border-radius: var(--radius); padding: 14px 18px;
+  }
+  .timer { color: var(--warning); font-size: 14px; margin-left: auto; }
+  .panels { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .panel {
+    background: var(--glass); backdrop-filter: blur(12px);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px;
+  }
+  .panel h2 {
+    font-size: 11px; letter-spacing: 0.14em; color: var(--fg-dim);
+    margin-bottom: 12px; font-weight: 600;
+  }
+  .chip {
+    display: inline-block; margin: 0 8px 8px 0; padding: 6px 10px;
+    border: 1px solid var(--border); border-radius: 999px; font-size: 12px;
+  }
+  .chip.on { border-color: var(--accent); color: var(--accent); }
+  .log { font-size: 12px; line-height: 1.7; color: var(--fg-dim); }
+  .ok { color: var(--success); }
+  .info { color: var(--accent); }
+</style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="mark"></div>
+      <div><strong>VC NODE</strong><small>FRISKY DEVELOPMENTS</small></div>
+    </div>
+    <div class="live"><i></i> NODE ONLINE · TELEGRAM · DJ</div>
+  </header>
+  <section class="stage" data-figma-frame="Live Surface 1440">
+    <div class="stage-label">PREVIEW · LOOP + AUDIO</div>
+    <div class="stage-mode">MODE DJ · FALLBACK</div>
+    <div class="metrics">
+      <div class="metric mono"><span>QUALITY</span><b>88%</b></div>
+      <div class="metric mono"><span>LATENCY</span><b>42 ms</b></div>
+      <div class="metric mono"><span>FPS</span><b>30</b></div>
+      <div class="metric mono"><span>BITRATE</span><b>2.4 M</b></div>
+      <div class="metric mono"><span>LOSS</span><b>0.1%</b></div>
+    </div>
+  </section>
+  <div class="action">
+    <button class="primary">Start DJ Mode</button>
+    <button class="ghost">Emergency Stop</button>
+    <div class="timer mono">OPERATOR 01:12</div>
+  </div>
+  <section class="panels">
+    <div class="panel">
+      <h2>PROTOCOLS</h2>
+      <span class="chip on">DJ Mode</span>
+      <span class="chip">ClipsFlow</span>
+      <span class="chip">Virtual Camera</span>
+      <span class="chip">RTMP</span>
+    </div>
+    <div class="panel">
+      <h2>DJ AUDIO</h2>
+      <span class="chip on">STIX Library</span>
+      <span class="chip">ClipsFlow Pack</span>
+      <span class="chip">Session Pack</span>
+      <span class="chip">Spotify optional</span>
+    </div>
+    <div class="panel">
+      <h2>DIAGNOSTICS</h2>
+      <div class="log mono">
+        <div class="ok">03:12:04 SESSION operator window completed</div>
+        <div class="info">03:12:05 ROUTING fallback initiated</div>
+        <div class="ok">03:12:06 SESSION DJ Mode active</div>
+      </div>
+    </div>
+  </section>
+</body>
+</html>

@@ -4,10 +4,12 @@ import { resolve } from 'path'
 export default defineConfig({
   test: {
     environment: 'jsdom',
-    include: ['src/**/*.test.ts', 'server/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'server/**/*.test.ts', 'workers/**/*.test.ts'],
     environmentMatchGlobs: [
       ['server/**', 'node'],
+      ['workers/**', 'node'],
     ],
+    setupFiles: ['./src/test/setup.ts'],
   },
   resolve: {
     alias: {

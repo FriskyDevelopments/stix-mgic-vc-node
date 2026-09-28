@@ -12,38 +12,22 @@
  */
 import { useEffect, useState } from 'react'
 import { apiUrl } from '@/lib/api-client'
-
-export type RuntimeCapability = {
-  ready: boolean
-  reason: string
-}
+import type { NebuSocialProvider } from '@/lib/nebu-auth-client'
 
 export type PublicConfig = {
   discordClientId: string | null
   telegramBotUsername: string | null
   authRequired: boolean
   mediaPlaneEnabled: boolean
+  publicRoomsEnabled?: boolean
   friskydevEnabled: boolean
   friskydevIdConfigured: boolean
   supabaseIdentityConfigured: boolean
-  supabaseUrl: string | null
-  supabasePublishableKey: string | null
-  spotifyClientId: string | null
+  spotifyClientId?: string | null
   identityProvider: string
   identityReady: boolean
-  identityProviders?: Array<{
-    id: 'google' | 'apple' | 'microsoft' | 'friskydev-id'
-    label: string
-    ready: boolean
-    method: 'supabase' | 'oidc'
-    start?: string
-  }>
-  capabilities: {
-    telegramAuth: RuntimeCapability
-    discordAuth: RuntimeCapability
-    telegramVc: RuntimeCapability
-    discordVoice: RuntimeCapability
-  }
+  nebuBetterAuthConfigured?: boolean
+  nebuSocialProviders?: NebuSocialProvider[]
 }
 
 let cached: PublicConfig | null = null
