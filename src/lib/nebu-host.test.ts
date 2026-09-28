@@ -4,6 +4,10 @@ import { isNebuHostname, isNebuStudioRoute, roomInvitePath } from './nebu-host'
 describe('NEBU studio routing', () => {
   it('treats the apex and studio subdomain as NEBU hosts', () => {
     expect(isNebuHostname('nebu.quest')).toBe(true)
+    expect(isNebuHostname('stix-mgic-vc-node.zeabur.app')).toBe(true)
+    expect(isNebuStudioRoute('/', 'stix-mgic-vc-node.zeabur.app')).toBe(false)
+    expect(isNebuStudioRoute('/login', 'stix-mgic-vc-node.zeabur.app')).toBe(false)
+    expect(isNebuStudioRoute('/studio', 'stix-mgic-vc-node.zeabur.app')).toBe(true)
     expect(isNebuHostname('studio.nebu.quest')).toBe(true)
     expect(isNebuHostname('vc.friskydev.com')).toBe(false)
     expect(isNebuHostname('localhost')).toBe(false)
