@@ -717,6 +717,108 @@ describe('room REST API', () => {
     }
   })
 
+  it('guards every live-control route, exact and nested (Hono matches exact paths only without /*)', async () => {
+    // Regression for the 2026-09-28 rooms audit: `app.use('/v1/music', mw)` alone leaves
+    // `/v1/music/artwork` ungated, and `app.use('/v1/playlists/*', mw)` alone leaves the
+    // bare collection path open. If a future route adds only one registration form, this
+    // fails with the unguarded path instead of shipping a hole.
+    const app = createApp()
+    const guarded: Array<{ path: string; method?: string; body?: Record<string, unknown> }> = [
+      { path: '/v1/playlists' },
+      { path: '/v1/playlists', method: 'POST', body: { name: 'probe' } },
+      { path: '/v1/playlists/probe-id/items', method: 'POST', body: { url: 'https://example.com/x.mp4' } },
+      { path: '/v1/playlists/probe-id/play', method: 'POST' },
+      { path: '/v1/playlists/probe-id/next', method: 'POST' },
+      { path: '/v1/stickers' },
+      { path: '/v1/stickers/upload', method: 'POST', body: { name: 'x.png', data: Buffer.from('x').toString('base64') } },
+      { path: '/v1/media' },
+      { path: '/v1/media/files' },
+      { path: '/v1/media/upload', method: 'POST', body: { name: 'x.mp4', data: Buffer.from('x').toString('base64') } },
+      { path: '/v1/audio' },
+      { path: '/v1/audio/devices' },
+      { path: '/v1/audio/source', method: 'POST', body: { source: 'mic' } },
+      { path: '/v1/music' },
+      { path: '/v1/music/artwork?id=1' },
+      { path: '/v1/music/artwork/cache', method: 'POST', body: { id: '1' } },
+      { path: '/v1/music/artwork/file/1' },
+      { path: '/v1/recap' },
+      { path: '/v1/recap/export', method: 'POST', body: { provider: 'dropbox', accessToken: 'x', recap: {} } },
+      { path: '/v1/telegram-vc/status' },
+      { path: '/v1/rtmp/publish' },
+    ]
+    for (const entry of guarded) {
+      const res = await app.request(entry.path, {
+        method: entry.method || 'GET',
+        headers: entry.body ? { 'Content-Type': 'application/json' } : undefined,
+        body: entry.body ? JSON.stringify(entry.body) : undefined,
+      })
+      expect(res.status, entry.path).toBe(401)
+    }
+  })
+
+  it('refuses the SFU session bootstrap to anonymous callers, without revealing SFU config', async () => {
+    // `POST /v1/media/sfu/session` sits outside `requireLiveOperator` by position, so an
+    // inline identity check keeps the operator boundary. 401 — not 503 — so an anonymous
+    // caller cannot distinguish "no SFU configured" from "SFU live but gated".
+    const app = createApp()
+    const anonymous = await app.request('/v1/media/sfu/session', { method: 'POST' })
+    expect(anonymous.status).toBe(401)
+
+    const forged = await app.request('/v1/media/sfu/session', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer not.a.real.token' },
+    })
+    expect(forged.status).toBe(401)
+
+    const operatorToken = mintOperatorToken({ sub: 'sfu-op', platform: 'friskydev', name: 'SFU' })
+    const operator = await app.request('/v1/media/sfu/session', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${operatorToken}` },
+    })
+    // No Cloudflare Realtime credentials in test env: the gate passes, the feature 503s.
+    expect(operator.status).toBe(503)
+  })
+
+  it('rejects telemetry that is not finite numbers inside its physical range', async () => {
+    const app = createApp()
+    const created = await app.request('/v1/rooms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+    const { room } = await created.json() as { room: { id: string } }
+    joinRoom(room.id, { operatorId: 'anonymous:local', name: 'Tester' })
+
+    const good = {
+      signalQuality: 91, latency: 38, frameRate: 30, bitrate: 1800, packetLoss: 0.4,
+    }
+    const badBodies: unknown[] = [
+      { ...good, signalQuality: 'excellent' },
+      { ...good, latency: Number.NaN },
+      { ...good, frameRate: Number.POSITIVE_INFINITY },
+      { ...good, bitrate: -1 },
+      { ...good, packetLoss: 101 },
+      { ...good, signalQuality: undefined },
+      null,
+      'not-json-at-all',
+    ]
+    for (const bad of badBodies) {
+      const res = await app.request(`/v1/rooms/${room.id}/telemetry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: typeof bad === 'string' ? bad : JSON.stringify(bad),
+      })
+      expect(res.status, JSON.stringify(bad)).toBe(400)
+    }
+
+    const ok = await app.request(`/v1/rooms/${room.id}/telemetry`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(good),
+    })
+    expect(ok.status).toBe(200)
+  })
+
   it('handles playlist routes: create, add items, list (auth required)', async () => {
     const app = createApp()
     const token = mintOperatorToken({ sub: 'dj-op', platform: 'friskydev', name: 'DJ' })
@@ -775,8 +877,84 @@ describe('room REST API', () => {
       headers: { Authorization: `Bearer ${token}` },
     })
     expect(artRes.status).toBe(200)
-    const artBody = (await artRes.json()) as { artworkUrl: string }
+    const artBody = (await artRes.json()) as { artworkUrl: string; listenLink: string | null; cachedArtworkUrl: string | null }
     expect(artBody.artworkUrl).toBeDefined()
+    expect(artBody.listenLink).toBeDefined()
+    expect(artBody.cachedArtworkUrl).toBeDefined()
+  })
+
+  it('serves the universal listen link for a resolved track, honestly for an unknown id', async () => {
+    const app = createApp()
+    const good = await app.request('/l/1440857795')
+    expect(good.status).toBe(200)
+    const goodHtml = await good.text()
+    expect(goodHtml).toContain('music.apple.com')
+    expect(goodHtml).not.toContain('Track not found')
+
+    const missing = await app.request('/l/0')
+    expect(missing.status).toBe(200)
+    expect(await missing.text()).toContain('Track not found')
+  })
+
+  it('caches resolved artwork to the node volume and serves the bytes', async () => {
+    const app = createApp()
+    const token = mintOperatorToken({ sub: 'cache-op', platform: 'friskydev', name: 'Cache' })
+    const auth = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+    const cached = await app.request('/v1/music/artwork/cache', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ id: 'Banana Pancakes Jack Johnson' }),
+    })
+    // Live iTunes fetch: passes when the network answers, 404/502 with a clear error
+    // when iTunes has no result or the sandbox has no network. Never a wrong file.
+    expect([200, 404, 502]).toContain(cached.status)
+    if (cached.status === 200) {
+      const body = await cached.json() as { id: string; cachedArtworkUrl: string; listenLink: string }
+      expect(body.listenLink).toBe(`/l/${body.id}`)
+      const file = await app.request(body.cachedArtworkUrl, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      expect(file.status).toBe(200)
+      expect(file.headers.get('content-type')).toContain('image/')
+    }
+  })
+
+  it('refuses artwork cache for an id iTunes cannot resolve', async () => {
+    const app = createApp()
+    const token = mintOperatorToken({ sub: 'cache-op', platform: 'friskydev', name: 'Cache' })
+    const res = await app.request('/v1/music/artwork/cache', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: '' }),
+    })
+    expect(res.status).toBe(400)
+  })
+
+  it('exports recaps to the operator cloud with a one-time token, gated like live-control', async () => {
+    const app = createApp()
+    const gated = await app.request('/v1/recap/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider: 'dropbox', accessToken: 'x', recap: {} }),
+    })
+    expect(gated.status).toBe(401)
+
+    const token = mintOperatorToken({ sub: 'recap-op', platform: 'friskydev', name: 'Recap' })
+    const auth = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+    const unknown = await app.request('/v1/recap/export', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ provider: 'icloud', accessToken: 'x', recap: {} }),
+    })
+    expect(unknown.status).toBe(400)
+    expect((await unknown.json() as { error: string }).error).toContain('google-drive')
+
+    const empty = await app.request('/v1/recap/export', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ provider: 'dropbox', accessToken: '', recap: {} }),
+    })
+    expect(empty.status).toBe(400)
   })
 
   it('handles media upload and listing endpoints', async () => {

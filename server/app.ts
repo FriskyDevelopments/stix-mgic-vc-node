@@ -61,7 +61,10 @@ import {
 } from './playlist-store'
 import { listStickers, saveSticker } from './stickers'
 import { getAvailableAudioDevices, setActiveAudioSource, type AudioSourceKind } from './audio-devices'
-import { lookupMusicArtwork } from './music-artwork'
+import { lookupMusicArtwork, cachedArtworkUrl, cacheMusicArtwork } from './music-artwork'
+import { readCachedArtworkBytes } from './artwork-cache'
+import { composeListenTarget, listenLinkPath } from './listen-link'
+import { isRecapProvider, uploadRecap, type RecapProvider } from './recap-export'
 import { listMediaFiles, saveMediaFile } from './media-upload'
 import { oidcCallback, oidcLogout, oidcMe, oidcStart, sessionClaimsFromCookie } from './oidc'
 import { supabaseSession } from './supabase-auth'
@@ -816,7 +819,14 @@ export function createApp() {
   // to the operator plane. The app secret never leaves the server; the client receives only
   // the session id it negotiates its push/pull tracks against. 503 when the SFU is not
   // configured so the client falls back to mesh rather than silently believing it scaled.
+  //
+  // Gated (2026-09-28 rooms audit): this route sits outside `requireLiveOperator` by
+  // position, so it checks admission inline. An anonymous caller — local mode or public
+  // room — must never learn whether the SFU is configured, hence 401 before the 503.
   app.post('/v1/media/sfu/session', async (c) => {
+    if (!hasOperatorIdentity(c)) {
+      return c.json({ error: 'Operator token required' }, 401)
+    }
     if (!env.cloudflareRealtimeConfigured) {
       return c.json({ error: 'Cloudflare Realtime SFU is not configured on this node' }, 503)
     }
@@ -885,14 +895,39 @@ export function createApp() {
       return c.json({ error: 'Not in this room' }, 403)
     }
 
+    // Reported, never invented — and never trusted blindly. Clamp the measurement to
+    // finite numbers inside the unit's physical range before storing it: the snapshot is
+    // served to every participant's UI and to `currentTelemetry`, so a hostile peer could
+    // otherwise push NaN/Infinity through the room view into other browsers' charts.
     const body = await c.req.json<{
       signalQuality: number
       latency: number
       frameRate: number
       bitrate: number
       packetLoss: number
-    }>()
-    const recorded = recordTelemetry(roomId, operatorId, body)
+    }>().catch(() => null)
+    const clamp = (value: unknown, min: number, max: number): number | null => {
+      if (typeof value !== 'number' || !Number.isFinite(value)) return null
+      if (value < min || value > max) return null
+      return value
+    }
+    const measurement = body ? {
+      signalQuality: clamp(body.signalQuality, 0, 100),
+      latency: clamp(body.latency, 0, 60_000),
+      frameRate: clamp(body.frameRate, 0, 240),
+      bitrate: clamp(body.bitrate, 0, 100_000),
+      packetLoss: clamp(body.packetLoss, 0, 100),
+    } : null
+    if (!measurement || Object.values(measurement).some((value) => value === null)) {
+      return c.json({ error: 'Telemetry must be finite numbers inside their physical range' }, 400)
+    }
+    const recorded = recordTelemetry(roomId, operatorId, measurement as {
+      signalQuality: number
+      latency: number
+      frameRate: number
+      bitrate: number
+      packetLoss: number
+    })
     if (!recorded) return c.json({ error: 'Room not found' }, 404)
     return c.json(recorded)
   })
@@ -972,6 +1007,14 @@ export function createApp() {
 
   // Shared operator gate for live-control surfaces (Telegram VC, playlists, uploads).
   // Accepts HttpOnly vc_session cookie, FriskyDev bearer, or operator bearer — never anonymous.
+  //
+  // Hono path-matching gotcha (2026-09-28 audit): `app.use(pattern, mw)` with anything OTHER
+  // than a trailing `/*` matches ONLY that exact path — `app.use('/v1/music', mw)` does NOT
+  // guard `/v1/music/artwork`, and the wildcard form guards subpaths but NOT the bare
+  // collection path (`GET /v1/playlists` vs `/v1/playlists/x`). Every surface below is
+  // therefore registered TWICE — exact + wildcard — and that pairing is asserted by
+  // `server/app.test.ts` ("guards every live-control route, exact and nested").
+  // New live-control routes must follow the same pairing or they ship UNGATED.
   const requireLiveOperator = async (c: Context<{ Variables: Variables }>, next: () => Promise<void>) => {
     const header = c.req.header('authorization') || ''
     const token = header.startsWith('Bearer ') ? header.slice(7) : ''
@@ -1013,6 +1056,21 @@ export function createApp() {
     return tenant
   }
 
+  /**
+   * Whether the caller proved an operator identity: HttpOnly `vc_session` cookie,
+   * FriskyDev bearer, or HMAC operator bearer. Anonymous (no credential at all) is
+   * false. Used by routes registered outside `requireLiveOperator` that still need
+   * the operator boundary — see `POST /v1/media/sfu/session`.
+   */
+  const hasOperatorIdentity = (c: Context<{ Variables: Variables }>): boolean => {
+    const header = c.req.header('authorization') || ''
+    const token = header.startsWith('Bearer ') ? header.slice(7) : ''
+    const cookieClaims = !token ? sessionClaimsFromCookie(c.req.header('cookie')) : null
+    if (cookieClaims) return true
+    if (!token) return false
+    return Boolean(verifyFriskyDevToken(token) || verifyOperatorToken(token))
+  }
+
   // A Telegram MTProto session can control live call participants. Keep this surface
   // behind the same operator authentication boundary as rooms. In particular, the
   // primary Supabase social-login flow uses the HttpOnly vc_session cookie, not a
@@ -1032,6 +1090,8 @@ export function createApp() {
   app.use('/v1/audio', requireLiveOperator)
   app.use('/v1/music/*', requireLiveOperator)
   app.use('/v1/music', requireLiveOperator)
+  app.use('/v1/recap/*', requireLiveOperator)
+  app.use('/v1/recap', requireLiveOperator)
 
   // RTMP credentials are the keys to publish into the live pipeline. They follow the
   // same social-session/operator-token boundary as the Telegram VC controls.
@@ -1302,13 +1362,114 @@ export function createApp() {
     return c.json({ file: f })
   })
 
-  // Apple music artwork (Bug 9) - simple lookup
+  // Apple Music artwork (Folio pattern: store the source id once, resolve from the id).
+  // `GET /v1/music/artwork?id=` resolves metadata + remote artwork through the free
+  // iTunes lookup (no OAuth, no secrets) and reports whether the node volume already
+  // holds the cached file. `POST /v1/music/artwork/cache` fetches the 600px artwork
+  // onto the volume, so the overlay/sticker pipeline can composite it as a static
+  // image source without another network fetch (VIDEO-PIPELINE.md §3).
   app.get('/v1/music/artwork', async (c) => {
     const id = c.req.query('id')
     if (!id) return c.json({ error: 'id required' }, 400)
     const art = await lookupMusicArtwork(id)
-    return c.json(art)
+    return c.json({
+      ...art,
+      cachedArtworkUrl: art.source === 'itunes' ? cachedArtworkUrl(art.id) : null,
+      listenLink: art.source === 'itunes' ? listenLinkPath(art.id) : null,
+    })
+  })
+  app.post('/v1/music/artwork/cache', async (c) => {
+    const body = await c.req.json<{ id?: string }>().catch(() => ({} as { id?: string }))
+    const id = (body.id || '').trim()
+    if (!id) return c.json({ error: 'id required' }, 400)
+    const art = await lookupMusicArtwork(id)
+    if (art.source !== 'itunes') {
+      return c.json({ error: 'No iTunes artwork for this id — nothing to cache' }, 404)
+    }
+    const cachedUrl = await cacheMusicArtwork(art.id, art.artworkUrl)
+    if (!cachedUrl) {
+      return c.json({ error: 'Could not cache artwork (fetch refused or volume unavailable)' }, 502)
+    }
+    return c.json({ id: art.id, cachedArtworkUrl: cachedUrl, listenLink: listenLinkPath(art.id) })
+  })
+  // The cached bytes, served to the dashboard and to the sticker/overlay pipeline as a
+  // static image source. Operator-gated like every other /v1/music route; the file the
+  // id maps to is a content hash, so enumeration buys an attacker nothing.
+  app.get('/v1/music/artwork/file/:id', async (c) => {
+    const id = c.req.param('id')
+    const bytes = readCachedArtworkBytes(id)
+    if (!bytes) return c.json({ error: 'No cached artwork for this id' }, 404)
+    return new Response(bytes, {
+      headers: {
+        'content-type': 'image/jpeg',
+        'cache-control': 'public, max-age=86400',
+      },
+    })
+  })
 
+  // Universal listen link: GET /l/:trackId — one resolved track, one link that opens
+  // in the listener's own service (docs: server/listen-link.ts). Served from the node,
+  // not the landing bundle: nebu.quest takes no redirects (DEPLOY.md:42), and the DJ
+  // MVP spec (§2.4) puts the link next to the bot that sends it. Public by design —
+  // the page carries only already-public iTunes metadata, and an unknown id renders
+  // an honest "not found" instead of a wrong track.
+  app.get('/l/:trackId', async (c) => {
+    const trackId = c.req.param('trackId')
+    const art = await lookupMusicArtwork(trackId)
+    const target = art.source === 'itunes'
+      ? composeListenTarget({ listenUrl: art.listenUrl, artist: art.artist, title: art.title })
+      : null
+    const title = art.source === 'itunes' ? `${art.title} — ${art.artist}` : 'Track not found'
+    const destination = target
+      ? target.kind === 'apple' ? 'Apple Music' : 'Spotify search'
+      : null
+    const safe = (value: string): string =>
+      value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+    return c.html(
+      `<!doctype html><html lang="en"><head><meta charset="utf-8">` +
+      `<meta name="viewport" content="width=device-width, initial-scale=1">` +
+      `<title>${safe(title)} · NEBU</title>` +
+      (target ? `<meta http-equiv="refresh" content="1;url=${safe(target.url)}">` : `<meta name="robots" content="noindex">`) +
+      `<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0B001A;color:#F7F5F2;font-family:system-ui,sans-serif}` +
+      `main{text-align:center;padding:24px}h1{font-size:20px;margin:0 0 8px}p{color:#b9b3c7;font-size:14px;margin:0 0 16px}` +
+      `a{display:inline-block;padding:12px 22px;border-radius:999px;background:#B7FF2A;color:#0B001A;font-weight:700;text-decoration:none}</style>` +
+      `</head><body><main><h1>${safe(title)}</h1>` +
+      (target
+        ? `<p>Opens in your service (${safe(destination || '')}).</p><a href="${safe(target.url)}">Listen</a>`
+        : `<p>No iTunes result for this id. Ask the DJ for the title.</p>`) +
+      `</main></body></html>`
+    )
+  })
+
+  // Recap export: POST /v1/recap/export — the operator's browser hands the node a
+  // SHORT-LIVED operator OAuth token + the recap JSON; the node uploads the bytes to
+  // the operator's own Google Drive / OneDrive / Dropbox and forgets the token.
+  // Operator-gated like every live-control route; the token never touches a query
+  // string, a log, or the disk. Docs + owner OAuth setup: docs/RECAP-EXPORT.md.
+  // iCloud has no upload API — Apple devices save to the synced folder instead.
+  app.post('/v1/recap/export', async (c) => {
+    const body = await c.req.json<{
+      provider?: string
+      accessToken?: string
+      recap?: Record<string, unknown>
+      filename?: string
+    }>().catch(() => ({} as { provider?: string; accessToken?: string; recap?: Record<string, unknown>; filename?: string }))
+    if (!isRecapProvider(body.provider)) {
+      return c.json({ error: 'Unknown provider. Expected google-drive|onedrive|dropbox (iCloud: save to the synced folder — see docs/RECAP-EXPORT.md)' }, 400)
+    }
+    try {
+      const result = await uploadRecap({
+        provider: body.provider as RecapProvider,
+        accessToken: body.accessToken || '',
+        recap: body.recap || {},
+        filename: body.filename,
+      })
+      return c.json(result)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Recap export failed'
+      const status = /access token|JSON object|bytes of JSON|Unknown recap provider/.test(message) ? 400 : 502
+      return c.json({ error: message }, status)
+    }
   })
 
   return app
