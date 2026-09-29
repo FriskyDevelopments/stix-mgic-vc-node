@@ -125,6 +125,20 @@ export function createPlaylist(tenantId: string, name: string): Playlist {
   return playlist
 }
 
+/**
+ * The DJ queue seed for the `/dj` group flow (DJ MVP spec §2.3): get-or-create the
+ * tenant's "NEBU DJ" playlist by name. Items carry `{ url: <node listen link>,
+ * title: "<title> — <artist>" }` so the queue entry IS the shareable link — the
+ * Folio pattern applied to the queue itself (store the id once, render from it).
+ */
+export function ensureDjPlaylist(tenantId: string): Playlist {
+  const map = loadTenantPlaylists(tenantId)
+  for (const playlist of map.values()) {
+    if (playlist.name.trim().toLowerCase() === 'nebu dj') return playlist
+  }
+  return createPlaylist(tenantId, 'NEBU DJ')
+}
+
 export function addPlaylistItem(
   tenantId: string,
   playlistId: string,

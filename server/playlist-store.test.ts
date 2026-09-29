@@ -3,6 +3,7 @@ import {
   createPlaylist,
   listPlaylists,
   addPlaylistItem,
+  ensureDjPlaylist,
   playPlaylist,
   nextPlaylistItem,
   prevPlaylistItem,
@@ -102,5 +103,28 @@ describe('playlist-store', () => {
     const resumed = resumePlaylist(tenant, p.id)
     expect(resumed?.playing).toBe(true)
     expect(telegramVcAdapter.resume).toHaveBeenCalled()
+  })
+
+  it('resolves the NEBU DJ playlist by name: creates once, reuses after', () => {
+    const first = ensureDjPlaylist(tenant)
+    expect(first.name).toBe('NEBU DJ')
+    const second = ensureDjPlaylist(tenant)
+    expect(second.id).toBe(first.id)
+    expect(listPlaylists(tenant)).toHaveLength(1)
+  })
+
+  it('keeps the NEBU DJ playlist tenant-isolated', () => {
+    const mine = ensureDjPlaylist(tenant)
+    const theirs = ensureDjPlaylist('other-tenant')
+    expect(theirs.id).not.toBe(mine.id)
+  })
+
+  it('does not mistake a same-cased lookalike for the DJ playlist seed', () => {
+    // `ensureDjPlaylist` matches case-insensitively by design (a "nebu dj" left by an
+    // older build is the same queue), but a DIFFERENT name never matches.
+    createPlaylist(tenant, 'NEBU DJ set friday')
+    const resolved = ensureDjPlaylist(tenant)
+    expect(resolved.name).toBe('NEBU DJ')
+    expect(listPlaylists(tenant)).toHaveLength(2)
   })
 })
