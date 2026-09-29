@@ -4,12 +4,14 @@ import { MediaDisclosure } from '@/components/MediaDisclosure'
 import { GlassCard } from '@/components/GlassCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { MediaCompositor, AudioMixer, combineStreams } from '@/lib/compositor'
 import type { OverlayConfig } from '@/lib/compositor'
 import type { SpotifyTrack } from '@/lib/spotify'
+import { cacheAppleMusicArtwork, listenLinkUrl, lookupAppleMusic, type AppleMusicArtwork } from '@/lib/apple-music'
 import { OverlayCompositorControl } from '@/components/OverlayCompositorControl'
 import type { OverlayOutput } from '@/lib/overlay-session'
 
@@ -31,10 +33,17 @@ type DeviceInfo = { deviceId: string; label: string }
 export function DJModePanel({
   onOutputStream,
   spotifyTrack = null,
+  appleMusicSourceId = null,
 }: {
   onOutputStream?: (stream: MediaStream | null) => void
   /** The confirmed now-playing track, never a pending library selection. */
   spotifyTrack?: SpotifyTrack | null
+  /**
+   * Folio-stored Apple Music source id. When set, the artwork source resolves through
+   * the node's iTunes lookup (no OAuth) instead of the Spotify now-playing track —
+   * the Folio pattern: store the id once, render from the id.
+   */
+  appleMusicSourceId?: string | null
 }) {
   const compositorRef = useRef<MediaCompositor | null>(null)
   const mixerRef = useRef<AudioMixer | null>(null)
@@ -63,6 +72,21 @@ export function DJModePanel({
   const [artworkState, setArtworkState] = useState<'idle' | 'loading' | 'ready' | 'error' | 'missing'>('idle')
   const artworkUrl = spotifyTrack?.album?.images?.[0]?.url || ''
   const artworkTrackId = spotifyTrack?.id || ''
+  // Apple Music (Folio pattern): resolved server-side from the stored source id, so the
+  // compositor gets a node-served image with no Spotify session involved.
+  const [appleMusic, setAppleMusic] = useState<AppleMusicArtwork | null>(null)
+  const [appleMusicState, setAppleMusicState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
+  const [appleMusicCaching, setAppleMusicCaching] = useState(false)
+  const [appleMusicId, setAppleMusicId] = useState('')
+  const resolvedArtworkUrl = appleMusicState === 'ready' && appleMusic?.artworkUrl
+    ? appleMusic.artworkUrl
+    : artworkUrl
+  const resolvedArtworkTrackId = appleMusicState === 'ready' && appleMusic
+    ? `apple:${appleMusic.id}`
+    : artworkTrackId
+  const resolvedArtworkLabel = appleMusicState === 'ready' && appleMusic
+    ? `${appleMusic.title} · ${appleMusic.artist}`
+    : `${spotifyTrack?.name} · ${spotifyTrack?.artists.map(artist => artist.name).join(', ')}`
   const sourceChoiceRef = useRef<VideoSourceType>('none')
 
   const [micGain, setMicGain] = useState(80)
@@ -168,6 +192,54 @@ export function DJModePanel({
     setFileDetails('')
   }, [invalidatePreview, releaseCamera, releaseFile])
 
+  // Apple Music source-id resolution (Folio pattern). The stored id resolves through
+  // the node's iTunes lookup; a resolved remote URL is cached to the node volume on
+  // demand so the overlay pipeline composites node-served bytes. Runs once per id —
+  // never per render — and a failed lookup keeps the Spotify path untouched.
+  useEffect(() => {
+    const sourceId = (appleMusicSourceId ?? '').trim()
+    if (!sourceId) { setAppleMusic(null); setAppleMusicState('idle'); return }
+    let active = true
+    setAppleMusicState('loading')
+    lookupAppleMusic(sourceId).then(result => {
+      if (!active) return
+      if (result.source !== 'itunes') { setAppleMusic(null); setAppleMusicState('error'); return }
+      setAppleMusic(result)
+      setAppleMusicState('ready')
+    }).catch(() => {
+      if (active) { setAppleMusic(null); setAppleMusicState('error') }
+    })
+    return () => { active = false }
+  }, [appleMusicSourceId])
+
+  async function cacheResolvedArtwork() {
+    if (!appleMusic || appleMusic.source !== 'itunes' || appleMusicCaching) return
+    setAppleMusicCaching(true)
+    try {
+      const cached = await cacheAppleMusicArtwork(appleMusic.id)
+      setAppleMusic(current => current ? { ...current, cached: true, cachedArtworkUrl: cached.cachedArtworkUrl } : current)
+      toast.success('Artwork cached on the node', { description: 'The overlay pipeline can now composite it as a static image source.' })
+    } catch (error) {
+      toast.error('Could not cache artwork', { description: error instanceof Error ? error.message : '' })
+    } finally {
+      setAppleMusicCaching(false)
+    }
+  }
+
+  async function resolveAppleMusicId() {
+    const query = appleMusicId.trim()
+    if (!query) return
+    setAppleMusicState('loading')
+    try {
+      const result = await lookupAppleMusic(query)
+      if (result.source !== 'itunes') { setAppleMusic(null); setAppleMusicState('error'); return }
+      setAppleMusic(result)
+      setAppleMusicState('ready')
+    } catch {
+      setAppleMusic(null); setAppleMusicState('error')
+    }
+  }
+
   useEffect(() => {
     if (videoSource !== 'spotify-artwork') return
     let active = true
@@ -175,9 +247,9 @@ export function DJModePanel({
     generationRef.current += 1
     invalidatePreview()
     compositorRef.current?.setSource({ type: 'none' })
-    if (!artworkUrl) { setArtworkState('missing'); return }
+    if (!resolvedArtworkUrl) { setArtworkState('missing'); return }
     try {
-      if (new URL(artworkUrl).protocol !== 'https:') throw new Error('Artwork requires HTTPS')
+      if (new URL(resolvedArtworkUrl).protocol !== 'https:') throw new Error('Artwork requires HTTPS')
     } catch { setArtworkState('error'); return }
     setArtworkState('loading')
     const image = new Image()
@@ -190,9 +262,9 @@ export function DJModePanel({
       setArtworkState('ready')
     }
     image.onerror = () => { if (active) setArtworkState('error') }
-    image.src = artworkUrl
+    image.src = resolvedArtworkUrl
     return () => { active = false; image.onload = null; image.onerror = null }
-  }, [videoSource, artworkUrl, artworkTrackId, invalidatePreview])
+  }, [videoSource, resolvedArtworkUrl, resolvedArtworkTrackId, invalidatePreview])
 
   const acquireCamera = async (deviceId: string): Promise<MediaStream | null> => {
     const generation = generationRef.current
@@ -429,8 +501,28 @@ export function DJModePanel({
             </div>
           )}
           {videoSource === 'spotify-artwork' && <div className="space-y-1 text-xs text-muted-foreground">
-            <p role="status">{artworkState === 'ready' ? `${spotifyTrack?.name} · ${spotifyTrack?.artists.map(artist => artist.name).join(', ')}` : artworkState === 'loading' ? 'Loading current Spotify artwork…' : artworkState === 'error' ? 'This artwork could not be loaded for the video source. Try another track.' : 'Play a track with artwork in the Spotify player to use it here.'}</p>
+            <p role="status">{artworkState === 'ready' ? resolvedArtworkLabel : artworkState === 'loading' ? 'Loading current artwork…' : artworkState === 'error' ? 'This artwork could not be loaded for the video source. Try another track.' : 'Play a track with artwork in the Spotify player, or resolve an Apple Music source id below.'}</p>
             <p>Album image only. Spotify audio stays on your selected player; animated Spotify Canvas videos are not available here.</p>
+            <div className="space-y-1" data-testid="apple-music-resolve">
+              <p role="status">{appleMusicState === 'loading' ? 'Resolving Apple Music artwork…' : appleMusicState === 'error' ? 'No Apple Music artwork for that id. Check the id and try again.' : appleMusicState === 'ready' && appleMusic ? `${appleMusic.title} · ${appleMusic.artist} · ${appleMusic.album}` : 'Apple Music: no source id resolved yet.'}</p>
+              <div className="flex gap-2 pt-1">
+                <Input
+                  value={appleMusicId}
+                  onChange={(e) => setAppleMusicId(e.target.value)}
+                  placeholder="Apple Music id or title — artist"
+                  aria-label="Apple Music source id or search"
+                  className="h-8 font-mono text-[11px]"
+                />
+                <Button size="sm" variant="outline" className="h-8 font-mono text-[10px]" onClick={() => void resolveAppleMusicId()}>Resolve</Button>
+              </div>
+              {appleMusicState === 'ready' && appleMusic && <div className="space-y-1">
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" className="h-8 font-mono text-[10px]" disabled={appleMusicCaching || appleMusic.cached} onClick={() => void cacheResolvedArtwork()}>{appleMusic.cached ? 'Cached on node' : appleMusicCaching ? 'Caching…' : 'Cache on node'}</Button>
+                  {appleMusic.listenLink && <a className="inline-flex h-8 items-center rounded border border-white/15 px-3 font-mono text-[10px] text-cyan-200" href={listenLinkUrl(appleMusic.id)} target="_blank" rel="noopener noreferrer">Open listen link</a>}
+                </div>
+                <p>Cached artwork composites from the node volume — no Spotify session needed.</p>
+              </div>}
+            </div>
           </div>}
         </div>
 

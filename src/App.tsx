@@ -26,6 +26,7 @@ import { TelegramVcPanel } from "@/components/TelegramVcPanel"
 import { MediaDisclosure, openMediaDisclosure } from "@/components/MediaDisclosure"
 import { DJModePanel } from "@/components/DJModePanel"
 import { CreatorTools } from "@/components/CreatorTools"
+import { RecapExport } from "@/components/RecapExport"
 import { NodeOperationsBoard } from "@/components/NodeOperationsBoard"
 import { 
   Broadcast, 
@@ -1121,6 +1122,17 @@ function LegacyControlPlane() {
                     onSpotifyDisconnect={handleSpotifyDisconnect}
                     onSpotifyPlaybackChange={setSpotifyPlayback}
                   />
+                <RecapExport
+                  roomId={roomId}
+                  buildRecap={() => roomId ? {
+                    roomId,
+                    exportedAt: new Date().toISOString(),
+                    spotifyNowPlaying: spotifyPlayback?.item ? {
+                      name: spotifyPlayback.item.name,
+                      artists: spotifyPlayback.item.artists.map(a => a.name),
+                    } : null,
+                  } : null}
+                />
                 <MediaDisclosure id="telegram-controls" title="Telegram broadcast"><TelegramVcPanel accessGranted={friskyDevSignedIn || appEnv.demoMode} /></MediaDisclosure>
               </div>
               

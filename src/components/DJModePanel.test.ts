@@ -36,7 +36,7 @@ let root: Root
 let container: HTMLDivElement
 const output = { getTracks: () => [] } as unknown as MediaStream
 const track = (id: string): SpotifyTrack => ({ id, name: `Song ${id}`, artists: [{ name: 'Artist' }], album: { name: 'Album', images: [{ url: `https://i.scdn.co/image/${id}` }] }, duration_ms: 180000, uri: `spotify:track:${id}` })
-const render = (spotifyTrack: SpotifyTrack | null = track('a'), onOutputStream?: (stream: MediaStream | null) => void) => act(async () => root.render(createElement(DJModePanel, { spotifyTrack, onOutputStream })))
+const render = (spotifyTrack: SpotifyTrack | null = track('a'), onOutputStream?: (stream: MediaStream | null) => void, appleMusicSourceId: string | null = null) => act(async () => root.render(createElement(DJModePanel, { spotifyTrack, onOutputStream, appleMusicSourceId })))
 const button = (label: string) => Array.from(container.querySelectorAll('button')).find(button => button.textContent === label)!
 const click = (label: string) => act(async () => button(label).click())
 
@@ -126,5 +126,75 @@ describe('DJ Spotify artwork source', () => {
     expect(container.textContent).not.toContain('LIVE')
     await click('Stop preview')
     expect(consume).toHaveBeenLastCalledWith(null)
+  })
+})
+
+describe('DJ Apple Music source id (Folio pattern)', () => {
+  const appleTrack = {
+    id: '1440857795',
+    title: 'Banana Pancakes',
+    artist: 'Jack Johnson',
+    album: 'In Between Dreams',
+    artworkUrl: 'https://is1-ssl.mzstatic.com/image/thumb/x/600x600bb.jpg',
+    source: 'itunes',
+    listenUrl: 'https://music.apple.com/us/album/banana-pancakes/1440857781?i=1440857795&uo=4',
+    collectionId: '1440857781',
+    cached: false,
+    cachedArtworkUrl: null,
+    listenLink: '/l/1440857795',
+  }
+  const placeholder = {
+    id: 'nope', title: '', artist: '', album: '',
+    artworkUrl: '/assets/stickers/default.png', source: 'placeholder',
+    listenUrl: null, collectionId: null, cached: false,
+    cachedArtworkUrl: null, listenLink: null,
+  }
+  const stubLookup = (result: unknown) => {
+    const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      if (String(input).includes('/v1/music/artwork')) {
+        return { ok: true, json: async () => result } as Response
+      }
+      throw new Error(`unexpected fetch in test: ${String(input)}`)
+    })
+    return spy
+  }
+  /** Flush the lookup promise chain: fetch resolves, then state commits. */
+  const flushLookup = () => act(async () => { await Promise.resolve(); await Promise.resolve() })
+
+  it('resolves the stored source id through the node lookup and previews node artwork', async () => {
+    stubLookup(appleTrack)
+    await render(null, undefined, '1440857795')
+    await click('Spotify artwork')
+    await flushLookup()
+    await flushLookup()
+    const resolved = container.querySelector('[data-testid="apple-music-resolve"]')
+    expect(resolved?.textContent ?? '').toContain('Banana Pancakes')
+    expect(resolved?.textContent ?? '').toContain('Jack Johnson')
+    expect(images[0].url).toBe('https://is1-ssl.mzstatic.com/image/thumb/x/600x600bb.jpg')
+    await act(async () => images[0].onload?.())
+    expect(mocked.setSource).toHaveBeenLastCalledWith({ type: 'image', image: images[0] })
+    expect(container.textContent).toContain('Banana Pancakes · Jack Johnson')
+  })
+
+  it('keeps the Spotify path when the Apple Music id does not resolve', async () => {
+    stubLookup(placeholder)
+    await render(track('a'), undefined, 'no-such-id')
+    await click('Spotify artwork')
+    await flushLookup()
+    await flushLookup()
+    const resolved = container.querySelector('[data-testid="apple-music-resolve"]')
+    expect(resolved?.textContent ?? '').toContain('No Apple Music artwork for that id')
+    expect(images[0].url).toBe('https://i.scdn.co/image/a')
+  })
+
+  it('exposes the listen link and node cache action for a resolved track', async () => {
+    stubLookup(appleTrack)
+    await render(null, undefined, '1440857795')
+    await click('Spotify artwork')
+    await flushLookup()
+    await flushLookup()
+    const link = container.querySelector('a[href="/l/1440857795"]')
+    expect(link?.textContent ?? '').toContain('Open listen link')
+    expect(button('Cache on node')).toBeDefined()
   })
 })
