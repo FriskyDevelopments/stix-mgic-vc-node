@@ -12,3 +12,7 @@ coverage
 workers
 wrangler.jsonc
 docs
+worktrees
+.vercel
+.DS_Store
+.file-manifest
