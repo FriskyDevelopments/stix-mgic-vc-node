@@ -131,6 +131,67 @@ describe('signaling — connection and identity', () => {
     expect(welcome.operatorId).toBe('anonymous:browser-a')
   })
 
+  it('denies anonymous room signaling the moment public rooms are off', async () => {
+    // The public-room signaling path is one flag wide: AUTH_REQUIRED=true admits an
+    // anonymous socket ONLY when PUBLIC_ROOMS_ENABLED=true. studio.nebu.quest attach
+    // depends on this being an explicit opt-in, not a default — see
+    // docs/STUDIO-NEBU-QUEST-ATTACH.md.
+    setEnv({ AUTH_REQUIRED: 'true', PUBLIC_ROOMS_ENABLED: 'false' })
+    await expect(connect('?clientId=browser-a')).rejects.toBeTruthy()
+
+    setEnv({ AUTH_REQUIRED: 'true' })
+    delete process.env.PUBLIC_ROOMS_ENABLED
+    await expect(connect('?clientId=browser-b')).rejects.toBeTruthy()
+  })
+
+  it('completes a public-room signaling exchange between two anonymous guests', async () => {
+    // The studio.nebu.quest attach path end to end: two guests with no tokens, public
+    // rooms explicitly on, create nothing via REST — join one room over the socket and
+    // carry a full offer/answer/ICE negotiation through the relay.
+    setEnv({ AUTH_REQUIRED: 'true', PUBLIC_ROOMS_ENABLED: 'true' })
+    const room = createRoom({ ownerOperatorId: 'anonymous:host' })
+
+    const host = await connect('?clientId=host')
+    await nextMessage(host, 'welcome')
+    send(host, { type: 'join', roomId: room.id })
+    const hostJoined = await nextMessage(host, 'joined')
+    const hostId = (hostJoined.self as { id: string }).id
+    expect(hostJoined.self).toMatchObject({ operatorId: 'anonymous:host' })
+
+    const guest = await connect('?clientId=guest')
+    await nextMessage(guest, 'welcome')
+    const arrival = nextMessage(host, 'peer-joined')
+    send(guest, { type: 'join', roomId: room.id })
+    const guestJoined = await nextMessage(guest, 'joined')
+    const guestId = (guestJoined.self as { id: string }).id
+    await arrival
+
+    const offerAtGuest = nextMessage(guest, 'offer')
+    send(host, { type: 'offer', to: guestId, sdp: 'v=0 public-room-offer' })
+    const offer = await offerAtGuest
+    expect(offer.from).toBe(hostId)
+    expect(offer.sdp).toBe('v=0 public-room-offer')
+
+    const answerAtHost = nextMessage(host, 'answer')
+    send(guest, { type: 'answer', to: hostId, sdp: 'v=0 public-room-answer' })
+    const answer = await answerAtHost
+    expect(answer.from).toBe(guestId)
+
+    const iceAtGuest = nextMessage(guest, 'ice')
+    send(host, { type: 'ice', to: guestId, candidate: { candidate: 'candidate:1 udp', sdpMid: '0' } })
+    const ice = await iceAtGuest
+    expect(ice.from).toBe(hostId)
+
+    // A public room is not a free-for-all: the relay still refuses cross-room injection.
+    const other = createRoom({ ownerOperatorId: 'anonymous:stranger' })
+    const stranger = await connect('?clientId=stranger')
+    await nextMessage(stranger, 'welcome')
+    send(stranger, { type: 'join', roomId: other.id })
+    await nextMessage(stranger, 'joined')
+    send(stranger, { type: 'offer', to: guestId, sdp: 'v=0 injected' })
+    expect((await nextMessage(stranger, 'error')).code).toBe('peer_not_found')
+  })
+
   it('refuses a forged token before the handshake completes', async () => {
     setEnv({ AUTH_REQUIRED: 'true' })
     await expect(connect('?token=not.a.real.token')).rejects.toBeTruthy()
