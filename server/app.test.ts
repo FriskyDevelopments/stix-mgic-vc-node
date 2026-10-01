@@ -468,9 +468,17 @@ describe('room REST API', () => {
     process.env.PUBLIC_ROOMS_ENABLED = 'true'
     resetServerEnvCache()
     const app = createApp()
-    const created = await app.request('/v1/rooms', {
+    // Creating a room needs a login; only joining/reading by id stays open to guests.
+    const anon = await app.request('/v1/rooms', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-client-id': 'owner' },
+      body: JSON.stringify({ name: 'Public invite' }),
+    })
+    expect(anon.status).toBe(401)
+    const ownerToken = mintOperatorToken({ sub: 'friskydev:owner', platform: 'friskydev', name: 'Owner' })
+    const created = await app.request('/v1/rooms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', authorization: `Bearer ${ownerToken}` },
       body: JSON.stringify({ name: 'Public invite' }),
     })
     expect(created.status).toBe(200)

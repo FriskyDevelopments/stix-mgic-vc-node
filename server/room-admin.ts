@@ -49,6 +49,7 @@ export type OperatorPlatform =
   | 'anonymous'
   | 'friskydev'
   | 'supabase'
+  | 'nebu'
 
 export type RoomAdminRequest = {
   action: RoomAdminActionName

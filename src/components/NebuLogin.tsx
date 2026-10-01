@@ -28,10 +28,8 @@ export function NebuLogin({
   socialProviders,
 }: NebuLoginProps) {
   const providers = useMemo(() => {
-    const allowed = socialProviders?.length
-      ? SOCIAL_PROVIDERS.filter((p) => socialProviders.includes(p.id))
-      : SOCIAL_PROVIDERS
-    return allowed
+    // Only providers the server reports as configured. None configured -> no social buttons at all.
+    return SOCIAL_PROVIDERS.filter((p) => socialProviders?.includes(p.id))
   }, [socialProviders])
 
   const [mode, setMode] = useState<Mode>('signin')
@@ -48,7 +46,7 @@ export function NebuLogin({
 
   const notReady = () => {
     setError(
-      'NEBU Better Auth is not configured on this host yet. Set BETTER_AUTH_SECRET, BETTER_AUTH_URL, DATABASE_URL, and OAuth client env vars.'
+      'Sign-in is not available on this host yet.'
     )
   }
 
@@ -165,10 +163,11 @@ export function NebuLogin({
             {mode === 'signin' ? 'Welcome back.' : 'Join NEBU.'}
           </h1>
           <p className="mt-3 text-sm leading-6 text-black/60">
-            NEBU product login — Google, Apple, Microsoft, or email. Set the scene and pick up
-            where you left off.
+            NEBU product login. Set the scene and pick up where you left off.
           </p>
 
+          {providers.length > 0 && (
+          <>
           <div className="mt-7 grid gap-3" role="group" aria-label="Social sign-in providers">
             {providers.map((provider) => (
               <button
@@ -197,6 +196,9 @@ export function NebuLogin({
             <span>OR EMAIL</span>
             <span className="h-px flex-1 bg-black/15" aria-hidden="true" />
           </div>
+          </>
+          )}
+          {providers.length === 0 && <div className="mt-7" />}
 
           <div
             className="mb-6 grid grid-cols-2 rounded-2xl border border-black/10 p-1"

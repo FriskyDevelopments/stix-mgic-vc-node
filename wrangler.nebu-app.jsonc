@@ -1,0 +1,37 @@
+{
+  // Worker + static assets + 1 Durable Object. No Containers / Docker required.
+  "name": "nebu-app",
+  "main": "workers/nebu-app.ts",
+  "compatibility_date": "2026-09-12",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": { "enabled": true },
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/v1/*", "/healthz", "/api/*", "/l/*", "/cf/ready"]
+  },
+  "vars": {
+    "NODE_ENV": "production",
+    "AUTH_REQUIRED": "true",
+    "MEDIA_PLANE_ENABLED": "true",
+    "PUBLIC_ROOMS_ENABLED": "true",
+    "IDENTITY_PROVIDER": "supabase",
+    "SESSION_ISSUER": "stix-magic-vc-node",
+    "STUN_URLS": "stun:stun.l.google.com:19302",
+    "LOG_LEVEL": "info",
+    "BETTER_AUTH_URL": "https://nebu-app.hrgrrtks2p.workers.dev",
+    "CORS_ALLOWED_ORIGINS": "https://nebu-app.hrgrrtks2p.workers.dev"
+  },
+  // Better Auth storage (schema: migrations/0001_better_auth.sql). Secrets (never in this file):
+  // BETTER_AUTH_SECRET, OPERATOR_TOKEN_SECRET, optional GOOGLE_/MICROSOFT_/APPLE_ client creds.
+  "d1_databases": [
+    { "binding": "DB", "database_name": "nebu-auth", "database_id": "42cc36e4-ac39-4eff-9927-b98721685249", "migrations_dir": "migrations" }
+  ],
+  // mysql2 cannot run on Workers; Better Auth uses the D1 binding instead.
+  "alias": { "mysql2/promise": "./workers/mysql2-stub.ts" },
+  "durable_objects": { "bindings": [{ "name": "HUB", "class_name": "NebuHub" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["NebuHub"] }]
+}

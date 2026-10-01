@@ -18,7 +18,13 @@ describe('NebuLogin brand surface', () => {
     expect(source).not.toContain('#9026ff')
   })
 
-  it('wires Google, Apple, and Microsoft social buttons', () => {
+  it('only renders social buttons for providers the server reports (no dead buttons)', () => {
+    expect(source).toContain('socialProviders?.includes(p.id)')
+    expect(source).not.toContain('SOCIAL_PROVIDERS\n')
+    expect(source).toContain('providers.length > 0')
+  })
+
+  it('knows Google, Apple, and Microsoft social providers', () => {
     expect(source).toContain("'google'")
     expect(source).toContain("'microsoft'")
     expect(source).toContain("'apple'")
