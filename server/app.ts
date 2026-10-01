@@ -137,6 +137,9 @@ function linkedView(accountId: string) {
 }
 
 /** Builds the Hono control-plane application and registers its API routes. */
+/** Browser origins allowed to call /v1 when CORS_ALLOWED_ORIGINS is unset. */
+export const DEFAULT_CORS_ORIGINS = ['https://nebu.quest', 'https://nebu-app.hrgrrtks2p.workers.dev']
+
 export function createApp() {
   configureAccountStore({
     persist: process.env.NODE_ENV !== 'test',
@@ -145,12 +148,14 @@ export function createApp() {
   const app = new Hono<{ Variables: Variables }>()
   const env = getServerEnv()
 
-  const allowedOrigins = env.CORS_ALLOWED_ORIGINS
-    ? env.CORS_ALLOWED_ORIGINS.split(',').map((v) => v.trim()).filter(Boolean)
-    : ['*']
+  // Closed by default: never '*'. CORS_ALLOWED_ORIGINS overrides the defaults; a stray '*' is ignored.
+  const configuredOrigins = env.CORS_ALLOWED_ORIGINS
+    ? env.CORS_ALLOWED_ORIGINS.split(',').map((v) => v.trim()).filter((v) => v && v !== '*')
+    : []
+  const allowedOrigins = configuredOrigins.length > 0 ? configuredOrigins : DEFAULT_CORS_ORIGINS
 
   const apiCors = cors({
-    origin: allowedOrigins.includes('*') ? '*' : allowedOrigins,
+    origin: allowedOrigins,
     allowHeaders: ['Content-Type', 'Authorization', 'X-Client-Id'],
     allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
   })

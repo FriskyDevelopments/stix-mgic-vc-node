@@ -66,13 +66,22 @@ describe('control plane API', () => {
     }
   })
 
-  it('preserves the default wildcard CORS policy for public telemetry', async () => {
+  it('never sends a wildcard CORS origin by default; only the NEBU origins are allowed', async () => {
     const app = createApp()
-    for (const path of ['/healthz', '/v1/media/status']) {
-      const response = await app.request(path, { headers: { Origin: 'https://studio.example.test' } })
-      expect(response.status).toBe(200)
-      expect(response.headers.get('access-control-allow-origin')).toBe('*')
+    for (const path of ['/healthz', '/v1/media/status', '/v1/config/public']) {
+      for (const origin of ['https://nebu.quest', 'https://nebu-app.hrgrrtks2p.workers.dev']) {
+        const ok = await app.request(path, { headers: { Origin: origin } })
+        expect(ok.headers.get('access-control-allow-origin')).toBe(origin)
+      }
+      const denied = await app.request(path, { headers: { Origin: 'https://studio.example.test' } })
+      expect(denied.headers.get('access-control-allow-origin')).toBeNull()
     }
+  })
+
+  it('ignores a "*" entry in CORS_ALLOWED_ORIGINS', async () => {
+    process.env.CORS_ALLOWED_ORIGINS = '*'
+    const res = await createApp().request('/healthz', { headers: { Origin: 'https://evil.example' } })
+    expect(res.headers.get('access-control-allow-origin')).toBeNull()
   })
 
   it('reports adapter-level media availability', async () => {

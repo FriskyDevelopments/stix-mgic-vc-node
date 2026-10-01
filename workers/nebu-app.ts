@@ -4,6 +4,7 @@ import { authenticateSignal, createSignalingHub, SIGNALING_PATH, type SignalingH
 import { setSignalingReady } from '../server/sessions'
 import { sweepEmptyRooms } from '../server/rooms'
 import { configureNebuDatabase, resolveNebuSession } from '../server/betterAuth'
+import { gateNebuSession } from '../server/nebu-gate'
 
 /**
  * Worker + static assets + ONE Durable Object ("hub") — no Containers.
@@ -50,9 +51,13 @@ export class NebuHub extends DurableObject {
     const now = Date.now()
     if (now - this.lastSweep > 60_000) { this.lastSweep = now; sweepEmptyRooms() }
     const url = new URL(request.url)
+    // AUTH_REQUIRED=true: POST /v1/rooms and the /v1/signal WebSocket need a Better Auth session (401 otherwise).
+    const gate = await gateNebuSession(request)
+    if (gate.denied) return gate.denied
     if (url.pathname === SIGNALING_PATH && request.headers.get('upgrade')?.toLowerCase() === 'websocket') {
       let identity = authenticateSignal(url, request.headers.get('cookie') ?? undefined)
-      if (!url.searchParams.get('token')) {
+      if (gate.session) identity = { operatorId: `nebu:${gate.session.userId}`, operatorName: gate.session.name }
+      else if (!url.searchParams.get('token')) {
         const nebu = await resolveNebuSession(request.headers)
         if (nebu) identity = { operatorId: `nebu:${nebu.userId}`, operatorName: nebu.name }
       }
