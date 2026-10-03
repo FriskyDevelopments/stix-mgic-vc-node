@@ -93,21 +93,21 @@ export function NebuLanding() {
             </p>
             <div className="nebu-rise nebu-rise-4 mt-8 flex flex-wrap items-center gap-4">
               <a
-                href={STUDIO_URL}
+                href={ASHY_WALKTHROUGH_URL}
                 className="nebu-cta inline-flex min-h-12 items-center gap-2 rounded-full px-6 text-sm font-black uppercase tracking-wide"
                 style={{ backgroundColor: YELLOW, color: INK }}
               >
-                Open your studio
+                Like Ashy’s room
                 <ArrowRight size={18} weight="bold" />
               </a>
               <a href="#studio" className="text-sm font-bold text-white/70 underline-offset-4 hover:underline">
                 Take a look around
               </a>
               <a
-                href={ASHY_WALKTHROUGH_URL}
+                href={STUDIO_URL}
                 className="text-sm font-bold text-white/70 underline-offset-4 hover:underline"
               >
-                Like Ashy’s room
+                Open your studio
               </a>
             </div>
           </div>
@@ -213,19 +213,19 @@ export function NebuLanding() {
               </p>
             </div>
             <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {PARTS.map(({ title, blurb, color, icon: Icon, ink }) => (
+              {PARTS.map(({ title, blurb, color, icon: Icon }) => (
                 <a
                   key={title}
                   href={STUDIO_URL}
                   className="nebu-card block rounded-3xl border-2 border-black p-5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4"
                   style={{
-                    backgroundColor: color,
-                    color: ink ? INK : '#fff',
+                    backgroundColor: '#160b2a',
+                    color: '#fff',
                     outlineColor: CYAN,
                   }}
                   aria-label={`Open studio — ${title}: ${blurb}`}
                 >
-                  <Icon size={28} weight="fill" />
+                  <Icon size={28} weight="fill" style={{ color }} />
                   <h3 className="mt-6 text-xl font-black">{title}</h3>
                   <p className="mt-1 text-sm font-medium opacity-80">{blurb}</p>
                 </a>
@@ -278,8 +278,7 @@ export function NebuLanding() {
             </p>
             <a
               href={STUDIO_URL}
-              className="nebu-cta mt-8 inline-flex min-h-11 items-center gap-2 rounded-full px-5 text-xs font-black uppercase tracking-wide"
-              style={{ backgroundColor: YELLOW, color: INK }}
+              className="mt-8 inline-flex min-h-11 items-center gap-2 rounded-full border border-white/30 px-5 text-xs font-bold text-white/80 transition hover:border-white/60 hover:text-white"
             >
               Start creating
               <ArrowRight size={16} weight="bold" />
@@ -341,13 +340,18 @@ export function NebuLanding() {
                 Your next scene starts here.
               </h2>
             </div>
-            <a
-              href={STUDIO_URL}
-              className="nebu-cta inline-flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-black px-6 text-sm font-black uppercase tracking-wide text-white"
-            >
-              Open your studio
-              <ArrowRight size={18} weight="bold" />
-            </a>
+            <div className="flex shrink-0 flex-col items-start gap-3">
+              <a
+                href={ASHY_WALKTHROUGH_URL}
+                className="nebu-cta inline-flex min-h-12 items-center gap-2 rounded-full bg-black px-6 text-sm font-black uppercase tracking-wide text-white"
+              >
+                Explore Ashy / Telethon
+                <ArrowRight size={18} weight="bold" />
+              </a>
+              <a href={STUDIO_URL} className="text-sm font-bold underline-offset-4 hover:underline">
+                Open your studio
+              </a>
+            </div>
           </div>
         </section>
       </main>

@@ -23,13 +23,18 @@ describe('NebuLanding brand surface', () => {
     expect(poeticAt).toBeGreaterThan(valuePropAt)
   })
 
-  it('keeps a single yellow Open your studio CTA above the fold', () => {
+  it('makes Ashy primary and keeps Studio links secondary', () => {
     expect(source).toContain('Take a look around')
     expect(source).toContain('href="#studio"')
     const header = source.slice(source.indexOf('<header'), source.indexOf('</header>'))
     expect(header).not.toContain('Open studio')
     expect(header).not.toContain('nebu-cta')
     expect(header).not.toContain('#f5e000')
+    const hero = source.slice(source.indexOf('<main'), source.indexOf('nebu-hero-art'))
+    expect(hero.indexOf('href={ASHY_WALKTHROUGH_URL}')).toBeLessThan(hero.indexOf('href={STUDIO_URL}'))
+    expect(hero).toContain('Like Ashy’s room')
+    expect(source).toContain('Explore Ashy / Telethon')
+    expect(source).not.toMatch(/href=\{STUDIO_URL\}\s+className="nebu-cta/)
   })
 
   it('uses near-white body copy beside All the parts on dark ground', () => {
