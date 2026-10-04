@@ -71,12 +71,12 @@ import { supabaseSession } from './supabase-auth'
 import { handleTelegramUpdate, isTelegramWebhookAuthorized, WEBHOOK_HEADER } from './telegram-bot'
 import { assertTelegramNodeOwner } from './telegram-group-access'
 import { buildIdentityCatalog, publicSupabaseIdentity } from './identity-catalog'
-import { getNebuAuth, isNebuBetterAuthConfigured, listConfiguredSocialProviders } from './betterAuth'
+import { getNebuAuth, isNebuBetterAuthConfigured, listConfiguredSocialProviders, resolveNebuSession } from './betterAuth'
 
 type Variables = {
   operatorId: string
   operatorName: string
-  operatorPlatform: 'telegram' | 'discord' | 'anonymous' | 'friskydev' | 'supabase'
+  operatorPlatform: 'telegram' | 'discord' | 'anonymous' | 'friskydev' | 'supabase' | 'nebu'
   friskyAccountId?: string
 }
 
@@ -759,6 +759,16 @@ export function createApp() {
       return
     }
 
+    // NEBU Better Auth session (D1-backed). Owner ids are `nebu:<user id>` (see isNebuLinkedRoom).
+    const nebuSession = !token ? await resolveNebuSession(c.req.raw.headers) : null
+    if (nebuSession) {
+      c.set('operatorId', `nebu:${nebuSession.userId}`)
+      c.set('operatorName', nebuSession.name)
+      c.set('operatorPlatform', 'nebu')
+      await next()
+      return
+    }
+
     if (!token) {
       if (env.AUTH_REQUIRED && !env.PUBLIC_ROOMS_ENABLED) {
         return c.json({ error: 'Operator token required' }, 401)
@@ -793,6 +803,10 @@ export function createApp() {
   })
 
   app.post('/v1/rooms', async (c) => {
+    // Joining a public room as a guest is allowed; creating one needs a real login.
+    if (env.AUTH_REQUIRED && c.get('operatorPlatform') === 'anonymous') {
+      return c.json({ error: 'Sign in required to create a room', code: 'login_required' }, 401)
+    }
     const body = await c.req.json<{
       name?: string
       platform?: 'telegram' | 'discord' | 'web'
@@ -1470,6 +1484,15 @@ export function createApp() {
       const status = /access token|JSON object|bytes of JSON|Unknown recap provider/.test(message) ? 400 : 502
       return c.json({ error: message }, status)
     }
+  })
+
+  // Unknown API routes must answer with a real JSON 404 (never the SPA index, never plain text).
+  app.notFound((c) => {
+    const path = new URL(c.req.url).pathname
+    if (path === '/v1' || path.startsWith('/v1/') || path.startsWith('/api/')) {
+      return c.json({ error: 'Not found', path }, 404)
+    }
+    return c.text('404 Not Found', 404)
   })
 
   return app

@@ -43,12 +43,62 @@ type NebuAuthInstance = {
 
 let pool: Pool | null = null
 let authInstance: NebuAuthInstance | null = null
+/**
+ * Database injected by the host runtime (Cloudflare D1 binding in the Worker, an in-memory
+ * adapter in tests). When present it wins over DATABASE_URL (MySQL), which cannot run on Workers.
+ */
+let injectedDatabase: unknown = null
+
+/** Hands Better Auth a runtime-provided database (D1 binding or adapter). Call before first use. */
+export function configureNebuDatabase(db: unknown): void {
+  if (db === injectedDatabase) return
+  injectedDatabase = db ?? null
+  authInstance = null
+}
+
+const PBKDF2_ITERATIONS = 100_000 // Workers WebCrypto caps PBKDF2 at 100k iterations.
+
+function toHex(bytes: ArrayBuffer | Uint8Array): string {
+  return Array.from(new Uint8Array(bytes), (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+function fromHex(hex: string): Uint8Array {
+  const out = new Uint8Array(hex.length / 2)
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
+  return out
+}
+
+async function pbkdf2(password: string, salt: Uint8Array, iterations: number): Promise<ArrayBuffer> {
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password.normalize('NFKC')), 'PBKDF2', false, ['deriveBits'])
+  return crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: salt as BufferSource, iterations }, key, 256)
+}
+
+/**
+ * Password hashing via native WebCrypto PBKDF2. Better Auth's default (JS scrypt) burns far more
+ * CPU than a Worker request is allowed; WebCrypto runs natively.
+ */
+export async function hashNebuPassword(password: string): Promise<string> {
+  const salt = crypto.getRandomValues(new Uint8Array(16))
+  const hash = await pbkdf2(password, salt, PBKDF2_ITERATIONS)
+  return `pbkdf2-sha256$${PBKDF2_ITERATIONS}$${toHex(salt)}$${toHex(hash)}`
+}
+
+export async function verifyNebuPassword({ hash, password }: { hash: string; password: string }): Promise<boolean> {
+  const [scheme, iterations, saltHex, hashHex] = hash.split('$')
+  if (scheme !== 'pbkdf2-sha256' || !iterations || !saltHex || !hashHex) return false
+  const derived = new Uint8Array(await pbkdf2(password, fromHex(saltHex), Number(iterations)))
+  const expected = fromHex(hashHex)
+  if (derived.length !== expected.length) return false
+  let diff = 0
+  for (let i = 0; i < derived.length; i++) diff |= derived[i]! ^ expected[i]!
+  return diff === 0
+}
 
 /** Reports whether the required NEBU database and auth secret are configured. */
 export function isNebuBetterAuthConfigured(): boolean {
   const secret = process.env.BETTER_AUTH_SECRET
   const databaseUrl = process.env.DATABASE_URL
-  return Boolean(databaseUrl && secret && secret.length >= 32)
+  return Boolean((databaseUrl || injectedDatabase) && secret && secret.length >= 32)
 }
 
 /** Lists the NEBU social providers whose required environment variables are present. */
@@ -144,16 +194,19 @@ export function getNebuAuth() {
   }
   if (authInstance) return authInstance
 
-  const databaseUrl = process.env.DATABASE_URL!
   const secret = process.env.BETTER_AUTH_SECRET!
   const baseURL = process.env.BETTER_AUTH_URL ?? 'https://nebu.quest'
   const socialProviders = buildSocialProviders()
   const useSecureCookies = process.env.NODE_ENV === 'production'
 
-  pool = createPool(databaseUrl)
+  let database: unknown = injectedDatabase
+  if (!database) {
+    pool = createPool(process.env.DATABASE_URL!)
+    database = pool
+  }
 
   authInstance = betterAuth({
-    database: pool,
+    database: database as never,
     secret,
     baseURL,
     basePath: '/api/auth',
@@ -161,6 +214,7 @@ export function getNebuAuth() {
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: false,
+      password: { hash: hashNebuPassword, verify: verifyNebuPassword },
     },
     socialProviders,
     account: {
@@ -187,6 +241,7 @@ export function getNebuAuth() {
     advanced: {
       cookiePrefix: 'nebu',
       useSecureCookies,
+      ipAddress: { ipAddressHeaders: ['cf-connecting-ip', 'x-forwarded-for'] },
       cookies: {
         session_token: {
           name: useSecureCookies ? '__Host-nebu_session' : 'nebu_session',
@@ -207,9 +262,28 @@ export function getNebuAuth() {
   return authInstance
 }
 
+/** Resolves the Better Auth session behind a request's cookies, or null. Never throws. */
+export async function resolveNebuSession(
+  headers: Headers
+): Promise<{ userId: string; name: string; email: string | null } | null> {
+  const auth = getNebuAuth()
+  if (!auth) return null
+  try {
+    const result = (await (auth.api.getSession as (a: { headers: Headers }) => Promise<unknown>)({ headers })) as {
+      user?: { id?: string; name?: string; email?: string }
+    } | null
+    const user = result?.user
+    if (!user?.id) return null
+    return { userId: user.id, name: user.name || user.email || 'NEBU user', email: user.email ?? null }
+  } catch {
+    return null
+  }
+}
+
 /** Test helper — drop cached auth/pool between cases. */
 export function resetNebuAuthCache(): void {
   authInstance = null
+  injectedDatabase = null
   if (pool) {
     void pool.end().catch(() => undefined)
     pool = null
