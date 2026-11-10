@@ -11,13 +11,13 @@ describe('Rate Limiting', () => {
 
     // Make 100 requests (assuming limit is 100)
     for (let i = 0; i < 100; i++) {
-      const res = await app.request('/healthz', {
+      const res = await app.request('/v1/playlists', {
         headers: { 'Authorization': `Bearer ${key}` }
       })
-      expect(res.status).toBe(200)
+      expect(res.status).toBe(401)
     }
 
-    const res = await app.request('/healthz', {
+    const res = await app.request('/v1/playlists', {
       headers: { 'Authorization': `Bearer ${key}` }
     })
     expect(res.status).toBe(429)
@@ -31,17 +31,17 @@ describe('Rate Limiting', () => {
 
     // Make 100 requests
     for (let i = 0; i < 100; i++) {
-      const res = await app.request('/healthz', {
+      const res = await app.request('/v1/playlists', {
         headers: { 'Authorization': `Bearer ${key}` }
       })
-      expect(res.status).toBe(200)
+      expect(res.status).toBe(401)
     }
 
     // Make request with a different key
     const newKey = 'test-key-new-' + crypto.randomUUID()
-    const res = await app.request('/healthz', {
+    const res = await app.request('/v1/playlists', {
         headers: { 'Authorization': `Bearer ${newKey}` }
     })
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(401)
   })
 })

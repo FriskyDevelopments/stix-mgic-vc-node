@@ -1,3 +1,4 @@
+import * as crypto from 'crypto'
 import { Hono, type Context } from 'hono'
 import { cors } from 'hono/cors'
 import { getServerEnv } from './env'
@@ -162,20 +163,13 @@ export function createApp() {
     keyGenerator: (c) => {
       const authHeader = c.req.header('Authorization')
       if (authHeader) {
-          const key = authHeader.replace(/^Bearer\s+/i, '')
-          // Simple hash string to avoid storing credentials verbatim
-          let hash = 0;
-          for (let i = 0; i < key.length; i++) {
-              hash = (hash << 5) - hash + key.charCodeAt(i);
-              hash |= 0;
-          }
-          return 'key:' + hash;
+          const key = authHeader.replace(/^Bearer\s+/i, '');
+          // Use SHA-256 to hash the key to avoid storing it in plaintext
+          return 'key:' + crypto.createHash('sha256').update(key).digest('hex');
       }
 
-      const ip = c.req.header('x-forwarded-for')
-      if (ip) {
-        return ip.split(',')[0].trim()
-      }
+      // Fallback: Rate limit all unauthenticated requests together as a single anonymous bucket
+      // to prevent abuse when no API key is provided. (x-forwarded-for is easily spoofed).
       return 'anonymous'
     }
   })
@@ -185,7 +179,7 @@ export function createApp() {
   app.use('/v1/media/status', apiCors)
 
   app.use('/v1/*', apiRateLimiter)
-  app.use('/healthz', apiRateLimiter)
+  // /healthz is not rate limited to avoid breaking load balancer probes
 
   // NEBU Better Auth (nebu.quest). Additive — does not replace Authentik OIDC on the studio path.
   app.on(['GET', 'POST'], '/api/auth/*', (c) => {
