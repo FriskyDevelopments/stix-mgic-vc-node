@@ -69,6 +69,7 @@ import { handleTelegramUpdate, isTelegramWebhookAuthorized, WEBHOOK_HEADER } fro
 import { assertTelegramNodeOwner } from './telegram-group-access'
 import { buildIdentityCatalog, publicSupabaseIdentity } from './identity-catalog'
 import { getNebuAuth, isNebuBetterAuthConfigured, listConfiguredSocialProviders } from './betterAuth'
+import { rateLimiter } from 'hono-rate-limiter'
 
 type Variables = {
   operatorId: string
@@ -151,6 +152,26 @@ export function createApp() {
     allowHeaders: ['Content-Type', 'Authorization', 'X-Client-Id'],
     allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
   })
+  const apiRateLimiter = rateLimiter({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    limit: 100, // Limit each API key (or IP) to 100 requests per window
+    standardHeaders: 'draft-6',
+    keyGenerator: (c) => {
+      // Authorization headers hold API keys natively, so they are the primary rate limit bucket.
+      const authHeader = c.req.header('Authorization')
+      if (authHeader) return authHeader
+
+      const ip = c.req.header('x-forwarded-for')
+      if (ip) {
+        return ip.split(',')[0].trim()
+      }
+      return 'anonymous'
+    }
+  })
+
+  app.use('/v1/*', apiRateLimiter)
+  app.use('/healthz', apiRateLimiter)
+
   app.use('/v1/*', apiCors)
   app.use('/healthz', apiCors)
   app.use('/v1/media/status', apiCors)
