@@ -172,4 +172,4 @@ Telegram dens / VC is a Telethon **user** session (not BotFather). Pair with `py
 
 ## API Rate Limiting
 
-The public API (`/v1/*` and `/healthz`) is protected by a rate limiter. The rate limiter restricts each IP address or API key (sent in the `Authorization` header) to 100 requests per 15-minute window. If the limit is exceeded, the server returns a `429 Too Many Requests` status code.
+The public API (`/v1/*`) is protected by a rate limiter (note: `/healthz` is intentionally excluded to avoid blocking load balancer health checks). The rate limiter restricts each API key, `X-Client-Id`, or IP address (sent in the `Authorization` header) to 100 requests per 15-minute window. If the limit is exceeded, the server returns a `429 Too Many Requests` status code.

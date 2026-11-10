@@ -162,14 +162,25 @@ export function createApp() {
     standardHeaders: 'draft-6',
     keyGenerator: (c) => {
       const authHeader = c.req.header('Authorization')
-      if (authHeader) {
-          const key = authHeader.replace(/^Bearer\s+/i, '');
+      // Only process valid Bearer tokens for the API key bucket
+      if (authHeader && authHeader.toLowerCase().startsWith('bearer ')) {
+          const key = authHeader.slice(7).trim();
           // Use SHA-256 to hash the key to avoid storing it in plaintext
           return 'key:' + crypto.createHash('sha256').update(key).digest('hex');
       }
 
-      // Fallback: Rate limit all unauthenticated requests together as a single anonymous bucket
-      // to prevent abuse when no API key is provided. (x-forwarded-for is easily spoofed).
+      // Fallback to X-Client-Id (used by media routes without auth)
+      const clientId = c.req.header('X-Client-Id')
+      if (clientId) {
+          return 'client:' + clientId
+      }
+
+      // Fallback to IP address
+      const ip = c.req.header('x-forwarded-for')
+      if (ip) {
+        return 'ip:' + ip.split(',')[0].trim()
+      }
+
       return 'anonymous'
     }
   })
