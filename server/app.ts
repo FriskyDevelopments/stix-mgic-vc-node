@@ -71,6 +71,7 @@ import { buildIdentityCatalog, publicSupabaseIdentity } from './identity-catalog
 import { getNebuAuth, isNebuBetterAuthConfigured, listConfiguredSocialProviders } from './betterAuth'
 import { rateLimiter } from 'hono-rate-limiter'
 
+
 type Variables = {
   operatorId: string
   operatorName: string
@@ -152,14 +153,24 @@ export function createApp() {
     allowHeaders: ['Content-Type', 'Authorization', 'X-Client-Id'],
     allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
   })
+  app.use('/v1/*', apiCors)
+
   const apiRateLimiter = rateLimiter({
     windowMs: 15 * 60 * 1000, // 15 minutes
     limit: 100, // Limit each API key (or IP) to 100 requests per window
     standardHeaders: 'draft-6',
     keyGenerator: (c) => {
-      // Authorization headers hold API keys natively, so they are the primary rate limit bucket.
       const authHeader = c.req.header('Authorization')
-      if (authHeader) return authHeader
+      if (authHeader) {
+          const key = authHeader.replace(/^Bearer\s+/i, '')
+          // Simple hash string to avoid storing credentials verbatim
+          let hash = 0;
+          for (let i = 0; i < key.length; i++) {
+              hash = (hash << 5) - hash + key.charCodeAt(i);
+              hash |= 0;
+          }
+          return 'key:' + hash;
+      }
 
       const ip = c.req.header('x-forwarded-for')
       if (ip) {
@@ -169,12 +180,12 @@ export function createApp() {
     }
   })
 
-  app.use('/v1/*', apiRateLimiter)
-  app.use('/healthz', apiRateLimiter)
-
   app.use('/v1/*', apiCors)
   app.use('/healthz', apiCors)
   app.use('/v1/media/status', apiCors)
+
+  app.use('/v1/*', apiRateLimiter)
+  app.use('/healthz', apiRateLimiter)
 
   // NEBU Better Auth (nebu.quest). Additive — does not replace Authentik OIDC on the studio path.
   app.on(['GET', 'POST'], '/api/auth/*', (c) => {

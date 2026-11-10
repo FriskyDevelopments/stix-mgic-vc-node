@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import { describe, test, expect } from 'vitest'
 import { createApp } from './app'
 
@@ -6,7 +7,7 @@ describe('Rate Limiting', () => {
     const app = createApp()
 
     // Create a new key to avoid test interference
-    const key = 'test-key-' + Date.now()
+    const key = 'test-key-' + crypto.randomUUID()
 
     // Make 100 requests (assuming limit is 100)
     for (let i = 0; i < 100; i++) {
@@ -26,7 +27,7 @@ describe('Rate Limiting', () => {
     const app = createApp()
 
     // Create a new key to avoid test interference
-    const key = 'test-key-' + Date.now()
+    const key = 'test-key-' + crypto.randomUUID()
 
     // Make 100 requests
     for (let i = 0; i < 100; i++) {
@@ -37,7 +38,7 @@ describe('Rate Limiting', () => {
     }
 
     // Make request with a different key
-    const newKey = 'test-key-new-' + Date.now()
+    const newKey = 'test-key-new-' + crypto.randomUUID()
     const res = await app.request('/healthz', {
         headers: { 'Authorization': `Bearer ${newKey}` }
     })
