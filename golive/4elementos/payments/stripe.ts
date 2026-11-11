@@ -136,7 +136,12 @@ export async function createStripeCheckoutSession(
     return { ok: false, code: 'stripe_rejected' }
   }
   if (!response.ok) return { ok: false, code: 'stripe_rejected', status: response.status }
-  const payload = (await response.json()) as { id?: unknown; url?: unknown }
+  let payload: { id?: unknown; url?: unknown }
+  try {
+    payload = (await response.json()) as { id?: unknown; url?: unknown }
+  } catch {
+    return { ok: false, code: 'stripe_bad_response' }
+  }
   if (typeof payload.id !== 'string' || typeof payload.url !== 'string' || !isCheckoutUrl(payload.url)) {
     return { ok: false, code: 'stripe_bad_response' }
   }

@@ -26,6 +26,7 @@ export interface MarinaEnv {
   MARINA_CHAT_URL?: string
   MARINA_ORIGIN?: string
   MARINA_VOICE_URL?: string
+  MARINA_VOICE_SECRET?: string
   MARINA_WEBHOOK_SECRET?: string
   WAHA_BASE_URL?: string
   WAHA_SESSION?: string
@@ -194,6 +195,7 @@ export function readWahaInbound(body: unknown): WahaInbound {
 export interface CallRequestResult {
   ok: true
   via: 'marina' | 'twilio'
+  to: string
   providerSid?: string
 }
 
@@ -213,10 +215,12 @@ export async function requestStudioCall(
   const from = env.TWILIO_FROM_NUMBER?.trim() ?? ''
   const reason = stripControls(input.reason).trim().slice(0, 180)
   if (!isUnset(env.MARINA_VOICE_URL)) {
-    return postMarinaVoice(env, { to, from, reason }, fetchImpl)
+    const voice = await postMarinaVoice(env, { to, from, reason }, fetchImpl)
+    return voice.ok ? { ...voice, to } : voice
   }
   if (env.TWILIO_DIRECT_CALLS === 'true') {
-    return placeTwilioCall(env, { to, reason }, fetchImpl)
+    const placed = await placeTwilioCall(env, { to, reason }, fetchImpl)
+    return placed.ok ? { ...placed, to } : placed
   }
   return { ok: false, code: 'marina_voice_not_configured' }
 }
@@ -225,9 +229,9 @@ async function postMarinaVoice(
   env: MarinaEnv,
   input: { to: string; from: string; reason: string },
   fetchImpl: typeof fetch,
-): Promise<CallRequestResult | CallFailure> {
+): Promise<Omit<CallRequestResult, 'to'> | CallFailure> {
   const headers: Record<string, string> = { 'content-type': 'application/json', accept: 'application/json' }
-  if (!isUnset(env.MARINA_WEBHOOK_SECRET)) headers['x-marina-secret'] = env.MARINA_WEBHOOK_SECRET!.trim()
+  if (!isUnset(env.MARINA_VOICE_SECRET)) headers['x-marina-secret'] = env.MARINA_VOICE_SECRET!.trim()
   let response: Response
   try {
     response = await fetchImpl(env.MARINA_VOICE_URL!.trim(), {
@@ -254,7 +258,7 @@ export async function placeTwilioCall(
   env: MarinaEnv,
   input: { to: string; reason: string },
   fetchImpl: typeof fetch = fetch,
-): Promise<CallRequestResult | CallFailure> {
+): Promise<Omit<CallRequestResult, 'to'> | CallFailure> {
   const sid = env.TWILIO_ACCOUNT_SID?.trim() ?? ''
   const token = env.TWILIO_AUTH_TOKEN?.trim() ?? ''
   const from = normalizePhone(env.TWILIO_FROM_NUMBER ?? '')
@@ -283,7 +287,12 @@ export async function placeTwilioCall(
     return { ok: false, code: 'call_rejected' }
   }
   if (!response.ok) return { ok: false, code: 'call_rejected', status: response.status }
-  const payload = (await response.json()) as { sid?: unknown }
+  let payload: { sid?: unknown }
+  try {
+    payload = (await response.json()) as { sid?: unknown }
+  } catch {
+    return { ok: false, code: 'call_rejected', status: response.status }
+  }
   return { ok: true, via: 'twilio', providerSid: typeof payload.sid === 'string' ? payload.sid : undefined }
 }
 

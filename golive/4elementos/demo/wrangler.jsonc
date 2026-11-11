@@ -20,6 +20,7 @@
     "MARINA_CHAT_URL": "",
     "MARINA_ORIGIN": "",
     "MARINA_VOICE_URL": "",
+    "MARINA_VOICE_SECRET": "",
     "MARINA_WEBHOOK_SECRET": "",
     "WAHA_BASE_URL": "https://waha.example.invalid",
     "WAHA_SESSION": "REPLACE_ME",

@@ -29,6 +29,72 @@ describe('Marina client', () => {
     expect(calls[0]?.body).not.toContain('should-not-send')
   })
 
+  it('does not call Marina when a delivery has no usable phone', async () => {
+    let calls = 0
+    const response = await handleMarina(
+      post('/api/4elementos/marina/messages', { text: 'Hola', to: 'nope', deliver: true }),
+      { MARINA_CHAT_URL: 'https://marina.example.internal/webhook/marina-chat' },
+      memoryStore(),
+      async () => {
+        calls += 1
+        return Response.json({ reply: 'no' })
+      },
+    )
+    expect(response?.status).toBe(400)
+    expect(calls).toBe(0)
+  })
+
+  it('keeps the inbox behind the demo access token', async () => {
+    const store = memoryStore()
+    const locked = await handleMarina(
+      new Request('http://127.0.0.1:8788/api/4elementos/marina/inbox'),
+      { DEMO_ACCESS_TOKEN: 'demo-token' },
+      store,
+    )
+    expect(locked?.status).toBe(401)
+    const open = await handleMarina(
+      new Request('http://127.0.0.1:8788/api/4elementos/marina/inbox', { headers: { authorization: 'Bearer demo-token' } }),
+      { DEMO_ACCESS_TOKEN: 'demo-token' },
+      store,
+    )
+    expect(open?.status).toBe(200)
+  })
+
+  it('uses a separate voice secret and stores the dialed number', async () => {
+    const store = memoryStore()
+    const response = await handleMarina(
+      post('/api/4elementos/marina/calls', { to: '55 1234 5678', reason: 'confirmar' }),
+      {
+        MARINA_VOICE_URL: 'https://marina.example.internal/webhook/marina-voice',
+        MARINA_VOICE_SECRET: 'voice-secret',
+        MARINA_WEBHOOK_SECRET: 'inbound-secret',
+      },
+      store,
+      async (_url, init) => {
+        expect(new Headers(init?.headers).get('x-marina-secret')).toBe('voice-secret')
+        expect(String(init?.body)).toContain('+525512345678')
+        expect(String(init?.body)).not.toContain('inbound-secret')
+        return Response.json({ ok: true })
+      },
+    )
+    expect(response?.status).toBe(200)
+    expect((await store.snapshot()).calls[0]?.to).toBe('+525512345678')
+  })
+
+  it('treats a non-JSON Twilio success as a rejected call', async () => {
+    const result = await requestStudioCall(
+      {
+        TWILIO_DIRECT_CALLS: 'true',
+        TWILIO_ACCOUNT_SID: 'AC123',
+        TWILIO_AUTH_TOKEN: 'token-with-xxxxx-inside',
+        TWILIO_FROM_NUMBER: '+15005550006',
+      },
+      { to: '+525512345678', reason: 'confirmar' },
+      async () => new Response('not-json', { status: 200, headers: { 'content-type': 'text/plain' } }),
+    )
+    expect(result.ok).toBe(false)
+  })
+
   it('delivers through the WAHA HTTP API only when deliver is true and the env is set', async () => {
     const store = memoryStore()
     const calls: string[] = []

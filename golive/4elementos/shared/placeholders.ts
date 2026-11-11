@@ -3,7 +3,7 @@ export function isUnset(value: string | undefined | null): boolean {
   if (value == null) return true
   const trimmed = value.trim()
   if (!trimmed) return true
-  return /replace[_-]?me|changeme|placeholder|example\.invalid|xxxxx+/i.test(trimmed)
+  return /replace[_-]?me|changeme|placeholder|example\.invalid/i.test(trimmed)
 }
 
 export function timingSafeEqual(left: string, right: string): boolean {

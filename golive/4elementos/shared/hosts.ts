@@ -10,9 +10,8 @@ export function isBlockedHost(hostname: string): boolean {
   return BLOCKED_SUFFIXES.some((suffix) => host === suffix || host.endsWith(`.${suffix}`))
 }
 
-/** Loopback, or this demo's own workers.dev name. Not a general workers.dev allow. */
+/** Loopback only. A workers.dev host must be set as PUBLIC_BASE_URL by the owner. */
 export function isLoopbackOrDemoHost(hostname: string): boolean {
   const host = normalizeHost(hostname)
-  if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return true
-  return host.endsWith('.workers.dev') && host.startsWith('elementos-demo.')
+  return host === 'localhost' || host === '127.0.0.1' || host === '::1'
 }

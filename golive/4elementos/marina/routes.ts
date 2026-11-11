@@ -37,6 +37,7 @@ export async function handleMarina(
     return twilioStatus(request, env, store)
   }
   if (path === '/api/4elementos/marina/inbox' && request.method === 'GET') {
+    if (!bearerOk(request, env.DEMO_ACCESS_TOKEN)) return json({ error: 'unauthorized' }, 401)
     const state = await store.snapshot()
     return json({ messages: state.messages, calls: state.calls })
   }
@@ -53,11 +54,14 @@ async function messages(request: Request, env: MarinaEnv & { DEMO_ACCESS_TOKEN?:
   }
   const text = typeof body.text === 'string' ? body.text.trim() : ''
   if (!text || text.length > 2000) return json({ error: 'invalid_message' }, 400)
+  const deliver = body.deliver === true
+  const chatId = deliver ? chatIdForPhone(typeof body.to === 'string' ? body.to : '') : null
+  if (deliver && !chatId) return json({ error: 'invalid_phone', delivered: false }, 400)
   const language = typeof body.language === 'string' ? body.language : 'es'
   const consult = await askMarina(env, { message: text, language }, fetchImpl)
   if (!consult.ok) return json({ error: consult.code, delivered: false }, consult.code === 'marina_not_configured' ? 503 : 502)
 
-  if (body.deliver !== true) {
+  if (!deliver) {
     return json({
       reply: consult.reply,
       escalated: consult.escalated,
@@ -67,10 +71,7 @@ async function messages(request: Request, env: MarinaEnv & { DEMO_ACCESS_TOKEN?:
       providerName: 'WAHA',
     })
   }
-  const to = typeof body.to === 'string' ? body.to : ''
-  const chatId = chatIdForPhone(to)
-  if (!chatId) return json({ error: 'invalid_phone', reply: consult.reply, delivered: false }, 400)
-  const sent = await sendWahaText(env, { chatId, text: consult.reply || text }, fetchImpl)
+  const sent = await sendWahaText(env, { chatId: chatId!, text: consult.reply || text }, fetchImpl)
   if (!sent.ok) {
     return json({ error: sent.code, reply: consult.reply, delivered: false }, sent.code === 'waha_not_configured' ? 503 : 502)
   }
@@ -103,7 +104,7 @@ async function calls(
     call: {
       id: `call_${crypto.randomUUID()}`,
       at: new Date(nowMs).toISOString(),
-      to,
+      to: result.to,
       from: env.TWILIO_FROM_NUMBER?.trim() || '',
       reason: reason.slice(0, 180),
       via: result.via,

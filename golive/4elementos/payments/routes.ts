@@ -29,8 +29,8 @@ export function bearerAllowed(request: Request, token: string | undefined): bool
 
 /**
  * Stripe return URLs are built only from PUBLIC_BASE_URL, or from the request
- * when that host is loopback or this demo's workers.dev name. A client-supplied
- * Host is not an allowlist entry.
+ * when that host is loopback. A workers.dev name is accepted only when the
+ * owner sets PUBLIC_BASE_URL. A client-supplied Host is not an allowlist entry.
  */
 export function publicBase(request: Request, configured: string | undefined): string | null {
   const explicit = Boolean(configured && !isUnset(configured))

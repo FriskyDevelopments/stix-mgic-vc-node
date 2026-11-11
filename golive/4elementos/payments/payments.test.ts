@@ -191,6 +191,33 @@ describe('checkout routes', () => {
     expect(body.split('{CHECKOUT_SESSION_ID}').join('')).not.toContain('{')
   })
 
+  it('treats a non-JSON Stripe success as a bad response', async () => {
+    const store = memoryStore()
+    const response = await handlePayments(
+      post({ serviceId: 'masaje-relajante' }),
+      { STRIPE_SECRET_KEY: secretKey, PUBLIC_BASE_URL: 'http://127.0.0.1:8788' },
+      store,
+      async () => new Response('not-json', { status: 200 }),
+    )
+    expect(response?.status).toBe(502)
+    expect((await response!.json()).error).toBe('stripe_bad_response')
+  })
+
+  it('does not treat a workers.dev host as an implicit return origin', async () => {
+    const store = memoryStore()
+    const response = await handlePayments(
+      new Request('https://elementos-demo.someone.workers.dev/api/4elementos/checkout', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ serviceId: 'masaje-relajante' }),
+      }),
+      { STRIPE_SECRET_KEY: secretKey },
+      store,
+      async () => Response.json({}),
+    )
+    expect(response?.status).toBe(400)
+  })
+
   it('does not follow a checkout URL outside Stripe', () => {
     expect(isCheckoutUrl('https://checkout.stripe.com/c/pay/cs_test_123')).toBe(true)
     expect(isCheckoutUrl('https://evil.example/checkout')).toBe(false)
