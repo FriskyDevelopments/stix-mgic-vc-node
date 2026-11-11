@@ -69,6 +69,7 @@ import { handleTelegramUpdate, isTelegramWebhookAuthorized, WEBHOOK_HEADER } fro
 import { assertTelegramNodeOwner } from './telegram-group-access'
 import { buildIdentityCatalog, publicSupabaseIdentity } from './identity-catalog'
 import { getNebuAuth, isNebuBetterAuthConfigured, listConfiguredSocialProviders } from './betterAuth'
+import { createRangelInterviewRoutes } from './rangel-interview'
 
 type Variables = {
   operatorId: string
@@ -1310,6 +1311,9 @@ export function createApp() {
     return c.json(art)
 
   })
+
+  // Off unless RANGEL_INTERVIEW_ENABLED=true; requires the x-rangel-interview-key header.
+  app.route('/v1/rangel-interview', createRangelInterviewRoutes())
 
   return app
 }
