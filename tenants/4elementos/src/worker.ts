@@ -6,7 +6,14 @@ import { fourElementos, fourElementosNotes } from './tenant.ts'
 
 export function createFourElementosHandler(now: () => Date = () => new Date()): TenantWorker {
   const notes = new MemoryNeuronasStore()
-  const seeded = Promise.all(fourElementosNotes.map((note) => notes.put(note)))
+  let seeded: Promise<void> | undefined
+  const seed = () => {
+    seeded ??= Promise.all(fourElementosNotes.map((note) => notes.put(note))).then(() => undefined).catch((error: unknown) => {
+      seeded = undefined
+      throw error
+    })
+    return seeded
+  }
   const inner = createTenantHandler({
     tenant: fourElementos,
     now,
@@ -17,7 +24,7 @@ export function createFourElementosHandler(now: () => Date = () => new Date()): 
   })
   return {
     async fetch(request, env, ctx) {
-      await seeded
+      await seed()
       return inner.fetch(request, env, ctx)
     },
   }

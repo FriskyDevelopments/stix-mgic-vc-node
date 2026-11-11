@@ -32,11 +32,11 @@ export async function handleCalendar(
   maxBookings: number,
 ): Promise<Response> {
   const calendar = ctx.tenant.calendar
-  if (!calendar) return json({ error: 'not_found' }, 404)
+  if (!calendar) return json({ error: 'not_found' }, 404, STORE)
   const tail = routeTail(new URL(request.url).pathname, CALENDAR_PREFIX)
-  if (tail === null) return json({ error: 'not_found' }, 404)
+  if (tail === null) return json({ error: 'not_found' }, 404, STORE)
   if (tail === '/') {
-    if (request.method !== 'GET') return json({ error: 'method_not_allowed' }, 405, { allow: 'GET' })
+    if (request.method !== 'GET') return json({ error: 'method_not_allowed' }, 405, { ...STORE, allow: 'GET' })
     return json({
       module: 'calendar',
       timeZone: ctx.tenant.timeZone,
@@ -51,11 +51,11 @@ export async function handleCalendar(
   if (cancel) return cancelBooking(request, ctx, store, cancel[1] ?? '')
   const one = /^\/bookings\/([^/]+)$/.exec(tail)
   if (one) return oneBooking(request, ctx, store, one[1] ?? '')
-  return json({ error: 'not_found' }, 404)
+  return json({ error: 'not_found' }, 404, STORE)
 }
 
 function listServices(request: Request, services: readonly CatalogService[]): Response {
-  if (request.method !== 'GET') return json({ error: 'method_not_allowed' }, 405, { allow: 'GET' })
+  if (request.method !== 'GET') return json({ error: 'method_not_allowed' }, 405, { ...STORE, allow: 'GET' })
   const includeInactive = new URL(request.url).searchParams.get('includeInactive') === '1'
   const visible = includeInactive ? services : services.filter((service) => service.active)
   return json({
@@ -72,9 +72,9 @@ function listServices(request: Request, services: readonly CatalogService[]): Re
 }
 
 async function availability(request: Request, ctx: RequestContext, store: CalendarStore): Promise<Response> {
-  if (request.method !== 'GET') return json({ error: 'method_not_allowed' }, 405, { allow: 'GET' })
+  if (request.method !== 'GET') return json({ error: 'method_not_allowed' }, 405, { ...STORE, allow: 'GET' })
   const calendar = ctx.tenant.calendar
-  if (!calendar) return json({ error: 'not_found' }, 404)
+  if (!calendar) return json({ error: 'not_found' }, 404, STORE)
   const url = new URL(request.url)
   const slug = url.searchParams.get('service') ?? ''
   const date = url.searchParams.get('date') ?? ''
@@ -124,6 +124,7 @@ async function availability(request: Request, ctx: RequestContext, store: Calend
 }
 
 async function activeBookings(store: CalendarStore, tenantId: string): Promise<Booking[]> {
+  // The memory store lists every booking. A durable adapter must select the active rows itself.
   const listed = await store.list(tenantId)
   return listed.filter((booking) => booking.status === 'booked')
 }
@@ -134,9 +135,9 @@ async function createBooking(
   store: CalendarStore,
   maxBookings: number,
 ): Promise<Response> {
-  if (request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405, { allow: 'POST' })
+  if (request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405, { ...STORE, allow: 'POST' })
   const calendar = ctx.tenant.calendar
-  if (!calendar) return json({ error: 'not_found' }, 404)
+  if (!calendar) return json({ error: 'not_found' }, 404, STORE)
   const body = await readJson(request)
   if (!body.ok) return json({ error: body.error }, body.status, STORE)
   if (!isRecord(body.value)) return json({ error: 'invalid_body' }, 400, STORE)
@@ -191,21 +192,21 @@ async function createBooking(
 
 async function oneBooking(request: Request, ctx: RequestContext, store: CalendarStore, id: string): Promise<Response> {
   if (request.method !== 'GET' && request.method !== 'DELETE') {
-    return json({ error: 'method_not_allowed' }, 405, { allow: 'GET, DELETE' })
+    return json({ error: 'method_not_allowed' }, 405, { ...STORE, allow: 'GET, DELETE' })
   }
-  if (!UUID.test(id)) return json({ error: 'not_found' }, 404)
+  if (!UUID.test(id)) return json({ error: 'not_found' }, 404, STORE)
   if (request.method === 'DELETE') return cancelBooking(request, ctx, store, id)
   const booking = await store.get(ctx.tenant.id, id)
-  if (!booking) return json({ error: 'not_found' }, 404)
+  if (!booking) return json({ error: 'not_found' }, 404, STORE)
   return json({ booking, store: 'memory' }, 200, STORE)
 }
 
 async function cancelBooking(request: Request, ctx: RequestContext, store: CalendarStore, id: string): Promise<Response> {
   if (request.method !== 'POST' && request.method !== 'DELETE') {
-    return json({ error: 'method_not_allowed' }, 405, { allow: 'POST, DELETE' })
+    return json({ error: 'method_not_allowed' }, 405, { ...STORE, allow: 'POST, DELETE' })
   }
-  if (!UUID.test(id)) return json({ error: 'not_found' }, 404)
+  if (!UUID.test(id)) return json({ error: 'not_found' }, 404, STORE)
   const booking = await store.cancel(ctx.tenant.id, id, ctx.clock().toISOString())
-  if (!booking) return json({ error: 'not_found' }, 404)
+  if (!booking) return json({ error: 'not_found' }, 404, STORE)
   return json({ booking, store: 'memory' }, 200, STORE)
 }

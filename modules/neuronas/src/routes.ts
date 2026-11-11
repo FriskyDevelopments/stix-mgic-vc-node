@@ -50,6 +50,7 @@ export async function handleNeuronas(
 }
 
 async function listNotes(request: Request, ctx: RequestContext, store: NeuronasStore): Promise<Response> {
+  // The memory store lists every note. A durable adapter must filter and page in the store.
   const config = ctx.tenant.neuronas
   if (!config) return json({ error: 'not_found' }, 404, STORE)
   const url = new URL(request.url)
