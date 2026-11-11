@@ -56,10 +56,17 @@ async function listNotes(request: Request, ctx: RequestContext, store: NeuronasS
   const collection = url.searchParams.get('collection')
   const tag = url.searchParams.get('tag')
   const q = url.searchParams.get('q')
+  const offsetRaw = url.searchParams.get('offset')
   const limitRaw = url.searchParams.get('limit')
   if (collection !== null && !config.collections.includes(collection)) return json({ error: 'unknown_collection' }, 400, STORE)
   if (tag !== null && !SLUG.test(tag)) return json({ error: 'invalid_query' }, 400, STORE)
   if (q !== null && (q.length < 1 || q.length > 80)) return json({ error: 'invalid_query' }, 400, STORE)
+  let offset = 0
+  if (offsetRaw !== null) {
+    if (!/^\d+$/.test(offsetRaw)) return json({ error: 'invalid_query' }, 400, STORE)
+    offset = Number(offsetRaw)
+    if (offset > 10_000) return json({ error: 'invalid_query' }, 400, STORE)
+  }
   let limit = 50
   if (limitRaw !== null) {
     if (!/^\d+$/.test(limitRaw)) return json({ error: 'invalid_query' }, 400, STORE)
@@ -76,7 +83,7 @@ async function listNotes(request: Request, ctx: RequestContext, store: NeuronasS
       return hay.includes(needle)
     })
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.id.localeCompare(b.id))
-    .slice(0, limit)
+    .slice(offset, offset + limit)
   return json({ notes, store: 'memory' }, 200, STORE)
 }
 

@@ -17,6 +17,7 @@ export function weekdayOfDate(date: string): number | null {
 }
 
 function minutes(hm: string): number | null {
+  // 24:00 is not a close time. A day ends at 23:59 or earlier.
   const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hm)
   if (!match) return null
   return Number(match[1]) * 60 + Number(match[2])

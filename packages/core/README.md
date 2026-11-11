@@ -77,7 +77,7 @@ Neuronas, mounted at `/neuronas`:
 
 | Method | Path | Behavior |
 | --- | --- | --- |
-| GET | `/neuronas/notes` | Filter with `collection`, `tag`, `q`, `limit` (max 100). |
+| GET | `/neuronas/notes` | Filter with `collection`, `tag`, `q`, `limit` (max 100), and `offset` (max 10000). |
 | POST | `/neuronas/notes` | `{ collection, title, body, tags }`. Source is `manual`. |
 | GET | `/neuronas/notes/:id` | One note. |
 | PATCH | `/neuronas/notes/:id` | Title, body, or tags. |

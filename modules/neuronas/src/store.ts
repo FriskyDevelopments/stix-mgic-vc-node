@@ -40,7 +40,7 @@ export class MemoryNeuronasStore implements NeuronasStore {
   insert(note: Note, maxNotes: number): Promise<'ok' | 'limit' | 'exists'> {
     const id = key(note.tenantId, note.id)
     if (this.notes.has(id)) return Promise.resolve('exists')
-    const count = [...this.notes.values()].filter((item) => item.tenantId === note.tenantId).length
+    const count = [...this.notes.values()].filter((item) => item.tenantId === note.tenantId && item.source === 'manual').length
     if (count >= maxNotes) return Promise.resolve('limit')
     this.notes.set(id, note)
     return Promise.resolve('ok')

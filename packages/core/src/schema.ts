@@ -364,7 +364,7 @@ let cachedConfigJson = ''
 let cachedConfig: TenantConfig | undefined
 
 export function loadTenantConfigFromJson(text: string): TenantConfig {
-  if (text === cachedConfigJson && cachedConfig) return cachedConfig
+  if (text === cachedConfigJson && cachedConfig) return structuredClone(cachedConfig)
   let tenant: TenantConfig
   try {
     tenant = loadTenantConfig(JSON.parse(text) as unknown)
@@ -374,5 +374,5 @@ export function loadTenantConfigFromJson(text: string): TenantConfig {
   }
   cachedConfigJson = text
   cachedConfig = tenant
-  return tenant
+  return structuredClone(tenant)
 }

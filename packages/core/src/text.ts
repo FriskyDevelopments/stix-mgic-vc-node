@@ -10,7 +10,7 @@ export function hasControlChars(value: string, allowNewlines = false): boolean {
       if (allowNewlines && (code === 9 || code === 10)) continue
       return true
     }
-    if (code === 0xad || code === 0x200b || code === 0x200c || code === 0x200d || code === 0x2060 || code === 0xfeff) return true
+    if (code === 0xad || code === 0x34f || code === 0x180e || code === 0x200b || code === 0x200c || code === 0x200d || code === 0x2060 || code === 0x2800 || code === 0xfeff || code === 0xffa0) return true
     if (code === 0x2028 || code === 0x2029) return true
     if (code >= 0x202a && code <= 0x202e) return true
     if (code >= 0x2066 && code <= 0x2069) return true

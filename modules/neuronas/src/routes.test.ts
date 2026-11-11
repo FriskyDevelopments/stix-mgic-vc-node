@@ -135,6 +135,42 @@ describe('neuronas module', () => {
     expect(await ready.json()).toMatchObject({ module: 'neuronas', allowDelete: false })
   })
 
+  it('pages notes and does not let catalog rows consume the manual cap', async () => {
+    const store = memoryNeuronasStore()
+    const tenant = exampleTenant()
+    const handler = createTenantHandler({
+      tenant,
+      now: () => now,
+      modules: [createNeuronasModule(store, 1)],
+    })
+    await store.put({
+      id: 'catalog:marca',
+      tenantId: tenant.id,
+      collection: 'marca',
+      title: 'Marca',
+      body: 'Borrador',
+      tags: ['marca'],
+      source: 'catalog',
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    })
+    const first = await call(handler, '/neuronas/notes', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ collection: 'notes', title: 'Uno', body: 'A', tags: [] }),
+    })
+    const second = await call(handler, '/neuronas/notes', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ collection: 'notes', title: 'Dos', body: 'B', tags: [] }),
+    })
+    expect(first.status).toBe(201)
+    expect(second.status).toBe(413)
+    const page = await call(handler, '/neuronas/notes?limit=1&offset=1')
+    const body = await page.json() as { notes: { title: string }[] }
+    expect(body.notes).toHaveLength(1)
+  })
+
   it('does not recreate a note removed before save', async () => {
     const store = memoryNeuronasStore()
     const note = {
