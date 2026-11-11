@@ -44,7 +44,7 @@ The flow **never deletes or archives** anything. It only adds or updates fields.
 | `RANGEL_INTERVIEW_KEY` | Shared secret the channel adapter sends as `x-rangel-interview-key` (constant-time compare) |
 | `RANGEL_NOTION_TOKEN` | Notion integration token with access to Panel de Rangel. If missing, writes fail closed (502) |
 
-Set these with `npx wrangler secret put …` only after GO. Never commit their values.
+Set these with `npx wrangler secret put …` only after GO. Never commit their values. The Worker forwards these three to the Node container through `ASHY_FORWARDED_ENV_KEYS` in `workers/container-env.ts`; the routes run inside the container, so they read `process.env`.
 
 ## What's still needed to go live
 

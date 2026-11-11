@@ -41,6 +41,15 @@ describe('parseAnswer', () => {
     })
     expect(parseAnswer(byId('marca.tipografia'), 'b')).toEqual({ kind: 'value', value: 'B' })
   })
+  it('handles review edge cases', () => {
+    const activo = byId('servicios.aromaterapia.activo')
+    for (const neg of ['claro que no', 'ya no', 'ok no']) expect(parseAnswer(activo, neg)).toEqual({ kind: 'value', value: false })
+    expect(parseAnswer(byId('pendientes.precios.fecha'), '2026-02-31')).toMatchObject({ kind: 'invalid' })
+    expect(parseAnswer(byId('terapeutas.1.nombre'), 'no')).toEqual({ kind: 'skip' })
+    expect(parseAnswer(byId('servicios.reflexologia.precio'), '1.200')).toEqual({ kind: 'value', value: 1200 })
+    expect(parseAnswer(byId('servicios.reflexologia.precio'), '1.200.000')).toEqual({ kind: 'value', value: 1200000 })
+    expect(parseAnswer(byId('servicios.reflexologia.precio'), '650.50')).toEqual({ kind: 'value', value: 650.5 })
+  })
 })
 
 describe('buildNotionWrite', () => {

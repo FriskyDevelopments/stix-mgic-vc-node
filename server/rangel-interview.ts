@@ -1,4 +1,4 @@
-import { timingSafeEqual } from 'node:crypto'
+import { createHash, timingSafeEqual } from 'node:crypto'
 import { Hono } from 'hono'
 import checklist from './rangel-interview/checklist.json'
 
@@ -31,6 +31,7 @@ export interface ChecklistItem {
 }
 
 export const NOTION_VERSION = '2026-03-11'
+const MAX_SESSIONS = 50
 export const CHECKLIST_ITEMS = (checklist as { items: ChecklistItem[] }).items
 export const INTERVIEW_ITEMS = CHECKLIST_ITEMS.filter((i) => i.owner === 'rangel' && i.question)
 
@@ -47,19 +48,22 @@ export function parseAnswer(item: ChecklistItem, raw: string): Parsed {
   if (!text || SKIP.has(n)) return { kind: 'skip' }
   switch (item.answer_type) {
     case 'number': {
-      const m = n.replace(/(\d),(\d{3})\b/g, '$1$2').match(/\d+(?:[.,]\d+)?/)
+      const m = n.replace(/(\d)[.,](\d{3})\b/g, '$1$2').replace(/(\d)[.,](\d{3})\b/g, '$1$2').match(/\d+(?:[.,]\d+)?/)
       if (!m) return { kind: 'invalid', hint: 'Dime solo el número, por ejemplo 650.' }
       return { kind: 'value', value: Number(m[0].replace(',', '.')) }
     }
     case 'yes_no': {
-      const first = n.split(/[\s,]+/)[0]
-      if (YES.has(n) || YES.has(first)) return { kind: 'value', value: true }
-      if (NO.has(n) || NO.has(first)) return { kind: 'value', value: false }
+      const words = n.split(/[\s,]+/)
+      if (NO.has(n) || words.includes('no') || words.includes('nop')) return { kind: 'value', value: false }
+      if (YES.has(n) || YES.has(words[0])) return { kind: 'value', value: true }
       return { kind: 'invalid', hint: 'Contéstame «sí» o «no».' }
     }
     case 'date': {
       let m = n.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
-      if (m) return { kind: 'value', value: isoDate(+m[1], +m[2], +m[3]) }
+      if (m) {
+        const d = isoDate(+m[1], +m[2], +m[3])
+        if (d) return { kind: 'value', value: d }
+      }
       m = n.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/)
       if (m) {
         const y = +m[3] < 100 ? 2000 + +m[3] : +m[3]
@@ -79,7 +83,7 @@ export function parseAnswer(item: ChecklistItem, raw: string): Parsed {
       return { kind: 'value', value: hit }
     }
     case 'text':
-      if (item.repeatable && NO.has(n)) return { kind: 'skip' }
+      if (NO.has(n)) return { kind: 'skip' }
       return { kind: 'value', value: text.slice(0, 2000) }
     default:
       return { kind: 'skip' }
@@ -183,9 +187,8 @@ export async function answerCurrent(state: InterviewState, text: string, deps: I
 
 function keyMatches(given: string | undefined, expected: string | undefined) {
   if (!given || !expected) return false
-  const a = Buffer.from(given)
-  const b = Buffer.from(expected)
-  return a.length === b.length && timingSafeEqual(a, b)
+  const digest = (v: string) => createHash('sha256').update(v).digest()
+  return timingSafeEqual(digest(given), digest(expected))
 }
 
 export function createRangelInterviewRoutes(env: NodeJS.ProcessEnv = process.env, deps: InterviewDeps = {}) {
@@ -193,7 +196,10 @@ export function createRangelInterviewRoutes(env: NodeJS.ProcessEnv = process.env
   const sessions = new Map<string, InterviewState>()
   const state = (id: string) => {
     let s = sessions.get(id)
-    if (!s) sessions.set(id, (s = { index: 0, answers: {} }))
+    if (!s) {
+      if (sessions.size >= MAX_SESSIONS) sessions.delete(sessions.keys().next().value as string)
+      sessions.set(id, (s = { index: 0, answers: {} }))
+    }
     return s
   }
   app.use('*', async (c, next) => {
