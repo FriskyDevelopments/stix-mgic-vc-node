@@ -71,7 +71,17 @@ async function messages(request: Request, env: MarinaEnv & { DEMO_ACCESS_TOKEN?:
       providerName: 'WAHA',
     })
   }
-  const sent = await sendWahaText(env, { chatId: chatId!, text: consult.reply || text }, fetchImpl)
+  const outbound = consult.reply.trim()
+  if (!outbound) {
+    return json({
+      reply: '',
+      delivered: false,
+      reason: 'empty_reply',
+      escalated: consult.escalated,
+      providerName: 'WAHA',
+    }, 502)
+  }
+  const sent = await sendWahaText(env, { chatId: chatId!, text: outbound }, fetchImpl)
   if (!sent.ok) {
     return json({ error: sent.code, reply: consult.reply, delivered: false }, sent.code === 'waha_not_configured' ? 503 : 502)
   }

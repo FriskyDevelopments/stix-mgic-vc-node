@@ -1,7 +1,7 @@
 import { DEMO_SERVICES } from '../payments/catalog.ts'
 import { durableObjectStore, type OrderNamespace } from './orders-do.ts'
 import { memoryStore, type DemoStore } from './state.ts'
-import { handlePayments, type PaymentsEnv } from '../payments/routes.ts'
+import { handlePayments, bearerAllowed, type PaymentsEnv } from '../payments/routes.ts'
 import { handleMarina, type MarinaEnv } from '../marina/routes.ts'
 import { classifyStripeSecretKey } from '../payments/stripe.ts'
 import { isBlockedHost } from '../shared/hosts.ts'
@@ -34,9 +34,11 @@ export async function handleDemoRequest(
     return json({ error: 'host_not_allowed', demo: true }, 421)
   }
   if (url.pathname === '/api/4elementos/health' && request.method === 'GET') {
+    if (!bearerAllowed(request, env.DEMO_ACCESS_TOKEN)) return json({ error: 'unauthorized' }, 401)
     return json(health(env))
   }
   if (url.pathname === '/api/4elementos/demo' && request.method === 'GET') {
+    if (!bearerAllowed(request, env.DEMO_ACCESS_TOKEN)) return json({ error: 'unauthorized' }, 401)
     return json(seed())
   }
   const payments = await handlePayments(request, env, activeStore, fetchImpl)

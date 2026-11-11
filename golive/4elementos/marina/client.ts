@@ -107,7 +107,12 @@ export async function askMarina(
   } catch {
     return { ok: false, code: 'marina_rejected' }
   }
-  if (!response.ok && response.status !== 502) return { ok: false, code: 'marina_rejected', status: response.status }
+  // Marina's chat webhook uses 502 with a JSON body when every model fails.
+  // An HTML 502 from a proxy is a transport failure, not that fallback.
+  const jsonBody = (response.headers.get('content-type') ?? '').includes('json')
+  if (!response.ok && !(response.status === 502 && jsonBody)) {
+    return { ok: false, code: 'marina_rejected', status: response.status }
+  }
   let payload: { reply?: unknown; escalated?: unknown; language?: unknown; provider?: unknown; source?: unknown }
   try {
     payload = (await response.json()) as typeof payload

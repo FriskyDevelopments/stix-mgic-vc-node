@@ -29,6 +29,30 @@ describe('Marina client', () => {
     expect(calls[0]?.body).not.toContain('should-not-send')
   })
 
+  it('does not send the customer text back when Marina has no reply', async () => {
+    const calls: string[] = []
+    const response = await handleMarina(
+      post('/api/4elementos/marina/messages', { text: 'mi mensaje privado', to: '+525512345678', deliver: true }),
+      {
+        MARINA_CHAT_URL: 'https://marina.example.internal/webhook/marina-chat',
+        WAHA_BASE_URL: 'https://waha.example.internal',
+        WAHA_SESSION: 'studio',
+        WAHA_API_KEY: 'waha-test-key',
+      },
+      memoryStore(),
+      async (url) => {
+        calls.push(String(url))
+        if (String(url).includes('marina-chat')) {
+          return Response.json({ reply: '   ', escalated: true, language: 'es' })
+        }
+        return Response.json({ ok: true })
+      },
+    )
+    expect(response?.status).toBe(502)
+    expect((await response!.json()).reason).toBe('empty_reply')
+    expect(calls.some((url) => url.includes('/api/sendText'))).toBe(false)
+  })
+
   it('does not call Marina when a delivery has no usable phone', async () => {
     let calls = 0
     const response = await handleMarina(

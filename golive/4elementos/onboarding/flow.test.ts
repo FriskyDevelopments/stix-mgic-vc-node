@@ -63,6 +63,15 @@ describe('onboarding flow', () => {
     expect(completeActivation(done, '2026-11-13T00:00:00.000Z').accountId).toBe(done.accountId)
   })
 
+  it('keeps the default WhatsApp choice when an older draft omitted it', () => {
+    const stored = resume(JSON.stringify({ version: 1, step: 'channels', ownerName: 'Rangel' }))
+    expect(stored.whatsappEnabled).toBe(true)
+    expect(stored.voiceEnabled).toBe(false)
+    const off = resume(JSON.stringify({ version: 1, step: 'channels', whatsappEnabled: false, voiceEnabled: true }))
+    expect(off.whatsappEnabled).toBe(false)
+    expect(off.voiceEnabled).toBe(true)
+  })
+
   it('uses the storage key the screen writes', () => {
     expect(STORAGE_KEY).toBe('4elementos.onboarding.v1')
   })

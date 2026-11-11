@@ -5,6 +5,7 @@ export function parseJsonc(text: string): unknown {
   const stripped = text
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/^\s*\/\/.*$/gm, '')
+    .replace(/,\s*([}\]])/g, '$1')
   return JSON.parse(stripped)
 }
 

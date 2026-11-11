@@ -34,6 +34,13 @@ describe('demo worker', () => {
     expect(apex.status).toBe(421)
     expect(nested.status).toBe(421)
     expect(other.status).toBe(421)
+    const preview = await handleDemoRequest(
+      new Request('https://elementos-demo.owner.workers.dev/api/4elementos/health'),
+      { DEMO_MODE: 'true', WAHA_API_KEY: 'secret-value' },
+      memoryStore(),
+    )
+    expect(preview.status).toBe(401)
+    expect(JSON.stringify(await preview.json())).not.toContain('secret-value')
   })
 
   it('does not treat a failed durable object write as an empty book', async () => {
@@ -84,6 +91,7 @@ describe('demo config', () => {
   it('stays a workers.dev preview with placeholder secrets and no custom domain', () => {
     const text = readFileSync(new URL('./wrangler.jsonc', import.meta.url), 'utf8')
     expect(demoConfigErrors(parseJsonc(text))).toEqual([])
+    expect(parseJsonc('{ "name": "elementos-demo", }')).toEqual({ name: 'elementos-demo' })
     expect(text).not.toContain('"routes"')
   })
 
