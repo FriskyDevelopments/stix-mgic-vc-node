@@ -3,6 +3,8 @@ import { hasControlChars, normalizeNewlines } from '../../../packages/core/src/t
 import { normalizeTags, noteIdOk } from './notes.ts'
 import type { NeuronasStore, Note } from './store.ts'
 
+export const NEURONAS_PREFIX = '/neuronas'
+
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const STORE = { 'x-store': 'memory' }
 
@@ -18,7 +20,7 @@ export async function handleNeuronas(
 ): Promise<Response> {
   const config = ctx.tenant.neuronas
   if (!config) return json({ error: 'not_found' }, 404, STORE)
-  const tail = routeTail(new URL(request.url).pathname, '/neuronas')
+  const tail = routeTail(new URL(request.url).pathname, NEURONAS_PREFIX)
   if (tail === null) return json({ error: 'not_found' }, 404, STORE)
   if (tail === '/') {
     if (request.method !== 'GET') return json({ error: 'method_not_allowed' }, 405, { allow: 'GET' })

@@ -4,6 +4,8 @@ import type { CatalogService } from '../../../packages/core/src/schema.ts'
 import { buildSlots, civilDate, daysBetween, offsetFor, overlaps, weekdayOfDate } from './slots.ts'
 import type { Booking, CalendarStore } from './store.ts'
 
+export const CALENDAR_PREFIX = '/calendar'
+
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const STORE = { 'x-store': 'memory' }
@@ -31,7 +33,7 @@ export async function handleCalendar(
 ): Promise<Response> {
   const calendar = ctx.tenant.calendar
   if (!calendar) return json({ error: 'not_found' }, 404)
-  const tail = routeTail(new URL(request.url).pathname, '/calendar')
+  const tail = routeTail(new URL(request.url).pathname, CALENDAR_PREFIX)
   if (tail === null) return json({ error: 'not_found' }, 404)
   if (tail === '/') {
     if (request.method !== 'GET') return json({ error: 'method_not_allowed' }, 405, { allow: 'GET' })

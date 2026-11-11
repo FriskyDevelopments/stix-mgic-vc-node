@@ -19,7 +19,7 @@ export default {
       tenant = loadTenantConfigFromJson(env.TENANT_CONFIG_JSON)
     } catch (error) {
       if (error instanceof TenantConfigError) return loggedResponse(request, env, { error: 'tenant_config_invalid' }, 500)
-      throw error
+      return loggedResponse(request, env, { error: 'internal' }, 500)
     }
     const enabled = tenant.modules.includes('neuronas')
     return createTenantHandler({

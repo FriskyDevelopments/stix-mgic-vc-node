@@ -105,6 +105,13 @@ describe('calendar module', () => {
     })
     expect(paused.status).toBe(409)
 
+    const hidden = await post(handler, '/calendar/bookings', {
+      serviceSlug: 'sample',
+      start: '2026-11-16T10:00:00-06:00',
+      guestName: 'Ana\u202e',
+    })
+    expect(hidden.status).toBe(400)
+
     const newline = await post(handler, '/calendar/bookings', {
       serviceSlug: 'sample',
       start: '2026-11-16T10:00:00-06:00',
