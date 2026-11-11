@@ -97,6 +97,7 @@ async function availability(request: Request, ctx: RequestContext, store: Calend
     }, 200, STORE)
   }
   const slots = buildSlots(date, hours.open, hours.close, service.durationMinutes, offset)
+  // null is a bad duration or hours pair. An empty list means the day is open and the service does not fit.
   if (!slots) return json({ error: 'invalid_hours' }, 500)
   const bookings = await activeBookings(store, ctx.tenant.id)
   const open = slots.filter((slot) => {

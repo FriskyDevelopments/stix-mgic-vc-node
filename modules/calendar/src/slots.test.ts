@@ -34,5 +34,6 @@ describe('calendar slots', () => {
       '2026-11-16T10:30:00-06:00',
       '2026-11-16T11:30:00-06:00',
     )).toBe(true)
+    expect(overlaps('not-a-time', 'also-not', '2026-11-16T10:00:00-06:00', '2026-11-16T11:00:00-06:00')).toBe(true)
   })
 })

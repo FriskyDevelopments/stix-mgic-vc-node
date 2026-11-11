@@ -23,6 +23,8 @@ export interface CalendarStore {
 
 export class MemoryCalendarStore implements CalendarStore {
   private readonly bookings = new Map<string, Booking>()
+  private readonly cancelledOrder = new Map<string, number>()
+  private cancelTick = 0
 
   list(tenantId: string): Promise<Booking[]> {
     return Promise.resolve([...this.bookings.values()].filter((item) => item.tenantId === tenantId))
@@ -41,11 +43,14 @@ export class MemoryCalendarStore implements CalendarStore {
     const clash = active.some((item) => overlaps(item.start, item.end, booking.start, booking.end))
     if (clash) return Promise.resolve('conflict')
     if (active.length >= maxRecords) return Promise.resolve('limit')
-    const cancelled = mine.filter((item) => item.status === 'cancelled')
+    const cancelled = mine
+      .filter((item) => item.status === 'cancelled')
+      .sort((a, b) => (this.cancelledOrder.get(a.id) ?? 0) - (this.cancelledOrder.get(b.id) ?? 0))
     while (cancelled.length > maxRecords) {
       const oldest = cancelled.shift()
       if (!oldest) break
       this.bookings.delete(oldest.id)
+      this.cancelledOrder.delete(oldest.id)
     }
     this.bookings.set(booking.id, booking)
     return Promise.resolve('ok')
@@ -55,6 +60,8 @@ export class MemoryCalendarStore implements CalendarStore {
     const booking = this.bookings.get(id)
     if (!booking || booking.tenantId !== tenantId) return Promise.resolve(null)
     if (booking.status === 'cancelled') return Promise.resolve(booking)
+    this.cancelTick += 1
+    this.cancelledOrder.set(id, this.cancelTick)
     const next: Booking = { ...booking, status: 'cancelled', updatedAt }
     this.bookings.set(id, next)
     return Promise.resolve(next)

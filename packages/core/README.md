@@ -81,7 +81,7 @@ Neuronas, mounted at `/neuronas`:
 | POST | `/neuronas/notes` | `{ collection, title, body, tags }`. Source is `manual`. |
 | GET | `/neuronas/notes/:id` | One note. |
 | PATCH | `/neuronas/notes/:id` | Title, body, or tags. |
-| DELETE | `/neuronas/notes/:id` | `405 delete_disabled` when the tenant sets `allowDelete` false. |
+| DELETE | `/neuronas/notes/:id` | `403 delete_disabled` when the tenant sets `allowDelete` false. A wrong method is still `405`. |
 
 ## Assumptions for neuronas and 4 Elementos
 

@@ -46,6 +46,6 @@ export function overlaps(start: string, end: string, otherStart: string, otherEn
   const leftEnd = Date.parse(end)
   const right = Date.parse(otherStart)
   const rightEnd = Date.parse(otherEnd)
-  if ([left, leftEnd, right, rightEnd].some((value) => Number.isNaN(value))) return false
+  if ([left, leftEnd, right, rightEnd].some((value) => Number.isNaN(value))) return true
   return left < rightEnd && leftEnd > right
 }

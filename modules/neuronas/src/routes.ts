@@ -137,7 +137,7 @@ async function deleteNote(ctx: RequestContext, store: NeuronasStore, id: string)
   if (!config) return json({ error: 'not_found' }, 404)
   const existing = await store.get(ctx.tenant.id, id)
   if (!existing) return json({ error: 'not_found' }, 404)
-  if (!config.allowDelete) return json({ error: 'delete_disabled' }, 405, STORE)
+  if (!config.allowDelete) return json({ error: 'delete_disabled' }, 403, STORE)
   await store.remove(ctx.tenant.id, id)
   return json({ deleted: id, store: 'memory' }, 200, STORE)
 }

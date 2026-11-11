@@ -43,7 +43,7 @@ describe('neuronas module', () => {
     expect(list.notes.map((item) => item.id)).toEqual([note.id])
 
     const removed = await call(handler, `/neuronas/notes/${note.id}`, { method: 'DELETE' })
-    expect(removed.status).toBe(405)
+    expect(removed.status).toBe(403)
     expect(await removed.json()).toEqual({ error: 'delete_disabled' })
 
     const patched = await call(handler, `/neuronas/notes/${note.id}`, {

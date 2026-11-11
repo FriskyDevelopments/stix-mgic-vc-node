@@ -92,6 +92,6 @@ describe('4 Elementos tenant', () => {
     const marca = await call('/neuronas/notes/catalog:marca')
     expect(marca.status).toBe(200)
     const deleted = await call('/neuronas/notes/catalog:marca', { method: 'DELETE' })
-    expect(deleted.status).toBe(405)
+    expect(deleted.status).toBe(403)
   })
 })
