@@ -68,9 +68,9 @@ Calendar, mounted at `/calendar`:
 | --- | --- | --- |
 | GET | `/calendar/services` | Active services. `?includeInactive=1` includes the rest. |
 | GET | `/calendar/availability?service=&date=` | Open slots. Past and booked slots are omitted. |
-| POST | `/calendar/bookings` | `{ serviceSlug, start, guestName }`. One shared room. |
+| POST | `/calendar/bookings` | `{ serviceSlug, start, guestName }`. `start` must be the exact slot string from availability, such as `2026-11-16T10:00:00-06:00`. Other ISO forms return `slot_not_aligned`. One shared room. |
 | GET | `/calendar/bookings/:id` | The booking. The id is the only credential. |
-| POST | `/calendar/bookings/:id/cancel` | Cancels. A second cancel is the same booking. |
+| POST | `/calendar/bookings/:id/cancel` | Cancels, including a booking whose slot has already ended. A second cancel returns the same row while it is still stored. The memory store keeps at most as many cancelled rows as the active cap, dropping the oldest. |
 | DELETE | `/calendar/bookings/:id` | Same cancel. |
 
 Neuronas, mounted at `/neuronas`:

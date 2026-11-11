@@ -158,6 +158,7 @@ describe('calendar module', () => {
       guestName: 'Bo',
     })
     expect(afterCancel.status).toBe(201)
+    expect((await call(freed, `/calendar/bookings/${heldId}`)).status).toBe(404)
   })
 
   it('answers 405 for a bad booking id when the method is not allowed', async () => {

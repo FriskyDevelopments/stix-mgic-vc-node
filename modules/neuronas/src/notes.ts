@@ -1,5 +1,5 @@
 import type { TenantConfig } from '../../../packages/core/src/schema.ts'
-import { hasControlChars } from '../../../packages/core/src/text.ts'
+import { hasControlChars, normalizeNewlines } from '../../../packages/core/src/text.ts'
 import type { Note } from './store.ts'
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
@@ -33,9 +33,10 @@ export function catalogNote(
   if (!tenant.neuronas?.collections.includes(draft.collection)) {
     throw new Error(`invalid_catalog_note:${draft.collection}`)
   }
-  if (hasControlChars(draft.title) || hasControlChars(draft.body, true)) throw new Error('invalid_catalog_note')
+  const bodyRaw = normalizeNewlines(draft.body)
+  if (hasControlChars(draft.title) || hasControlChars(bodyRaw, true)) throw new Error('invalid_catalog_note')
   const title = draft.title.trim()
-  const body = draft.body.trim()
+  const body = bodyRaw.trim()
   if (!noteIdOk(draft.id) || title.length < 1 || title.length > 120 || body.length < 1 || body.length > 4000) {
     throw new Error('invalid_catalog_note')
   }

@@ -1,3 +1,7 @@
+export function normalizeNewlines(value: string): string {
+  return value.replace(/\r\n?/g, '\n')
+}
+
 export function hasControlChars(value: string, allowNewlines = false): boolean {
   for (let index = 0; index < value.length; index += 1) {
     const code = value.charCodeAt(index)

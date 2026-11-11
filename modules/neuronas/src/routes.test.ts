@@ -26,15 +26,16 @@ describe('neuronas module', () => {
     const created = await call(handler, '/neuronas/notes', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
+        body: JSON.stringify({
         collection: 'notes',
         title: 'Aceites',
-        body: 'Comprar aceite de lavanda.\nSin precio todavía.',
+        body: 'Comprar aceite de lavanda.\r\nSin precio todavía.',
         tags: ['inventario'],
       }),
     })
     expect(created.status).toBe(201)
-    const note = (await created.json() as { note: { id: string; source: string } }).note
+    const note = (await created.json() as { note: { id: string; source: string; body: string } }).note
+    expect(note.body).toBe('Comprar aceite de lavanda.\nSin precio todavía.')
     expect(note.source).toBe('manual')
 
     const found = await call(handler, '/neuronas/notes?q=lavanda&tag=inventario&collection=notes')

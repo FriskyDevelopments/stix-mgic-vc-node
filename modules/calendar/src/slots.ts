@@ -34,6 +34,7 @@ function fromMinutes(total: number): string {
 }
 
 export function buildSlots(date: string, open: string, close: string, durationMinutes: number, offset: string): Slot[] | null {
+  if (!Number.isInteger(durationMinutes) || durationMinutes < 1) return null
   const startMin = minutes(open)
   const endMin = minutes(close)
   if (startMin === null || endMin === null || endMin <= startMin) return null

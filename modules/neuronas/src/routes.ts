@@ -1,5 +1,5 @@
 import { json, readJson, routeTail, type RequestContext } from '../../../packages/core/src/index.ts'
-import { hasControlChars } from '../../../packages/core/src/text.ts'
+import { hasControlChars, normalizeNewlines } from '../../../packages/core/src/text.ts'
 import { normalizeTags, noteIdOk } from './notes.ts'
 import type { NeuronasStore, Note } from './store.ts'
 
@@ -143,8 +143,10 @@ async function deleteNote(ctx: RequestContext, store: NeuronasStore, id: string)
 }
 
 function textField(value: unknown, max: number, multiline: boolean): string | null {
-  if (typeof value !== 'string' || hasControlChars(value, multiline)) return null
-  const text = value.trim()
+  if (typeof value !== 'string') return null
+  const normalized = multiline ? normalizeNewlines(value) : value
+  if (hasControlChars(normalized, multiline)) return null
+  const text = normalized.trim()
   if (text.length < 1 || text.length > max) return null
   return text
 }
