@@ -76,12 +76,12 @@ async function availability(request: Request, ctx: RequestContext, store: Calend
   const url = new URL(request.url)
   const slug = url.searchParams.get('service') ?? ''
   const date = url.searchParams.get('date') ?? ''
-  if (!SLUG.test(slug) || weekdayOfDate(date) === null) return json({ error: 'invalid_query' }, 400)
+  if (!SLUG.test(slug) || weekdayOfDate(date) === null) return json({ error: 'invalid_query' }, 400, STORE)
   const service = serviceBySlug(calendar.services, slug)
-  if (!service) return json({ error: 'service_not_found' }, 404)
-  if (!service.active) return json({ error: 'service_inactive' }, 409)
+  if (!service) return json({ error: 'service_not_found' }, 404, STORE)
+  if (!service.active) return json({ error: 'service_inactive' }, 409, STORE)
   const offset = offsetFor(ctx.tenant.timeZone)
-  if (!offset) return json({ error: 'timezone_not_supported' }, 422)
+  if (!offset) return json({ error: 'timezone_not_supported' }, 422, STORE)
   const viewedAt = ctx.clock()
   const today = civilDate(viewedAt, offset)
   const ahead = today ? daysBetween(date, today) : null

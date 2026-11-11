@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { buildSlots, offsetFor, overlaps, weekdayOfDate } from './slots.ts'
 

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { exampleTenant } from './example.ts'
 import { json } from './http.ts'

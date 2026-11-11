@@ -297,7 +297,7 @@ function parseTenant(value: unknown, errors: string[]): TenantConfig | null {
   const id = requireString(value.id, 'tenant.id', errors, SLUG, 32)
   const brandName = requireString(value.brandName, 'tenant.brandName', errors, undefined, 80)
   let tagline: string | null = null
-  if (value.tagline === null) tagline = null
+  if (value.tagline === null || value.tagline === undefined) tagline = null
   else {
     const parsed = requireString(value.tagline, 'tenant.tagline', errors, undefined, 120)
     tagline = parsed

@@ -1,9 +1,15 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { exampleTenant } from './example.ts'
 import { TenantConfigError, loadTenantConfig } from './schema.ts'
 import { themeTokens } from './theme.ts'
 
 describe('tenant config', () => {
+  it('treats a missing tagline as empty', () => {
+    const { tagline: _tagline, ...rest } = structuredClone(exampleTenant())
+    expect(loadTenantConfig(rest).tagline).toBeNull()
+  })
+
   it('loads the example tenant and exposes theme tokens', () => {
     const tenant = exampleTenant()
     expect(tenant.id).toBe('example')

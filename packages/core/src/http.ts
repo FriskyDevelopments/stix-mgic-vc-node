@@ -50,6 +50,6 @@ async function readBoundedText(request: Request, maxBytes: number): Promise<stri
 export function stamp(response: Response, requestId: string, tenantId: string): Response {
   const headers = new Headers(response.headers)
   headers.set('x-request-id', requestId)
-  headers.set('x-tenant', tenantId)
+  if (tenantId) headers.set('x-tenant', tenantId)
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers })
 }

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { exampleTenant } from '../../../packages/core/src/example.ts'
 import { createTenantHandler, loadTenantConfig, type WorkerContext } from '../../../packages/core/src/index.ts'
@@ -229,6 +230,7 @@ describe('calendar module', () => {
     const missing = await calendarWorker.fetch(new Request('https://tenant.test/calendar/services'), { LOG_LEVEL: 'silent' }, ctx)
     expect(missing.status).toBe(503)
     expect(missing.headers.get('x-request-id')).toMatch(/^[0-9a-f-]{36}$/i)
+    expect(missing.headers.get('x-tenant')).toBeNull()
     const invalid = await calendarWorker.fetch(new Request('https://tenant.test/calendar/services'), {
       LOG_LEVEL: 'silent',
       TENANT_CONFIG_JSON: '{',

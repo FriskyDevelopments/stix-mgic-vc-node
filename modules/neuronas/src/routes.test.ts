@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { exampleTenant } from '../../../packages/core/src/example.ts'
 import { createTenantHandler, loadTenantConfig, type WorkerContext } from '../../../packages/core/src/index.ts'

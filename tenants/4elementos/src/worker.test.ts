@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import type { WorkerContext } from '../../../packages/core/src/index.ts'
 import { fourElementos, fourElementosNotes } from './tenant.ts'
