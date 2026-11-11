@@ -88,9 +88,13 @@ describe('Marina client', () => {
         TWILIO_ACCOUNT_SID: 'AC123',
         TWILIO_AUTH_TOKEN: 'token-with-xxxxx-inside',
         TWILIO_FROM_NUMBER: '+15005550006',
+        TWILIO_WEBHOOK_URL: 'https://demo.example/twilio',
       },
       { to: '+525512345678', reason: 'confirmar' },
-      async () => new Response('not-json', { status: 200, headers: { 'content-type': 'text/plain' } }),
+      async (_url, init) => {
+        expect(String(init?.body)).toContain('StatusCallback=https%3A%2F%2Fdemo.example%2Ftwilio')
+        return new Response('not-json', { status: 200, headers: { 'content-type': 'text/plain' } })
+      },
     )
     expect(result.ok).toBe(false)
   })
@@ -149,6 +153,7 @@ describe('Marina client', () => {
     expect((await store.snapshot()).messages).toHaveLength(0)
 
     expect(readWahaInbound({ event: 'message', payload: { fromMe: true, from: '1@c.us', body: 'x' } }).reason).toBe('from_me')
+    expect(readWahaInbound({ event: 'message', payload: { from: '123@broadcast', body: 'hola', fromMe: false } }).reason).toBe('broadcast')
   })
 
   it('does not call Twilio unless Marina has no voice URL and direct calls were explicitly enabled', async () => {

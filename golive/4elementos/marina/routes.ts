@@ -1,6 +1,6 @@
 import type { DemoStore } from '../demo/state.ts'
 import { isUnset, timingSafeEqual } from '../shared/placeholders.ts'
-import { json } from '../payments/routes.ts'
+import { json, bearerAllowed } from '../payments/routes.ts'
 import {
   askMarina,
   chatIdForPhone,
@@ -37,7 +37,7 @@ export async function handleMarina(
     return twilioStatus(request, env, store)
   }
   if (path === '/api/4elementos/marina/inbox' && request.method === 'GET') {
-    if (!bearerOk(request, env.DEMO_ACCESS_TOKEN)) return json({ error: 'unauthorized' }, 401)
+    if (!bearerAllowed(request, env.DEMO_ACCESS_TOKEN)) return json({ error: 'unauthorized' }, 401)
     const state = await store.snapshot()
     return json({ messages: state.messages, calls: state.calls })
   }
@@ -45,7 +45,7 @@ export async function handleMarina(
 }
 
 async function messages(request: Request, env: MarinaEnv & { DEMO_ACCESS_TOKEN?: string }, fetchImpl: typeof fetch) {
-  if (!bearerOk(request, env.DEMO_ACCESS_TOKEN)) return json({ error: 'unauthorized' }, 401)
+  if (!bearerAllowed(request, env.DEMO_ACCESS_TOKEN)) return json({ error: 'unauthorized' }, 401)
   let body: { text?: unknown; to?: unknown; deliver?: unknown; language?: unknown }
   try {
     body = (await request.json()) as typeof body
@@ -85,7 +85,7 @@ async function calls(
   fetchImpl: typeof fetch,
   nowMs: number,
 ) {
-  if (!bearerOk(request, env.DEMO_ACCESS_TOKEN)) return json({ error: 'unauthorized' }, 401)
+  if (!bearerAllowed(request, env.DEMO_ACCESS_TOKEN)) return json({ error: 'unauthorized' }, 401)
   let body: { to?: unknown; reason?: unknown }
   try {
     body = (await request.json()) as typeof body
@@ -154,11 +154,4 @@ async function twilioStatus(request: Request, env: MarinaEnv, store: DemoStore) 
     await store.mutate({ type: 'call_status', providerSid: sid, status, at: new Date().toISOString() })
   }
   return json({ received: true })
-}
-
-function bearerOk(request: Request, token: string | undefined): boolean {
-  if (isUnset(token)) return true
-  const header = request.headers.get('authorization') ?? ''
-  const presented = header.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() : ''
-  return timingSafeEqual(presented, token!.trim())
 }

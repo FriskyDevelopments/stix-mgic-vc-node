@@ -137,7 +137,7 @@ Steps: landing, welcome, studio, element, services, hours, channels, payments, r
 
 Success and cancel are Worker pages, not steps in the flow.
 
-- Before the signed webhook: "Estamos confirmando el pago de prueba". Reloading does not mark it paid.
+- Before the signed webhook, a pending order says "Estamos confirmando el pago de prueba". Canceled, failed, and expired orders say so on that page. Reloading does not mark a pending order paid.
 - After `checkout.session.completed` with `payment_status=paid`: "Pago de prueba registrado".
 - The browser follows a checkout URL only when it is `https://checkout.stripe.com/…`.
 - Cancel while pending: "El pago de prueba se canceló". A later completion event does not mark that order paid.

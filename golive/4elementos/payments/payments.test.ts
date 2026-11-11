@@ -72,6 +72,7 @@ describe('checkout routes', () => {
     expect(params.get('success_url')).toBe('http://127.0.0.1:8788/api/4elementos/checkout/success?session_id={CHECKOUT_SESSION_ID}')
     expect(params.get('line_items[0][price_data][unit_amount]')).toBe('90000')
     expect(params.get('line_items[0][price_data][currency]')).toBe('mxn')
+    expect(params.get('payment_intent_data[metadata][order_id]')).toBe(payload.orderId)
     const snapshot = await store.snapshot()
     expect(snapshot.orders[0]?.status).toBe('pending')
     expect(snapshot.orders[0]?.checkoutSessionId).toBe('cs_test_123')
@@ -165,8 +166,28 @@ describe('checkout routes', () => {
         return Response.json({})
       },
     )
-    expect(response?.status).toBe(400)
-    expect((await response!.json()).error).toBe('public_base_untrusted')
+    expect(response?.status).toBe(401)
+    expect((await response!.json()).error).toBe('unauthorized')
+    expect(calls).toBe(0)
+  })
+
+  it('requires an access token once the host is not loopback', async () => {
+    const store = memoryStore()
+    let calls = 0
+    const response = await handlePayments(
+      new Request('https://elementos-demo.owner.workers.dev/api/4elementos/checkout', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ serviceId: 'masaje-relajante' }),
+      }),
+      { STRIPE_SECRET_KEY: secretKey, PUBLIC_BASE_URL: 'https://elementos-demo.owner.workers.dev' },
+      store,
+      async () => {
+        calls += 1
+        return Response.json({})
+      },
+    )
+    expect(response?.status).toBe(401)
     expect(calls).toBe(0)
   })
 
@@ -208,14 +229,15 @@ describe('checkout routes', () => {
     const response = await handlePayments(
       new Request('https://elementos-demo.someone.workers.dev/api/4elementos/checkout', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', authorization: 'Bearer demo-token' },
         body: JSON.stringify({ serviceId: 'masaje-relajante' }),
       }),
-      { STRIPE_SECRET_KEY: secretKey },
+      { STRIPE_SECRET_KEY: secretKey, DEMO_ACCESS_TOKEN: 'demo-token' },
       store,
       async () => Response.json({}),
     )
     expect(response?.status).toBe(400)
+    expect((await response!.json()).error).toBe('public_base_untrusted')
   })
 
   it('does not follow a checkout URL outside Stripe', () => {

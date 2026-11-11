@@ -119,6 +119,9 @@ export async function createStripeCheckoutSession(
     'metadata[service_id]': draft.serviceId,
     'metadata[order_id]': draft.orderId,
     'metadata[demo]': 'true',
+    'payment_intent_data[metadata][tenant]': '4elementos',
+    'payment_intent_data[metadata][order_id]': draft.orderId,
+    'payment_intent_data[metadata][demo]': 'true',
   }
   if (draft.customerEmail) fields.customer_email = draft.customerEmail
 

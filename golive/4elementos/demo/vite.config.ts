@@ -9,7 +9,7 @@ export default defineConfig({
   root: resolve(here, '../onboarding'),
   plugins: [react()],
   build: {
-    outDir: resolve(here, 'public'),
+    outDir: resolve(here, 'dist'),
     emptyOutDir: true,
     sourcemap: false,
   },

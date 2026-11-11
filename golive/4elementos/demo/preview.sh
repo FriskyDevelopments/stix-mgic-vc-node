@@ -21,7 +21,7 @@ if [[ "${1:-}" == "--dev" ]]; then
   exec npx wrangler dev --config "$CONFIG" --port 8788 --ip 127.0.0.1
 fi
 
-echo "Demo bundle is in golive/4elementos/demo/public."
+echo "Demo bundle is in golive/4elementos/demo/dist."
 echo "Local preview (no deploy, no DNS):"
 echo "  ./golive/4elementos/demo/preview.sh --dev"
 echo "Cloudflare preview deploy is not run here. It needs Francisco's GO and a Cloudflare API token:"

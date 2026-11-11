@@ -1,4 +1,5 @@
 import { isE164, normalizePhone, wahaDirectChatId } from '../shared/phone.ts'
+import { isBlockedHost } from '../shared/hosts.ts'
 import { isUnset, timingSafeEqual } from '../shared/placeholders.ts'
 import { escapeHtml } from '../shared/html.ts'
 import { stripControls } from '../shared/text.ts'
@@ -180,7 +181,7 @@ export function readWahaInbound(body: unknown): WahaInbound {
   const from = String(payload.from ?? '')
   if (!from) return { accepted: false, reason: 'bad_sender' }
   if (from.endsWith('@g.us')) return { accepted: false, reason: 'group' }
-  if (from === 'status@broadcast') return { accepted: false, reason: 'broadcast' }
+  if (from.endsWith('@broadcast') || from === 'status@broadcast') return { accepted: false, reason: 'broadcast' }
   if (from.endsWith('@newsletter')) return { accepted: false, reason: 'newsletter' }
   const text = String(payload.body ?? '').trim()
   if (!text) return { accepted: false, reason: 'empty' }
@@ -271,6 +272,11 @@ export async function placeTwilioCall(
   body.set('To', input.to)
   body.set('From', from)
   body.set('Twiml', twiml)
+  const callback = twilioStatusCallback(env.TWILIO_WEBHOOK_URL)
+  if (callback) {
+    body.set('StatusCallback', callback)
+    body.set('StatusCallbackMethod', 'POST')
+  }
   const authorization = `Basic ${btoa(`${sid}:${token}`)}`
   let response: Response
   try {
@@ -294,6 +300,18 @@ export async function placeTwilioCall(
     return { ok: false, code: 'call_rejected', status: response.status }
   }
   return { ok: true, via: 'twilio', providerSid: typeof payload.sid === 'string' ? payload.sid : undefined }
+}
+
+function twilioStatusCallback(configured: string | undefined): string | null {
+  if (!configured || isUnset(configured)) return null
+  try {
+    const url = new URL(configured.trim())
+    if (url.protocol !== 'https:' || url.username || url.password) return null
+    if (isBlockedHost(url.hostname)) return null
+    return url.toString()
+  } catch {
+    return null
+  }
 }
 
 export async function twilioSignature(authToken: string, url: string, params: Record<string, string>): Promise<string> {

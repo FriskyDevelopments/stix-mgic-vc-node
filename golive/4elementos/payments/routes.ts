@@ -1,5 +1,5 @@
 import { findOrder, findOrderBySession, type DemoStore, type Order } from '../demo/state.ts'
-import { isBlockedHost, isLoopbackOrDemoHost } from '../shared/hosts.ts'
+import { isLoopbackOrDemoHost, isBlockedHost } from '../shared/hosts.ts'
 import { escapeHtml, safeToken } from '../shared/html.ts'
 import { isUnset, timingSafeEqual } from '../shared/placeholders.ts'
 import { findService, priceCentavos } from './catalog.ts'
@@ -21,7 +21,7 @@ export interface PaymentsEnv {
 const EMAIL = /^[^\s@{}]+@[^\s@{}]+\.[^\s@{}]+$/
 
 export function bearerAllowed(request: Request, token: string | undefined): boolean {
-  if (isUnset(token)) return true
+  if (isUnset(token)) return isLoopbackOrDemoHost(new URL(request.url).hostname)
   const header = request.headers.get('authorization') ?? ''
   const presented = header.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() : ''
   return timingSafeEqual(presented, token!.trim())
@@ -171,6 +171,24 @@ async function successPage(url: URL, store: DemoStore): Promise<Response> {
       }),
     )
   }
+  if (order.status === 'canceled') {
+    return html(page({
+      title: 'El pago de prueba se canceló',
+      body: `${order.serviceName} no se cobró.`,
+    }))
+  }
+  if (order.status === 'failed') {
+    return html(page({
+      title: 'El pago de prueba falló',
+      body: `${order.serviceName} no quedó pagado.`,
+    }))
+  }
+  if (order.status === 'expired') {
+    return html(page({
+      title: 'El pago de prueba expiró',
+      body: `${order.serviceName} ya no se puede pagar con esta sesión.`,
+    }))
+  }
   return html(
     page({
       title: 'Estamos confirmando el pago de prueba',
@@ -194,18 +212,34 @@ async function cancelPage(url: URL, store: DemoStore, nowMs: number): Promise<Re
       }),
     )
   }
-  if (order.status === 'pending') {
-    await store.mutate({
-      type: 'set_status',
-      orderId: order.id,
-      status: 'canceled',
-      at: new Date(nowMs).toISOString(),
-    })
+  if (order.status === 'failed') {
+    return html(page({
+      title: 'El pago de prueba falló',
+      body: `${order.serviceName} no quedó pagado. No lo marcamos como cancelado.`,
+    }))
   }
+  if (order.status === 'expired') {
+    return html(page({
+      title: 'El pago de prueba expiró',
+      body: `${order.serviceName} ya no se puede pagar con esta sesión.`,
+    }))
+  }
+  if (order.status === 'canceled') {
+    return html(page({
+      title: 'El pago de prueba se canceló',
+      body: `${order.serviceName} no se cobró. Puedes volver al estudio cuando quieras.`,
+    }))
+  }
+  await store.mutate({
+    type: 'set_status',
+    orderId: order.id,
+    status: 'canceled',
+    at: new Date(nowMs).toISOString(),
+  })
   return html(
     page({
       title: 'El pago de prueba se canceló',
-        body: `${order.serviceName} no se cobró. Puedes volver al estudio cuando quieras.`,
+      body: `${order.serviceName} no se cobró. Puedes volver al estudio cuando quieras.`,
     }),
   )
 }

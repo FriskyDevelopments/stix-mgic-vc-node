@@ -64,4 +64,4 @@ See `demo/wrangler.jsonc`. Set real test values with `npx wrangler secret put`, 
 
 `DEMO_ACCESS_TOKEN`, when set, is required as `Authorization: Bearer` on checkout, messages, and calls. Stripe and Twilio webhooks use their own signatures instead. Leave the token empty for the local button to work.
 
-Checkout return URLs use `PUBLIC_BASE_URL` when it is set. With it empty, only loopback is accepted. A `workers.dev` preview needs `PUBLIC_BASE_URL` set to that preview's own origin. A request Host is not enough.
+Checkout return URLs use `PUBLIC_BASE_URL` when it is set. With it empty, only loopback is accepted. A preview on `workers.dev` must set `PUBLIC_BASE_URL` to that preview's own origin. Off loopback, checkout, messages, calls, and the inbox also require `DEMO_ACCESS_TOKEN`. A request Host is not enough.
