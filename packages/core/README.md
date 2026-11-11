@@ -33,10 +33,10 @@ npm run typecheck
 3. Pass the object through `loadTenantConfig`. Unknown keys, bad colors, and font names that are not plain family names fail at startup.
 4. Copy `wrangler.jsonc`. Set a unique `name`. Keep `workers_dev` false. Do not add `account_id`, `routes`, or a custom domain. DNS stays as it is.
 5. Set `vars.TENANT_ID` to the same id as the config. Do not put tokens in `vars`.
-6. The root Vitest globs already pick up `tenants/<slug>/**/*.test.ts`.
-7. Run `npm test` from the repository root.
+6. Add `tenants/<slug>/src/**/*.ts` to the `include` list in `tsconfig.whitelabel.json`. Vitest already picks up `tenants/<slug>/**/*.test.ts`.
+7. Run `npm test` and `npm run typecheck` from the repository root.
 
-A new module also needs an id in `MODULE_IDS` in `packages/core/src/schema.ts`, a folder under `modules/`, and a mount in the tenant Worker.
+A new module also needs an id in `MODULE_IDS` in `packages/core/src/schema.ts`, a folder under `modules/`, a mount in the tenant Worker, and `modules/<name>/src/**/*.ts` in `tsconfig.whitelabel.json`.
 
 ## Bindings
 
