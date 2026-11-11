@@ -103,7 +103,7 @@ async function availability(request: Request, ctx: RequestContext, store: Calend
   }
   const slots = buildSlots(date, hours.open, hours.close, service.durationMinutes, offset)
   // null is a bad duration or hours pair. An empty list means the day is open and the service does not fit.
-  if (!slots) return json({ error: 'invalid_hours' }, 500)
+  if (!slots) return json({ error: 'invalid_hours' }, 500, STORE)
   const bookings = await activeBookings(store, ctx.tenant.id)
   const open = slots.filter((slot) => {
     if (Date.parse(slot.start) < viewedAt.getTime()) return false
@@ -200,7 +200,7 @@ async function cancelBooking(request: Request, ctx: RequestContext, store: Calen
     return json({ error: 'method_not_allowed' }, 405, { allow: 'POST, DELETE' })
   }
   if (!UUID.test(id)) return json({ error: 'not_found' }, 404)
-  const booking = await store.cancel(ctx.tenant.id, id, ctx.now.toISOString())
+  const booking = await store.cancel(ctx.tenant.id, id, ctx.clock().toISOString())
   if (!booking) return json({ error: 'not_found' }, 404)
   return json({ booking, store: 'memory' }, 200, STORE)
 }

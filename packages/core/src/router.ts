@@ -61,12 +61,22 @@ export function tenantManifest(tenant: TenantConfig, modules: readonly ModuleRou
   }
 }
 
+const LOG_SEGMENTS = new Set([
+  'calendar',
+  'bookings',
+  'cancel',
+  'services',
+  'availability',
+  'neuronas',
+  'notes',
+  'healthz',
+])
+
 export function logPath(pathname: string): string {
-  const path = normalizePath(pathname)
-  return path
-    .replace(/\/calendar\/bookings\/[^/]+\/cancel$/, '/calendar/bookings/:id/cancel')
-    .replace(/\/calendar\/bookings\/[^/]+$/, '/calendar/bookings/:id')
-    .replace(/\/neuronas\/notes\/[^/]+$/, '/neuronas/notes/:id')
+  return normalizePath(pathname)
+    .split('/')
+    .map((part) => (part === '' || LOG_SEGMENTS.has(part) ? part : ':id'))
+    .join('/')
 }
 
 export function createTenantHandler(options: {
