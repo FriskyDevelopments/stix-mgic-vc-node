@@ -14,6 +14,8 @@ export interface NeuronasStore {
   list(tenantId: string): Promise<Note[]>
   get(tenantId: string, id: string): Promise<Note | null>
   insert(note: Note, maxNotes: number): Promise<'ok' | 'limit' | 'exists'>
+  /** Load or replace a catalog note before the first request. A durable adapter must persist this. */
+  put(note: Note): void
   save(tenantId: string, note: Note): Promise<boolean>
   remove(tenantId: string, id: string): Promise<boolean>
 }

@@ -48,6 +48,13 @@ describe('calendar module', () => {
     const pastDay = await call(handler, '/calendar/availability?service=sample&date=2026-11-10')
     expect(pastDay.status).toBe(422)
     expect(await pastDay.json()).toEqual({ error: 'date_in_past' })
+    const pastBook = await post(handler, '/calendar/bookings', {
+      serviceSlug: 'sample',
+      start: '2026-11-10T10:00:00-06:00',
+      guestName: 'Ana',
+    })
+    expect(pastBook.status).toBe(422)
+    expect(await pastBook.json()).toEqual({ error: 'date_in_past' })
 
     const closed = await call(handler, '/calendar/availability?service=sample&date=2026-11-15')
     expect(await closed.json()).toMatchObject({ closed: true, slots: [] })
@@ -210,7 +217,9 @@ describe('calendar module', () => {
     const health = await calendarWorker.fetch(new Request('https://tenant.test/healthz'), env, ctx)
     expect(health.status).toBe(200)
     expect(await health.json()).toEqual({ ok: true, tenant: 'example', module: 'calendar', enabled: false })
-    expect((await calendarWorker.fetch(new Request('https://tenant.test/healthz', { method: 'POST' }), env, ctx)).status).toBe(405)
+    const posted = await calendarWorker.fetch(new Request('https://tenant.test/healthz', { method: 'POST' }), env, ctx)
+    expect(posted.status).toBe(405)
+    expect(posted.headers.get('allow')).toBe('GET')
     expect((await calendarWorker.fetch(new Request('https://tenant.test/healthz'), { ...env, TENANT_ID: 'other' }, ctx)).status).toBe(503)
     const services = await calendarWorker.fetch(new Request('https://tenant.test/calendar/services'), env, ctx)
     expect(services.status).toBe(404)
