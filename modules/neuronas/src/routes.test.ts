@@ -204,5 +204,6 @@ describe('neuronas module', () => {
     })
     expect(note.source).toBe('catalog')
     expect(() => catalogNote(tenant, { ...note, collection: 'secretos', id: 'catalog:x' })).toThrow(/secretos/)
+    expect(() => catalogNote(tenant, { ...note, id: 'catalog:y', createdAt: 'yesterday' })).toThrow(/invalid_catalog_note/)
   })
 })

@@ -33,6 +33,9 @@ export function catalogNote(
   if (!tenant.neuronas?.collections.includes(draft.collection)) {
     throw new Error(`invalid_catalog_note:${draft.collection}`)
   }
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(draft.createdAt) || Number.isNaN(Date.parse(draft.createdAt))) {
+    throw new Error('invalid_catalog_note')
+  }
   const bodyRaw = normalizeNewlines(draft.body)
   if (hasControlChars(draft.title) || hasControlChars(bodyRaw, true)) throw new Error('invalid_catalog_note')
   const title = draft.title.trim()

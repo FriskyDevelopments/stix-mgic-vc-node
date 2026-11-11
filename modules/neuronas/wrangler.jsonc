@@ -1,5 +1,4 @@
 {
-  "$schema": "../../node_modules/wrangler/config-schema.json",
   // Knowledge/notes module for any white-label tenant. No account id and no secrets.
   // Do not deploy this draft and do not attach a route or DNS record.
   "name": "wl-neuronas",

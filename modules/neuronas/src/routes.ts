@@ -6,6 +6,7 @@ import type { NeuronasStore, Note } from './store.ts'
 export const NEURONAS_PREFIX = '/neuronas'
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+// Matches the only store implementation. Change this when a durable store is injected.
 const STORE = { 'x-store': 'memory' }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

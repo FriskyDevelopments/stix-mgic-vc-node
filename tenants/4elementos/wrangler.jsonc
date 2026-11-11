@@ -1,5 +1,4 @@
 {
-  "$schema": "../../node_modules/wrangler/config-schema.json",
   // 4 Elementos tenant Worker. Config is compiled in from src/tenant.ts.
   // No account id, no route, no DNS, no secrets. Do not deploy this draft.
   "name": "wl-4elementos",

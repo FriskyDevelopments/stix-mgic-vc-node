@@ -8,6 +8,7 @@ export const CALENDAR_PREFIX = '/calendar'
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+// Matches the only store implementation. Change this when a durable store is injected.
 const STORE = { 'x-store': 'memory' }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
