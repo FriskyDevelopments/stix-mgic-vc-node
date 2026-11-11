@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "allowImportingTsExtensions": true,
+    "noFallthroughCasesInSwitch": true,
+    "types": []
+  },
+  "include": [
+    "packages/core/src/**/*.ts",
+    "modules/calendar/src/**/*.ts",
+    "modules/neuronas/src/**/*.ts",
+    "tenants/4elementos/src/**/*.ts"
+  ]
+}

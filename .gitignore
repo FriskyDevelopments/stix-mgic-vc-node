@@ -29,7 +29,10 @@ dist-ssr
 !.env.example
 .auth-proof/
 **/agent-eval-report*
-packages
+# Generated dumps landed in packages/. The white-label core is tracked.
+packages/*
+!packages/core/
+!packages/core/**
 pids
 .file-manifest
 .devcontainer/

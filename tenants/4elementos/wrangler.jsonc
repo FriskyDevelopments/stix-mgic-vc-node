@@ -1,0 +1,37 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  // 4 Elementos tenant Worker. Config is compiled in from src/tenant.ts.
+  // No account id, no route, no DNS, no secrets. Do not deploy this draft.
+  "name": "wl-4elementos",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-11-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true,
+    "logs": { "enabled": true, "head_sampling_rate": 1 },
+    "traces": { "enabled": true, "head_sampling_rate": 1 }
+  },
+  "vars": {
+    "TENANT_ID": "4elementos",
+    "LOG_LEVEL": "info"
+  }
+  // Persistence is not wired. Responses send x-store: memory.
+  // Replace the placeholders outside git when the adapters exist:
+  // "d1_databases": [
+  //   {
+  //     "binding": "CALENDAR_DB",
+  //     "database_name": "PLACEHOLDER_4ELEMENTOS_CALENDAR",
+  //     "database_id": "PLACEHOLDER_D1_DATABASE_ID"
+  //   }
+  // ],
+  // "kv_namespaces": [
+  //   { "binding": "NEURONAS_KV", "id": "PLACEHOLDER_KV_NAMESPACE_ID" }
+  // ]
+  // Optional later split into the module Workers. Do not bind live services here.
+  // "services": [
+  //   { "binding": "CALENDAR", "service": "wl-calendar" },
+  //   { "binding": "NEURONAS", "service": "wl-neuronas" }
+  // ]
+}
