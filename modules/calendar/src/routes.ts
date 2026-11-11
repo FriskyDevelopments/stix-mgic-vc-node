@@ -51,10 +51,10 @@ export async function handleCalendar(
   const cancel = /^\/bookings\/([^/]+)\/cancel$/.exec(tail)
   if (cancel) {
     if (request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405, { ...STORE, allow: 'POST' })
-    return cancelBooking(request, ctx, store, cancel[1] ?? '')
+    return cancelBooking(request, ctx, store, cancel[1] ?? '', maxBookings)
   }
   const one = /^\/bookings\/([^/]+)$/.exec(tail)
-  if (one) return oneBooking(request, ctx, store, one[1] ?? '')
+  if (one) return oneBooking(request, ctx, store, one[1] ?? '', maxBookings)
   return json({ error: 'not_found' }, 404, STORE)
 }
 
@@ -194,23 +194,23 @@ async function createBooking(
   return json({ booking, store: 'memory' }, 201, STORE)
 }
 
-async function oneBooking(request: Request, ctx: RequestContext, store: CalendarStore, id: string): Promise<Response> {
+async function oneBooking(request: Request, ctx: RequestContext, store: CalendarStore, id: string, maxBookings: number): Promise<Response> {
   if (request.method !== 'GET' && request.method !== 'DELETE') {
     return json({ error: 'method_not_allowed' }, 405, { ...STORE, allow: 'GET, DELETE' })
   }
   if (!UUID.test(id)) return json({ error: 'not_found' }, 404, STORE)
-  if (request.method === 'DELETE') return cancelBooking(request, ctx, store, id)
+  if (request.method === 'DELETE') return cancelBooking(request, ctx, store, id, maxBookings)
   const booking = await store.get(ctx.tenant.id, id)
   if (!booking) return json({ error: 'not_found' }, 404, STORE)
   return json({ booking, store: 'memory' }, 200, STORE)
 }
 
-async function cancelBooking(request: Request, ctx: RequestContext, store: CalendarStore, id: string): Promise<Response> {
+async function cancelBooking(request: Request, ctx: RequestContext, store: CalendarStore, id: string, maxBookings: number): Promise<Response> {
   if (request.method !== 'POST' && request.method !== 'DELETE') {
     return json({ error: 'method_not_allowed' }, 405, { ...STORE, allow: 'POST, DELETE' })
   }
   if (!UUID.test(id)) return json({ error: 'not_found' }, 404, STORE)
-  const booking = await store.cancel(ctx.tenant.id, id, ctx.clock().toISOString())
+  const booking = await store.cancel(ctx.tenant.id, id, ctx.clock().toISOString(), maxBookings)
   if (!booking) return json({ error: 'not_found' }, 404, STORE)
   return json({ booking, store: 'memory' }, 200, STORE)
 }
