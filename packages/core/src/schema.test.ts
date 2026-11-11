@@ -34,6 +34,21 @@ describe('tenant config', () => {
     expect(() => loadTenantConfig({ ...rest, modules: ['calendar'] })).toThrow(/calendar/)
   })
 
+  it('does not mark a later valid hours row as a duplicate of a broken one', () => {
+    const copy = structuredClone(exampleTenant())
+    if (!copy.calendar) throw new Error('missing calendar')
+    copy.calendar.hours = [
+      { weekday: 1, open: '19:00', close: '10:00' },
+      { weekday: 1, open: '10:00', close: '19:00' },
+    ]
+    expect(() => loadTenantConfig(copy)).toThrow(/open must be before close/)
+    try {
+      loadTenantConfig(copy)
+    } catch (error) {
+      expect(String(error)).not.toMatch(/duplicate/)
+    }
+  })
+
   it('rejects duplicate services and negative prices', () => {
     const copy = structuredClone(exampleTenant())
     copy.calendar?.services.push({ ...copy.calendar.services[0], name: 'Copy' })

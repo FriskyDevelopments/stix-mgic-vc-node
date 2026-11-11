@@ -33,6 +33,12 @@ describe('readJson', () => {
       headers: { 'content-type': 'text/plain' },
     }), 100)
     expect(text).toEqual({ ok: false, error: 'unsupported_media_type', status: 415 })
+    const lookalike = await readJson(new Request('https://tenant.test', {
+      method: 'POST',
+      body: '{"a":1}',
+      headers: { 'content-type': 'application/jsonx' },
+    }), 100)
+    expect(lookalike).toEqual({ ok: false, error: 'unsupported_media_type', status: 415 })
     expect(ok).toEqual({ ok: true, value: { a: 1 } })
   })
 })

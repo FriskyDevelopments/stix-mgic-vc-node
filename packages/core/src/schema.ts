@@ -232,15 +232,16 @@ function parseHours(value: unknown, errors: string[]): BusinessHours[] | null {
     const weekday = item.weekday
     const open = requireString(item.open, `${path}.open`, errors, HM, 5)
     const close = requireString(item.close, `${path}.close`, errors, HM, 5)
-    if (typeof weekday !== 'number' || !Number.isInteger(weekday) || weekday < 0 || weekday > 6) {
-      errors.push(`${path}.weekday: expected 0 to 6`)
-    } else if (days.has(weekday)) {
-      errors.push(`${path}.weekday: duplicate`)
-    } else {
-      days.add(weekday)
-    }
+    const weekdayOk = typeof weekday === 'number' && Number.isInteger(weekday) && weekday >= 0 && weekday <= 6
+    if (!weekdayOk) errors.push(`${path}.weekday: expected 0 to 6`)
     if (open && close && open >= close) errors.push(`${path}: open must be before close`)
-    if (typeof weekday === 'number' && open && close) hours.push({ weekday, open, close })
+    if (weekdayOk && typeof weekday === 'number' && open && close && open < close) {
+      if (days.has(weekday)) errors.push(`${path}.weekday: duplicate`)
+      else {
+        days.add(weekday)
+        hours.push({ weekday, open, close })
+      }
+    }
   }
   return hours
 }

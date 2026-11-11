@@ -9,8 +9,8 @@ export async function readJson(
   request: Request,
   maxBytes = 10_000,
 ): Promise<{ ok: true; value: unknown } | { ok: false; error: 'invalid_json' | 'body_too_large' | 'unsupported_media_type'; status: number }> {
-  const type = request.headers.get('content-type') ?? ''
-  if (!type.toLowerCase().replace(/\s+/g, '').startsWith('application/json')) {
+  const type = (request.headers.get('content-type') ?? '').split(';')[0]?.trim().toLowerCase()
+  if (type !== 'application/json') {
     return { ok: false, error: 'unsupported_media_type', status: 415 }
   }
   const declared = request.headers.get('content-length')

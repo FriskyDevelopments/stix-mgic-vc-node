@@ -83,6 +83,14 @@ describe('calendar module', () => {
     const farDay = await call(handler, '/calendar/availability?service=sample&date=2027-11-16')
     expect(farDay.status).toBe(422)
 
+    const impossible = await post(handler, '/calendar/bookings', {
+      serviceSlug: 'sample',
+      start: '2026-02-31T10:00:00-06:00',
+      guestName: 'Ana',
+    })
+    expect(impossible.status).toBe(400)
+    expect(await impossible.json()).toEqual({ error: 'invalid_body' })
+
     const past = await post(handler, '/calendar/bookings', {
       serviceSlug: 'sample',
       start: '2026-11-11T14:00:00-06:00',

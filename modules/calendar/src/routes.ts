@@ -152,7 +152,7 @@ async function createBooking(
   if (!service) return json({ error: 'service_not_found' }, 404, STORE)
   if (!service.active) return json({ error: 'service_inactive' }, 409, STORE)
   const date = /^(\d{4}-\d{2}-\d{2})T/.exec(start)?.[1]
-  if (!date || weekdayOfDate(date) === null) return json({ error: 'slot_not_aligned' }, 422, STORE)
+  if (!date || weekdayOfDate(date) === null) return json({ error: 'invalid_body' }, 400, STORE)
   const offset = offsetFor(ctx.tenant.timeZone)
   if (!offset) return json({ error: 'timezone_not_supported' }, 422, STORE)
   const bookedAt = ctx.clock()
@@ -166,7 +166,7 @@ async function createBooking(
   if (!slots) return json({ error: 'invalid_hours' }, 500, STORE)
   const slot = slots.find((item) => item.start === start)
   if (!slot) return json({ error: 'slot_not_aligned' }, 422, STORE)
-  if (Date.parse(slot.start) < bookedAt.getTime()) return json({ error: 'slot_unavailable' }, 409)
+  if (Date.parse(slot.start) < bookedAt.getTime()) return json({ error: 'slot_unavailable' }, 409, STORE)
   const booking: Booking = {
     id: crypto.randomUUID(),
     tenantId: ctx.tenant.id,
