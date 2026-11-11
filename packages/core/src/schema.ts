@@ -360,11 +360,19 @@ export function loadTenantConfig(input: unknown): TenantConfig {
   return tenant
 }
 
+let cachedConfigJson = ''
+let cachedConfig: TenantConfig | undefined
+
 export function loadTenantConfigFromJson(text: string): TenantConfig {
+  if (text === cachedConfigJson && cachedConfig) return cachedConfig
+  let tenant: TenantConfig
   try {
-    return loadTenantConfig(JSON.parse(text) as unknown)
+    tenant = loadTenantConfig(JSON.parse(text) as unknown)
   } catch (error) {
     if (error instanceof TenantConfigError) throw error
     throw new TenantConfigError(['tenant: invalid json'])
   }
+  cachedConfigJson = text
+  cachedConfig = tenant
+  return tenant
 }

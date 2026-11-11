@@ -108,7 +108,7 @@ describe('calendar module', () => {
     const hidden = await post(handler, '/calendar/bookings', {
       serviceSlug: 'sample',
       start: '2026-11-16T10:00:00-06:00',
-      guestName: 'Ana\u202e',
+      guestName: `Ana${String.fromCodePoint(0xe0020)}`,
     })
     expect(hidden.status).toBe(400)
 
