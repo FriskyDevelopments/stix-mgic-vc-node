@@ -1,7 +1,7 @@
 import { json, readJson, routeTail, type RequestContext } from '../../../packages/core/src/index.ts'
 import { hasControlChars } from '../../../packages/core/src/text.ts'
 import type { CatalogService } from '../../../packages/core/src/schema.ts'
-import { buildSlots, offsetFor, overlaps, weekdayOfDate } from './slots.ts'
+import { buildSlots, civilDate, daysBetween, offsetFor, overlaps, weekdayOfDate } from './slots.ts'
 import type { Booking, CalendarStore } from './store.ts'
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
@@ -149,7 +149,10 @@ async function createBooking(
   const date = /^(\d{4}-\d{2}-\d{2})T/.exec(start)?.[1]
   if (!date || weekdayOfDate(date) === null) return json({ error: 'slot_not_aligned' }, 422)
   const offset = offsetFor(ctx.tenant.timeZone)
-  if (!offset) return json({ error: 'timezone_not_supported' }, 422)
+  if (!offset) return json({ error: 'timezone_not_supported' }, 422, STORE)
+  const today = civilDate(ctx.now, offset)
+  const ahead = today ? daysBetween(date, today) : null
+  if (ahead === null || ahead > calendar.horizonDays) return json({ error: 'horizon_exceeded' }, 422, STORE)
   const hours = calendar.hours.find((entry) => entry.weekday === weekdayOfDate(date))
   const slots = hours ? buildSlots(date, hours.open, hours.close, service.durationMinutes, offset) : null
   const slot = slots?.find((item) => item.start === start)

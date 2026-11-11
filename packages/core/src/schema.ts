@@ -56,6 +56,7 @@ export interface BusinessHours {
 
 export interface CalendarConfig {
   hoursConfirmed: boolean
+  horizonDays: number
   hours: BusinessHours[]
   services: CatalogService[]
 }
@@ -249,12 +250,16 @@ function parseCalendar(value: unknown, errors: string[]): CalendarConfig | null 
     errors.push('calendar: expected object')
     return null
   }
-  unknownKeys(value, ['hoursConfirmed', 'hours', 'services'], 'calendar', errors)
+  unknownKeys(value, ['hoursConfirmed', 'horizonDays', 'hours', 'services'], 'calendar', errors)
   const hoursConfirmed = requireBoolean(value.hoursConfirmed, 'calendar.hoursConfirmed', errors)
+  const horizonDays = value.horizonDays
+  if (typeof horizonDays !== 'number' || !Number.isInteger(horizonDays) || horizonDays < 1 || horizonDays > 366) {
+    errors.push('calendar.horizonDays: expected integer 1 to 366')
+  }
   const hours = parseHours(value.hours, errors)
   const services = parseServices(value.services, errors)
-  if (hoursConfirmed === null || !hours || !services) return null
-  return { hoursConfirmed, hours, services }
+  if (hoursConfirmed === null || typeof horizonDays !== 'number' || !hours || !services) return null
+  return { hoursConfirmed, horizonDays, hours, services }
 }
 
 function parseNeuronas(value: unknown, errors: string[]): NeuronasConfig | null {

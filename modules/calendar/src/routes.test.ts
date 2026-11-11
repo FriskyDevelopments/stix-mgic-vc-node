@@ -53,6 +53,14 @@ describe('calendar module', () => {
     expect(open.slots.some((slot) => slot.start.startsWith('2026-11-11T14:00'))).toBe(false)
     expect(open.slots.some((slot) => slot.start.startsWith('2026-11-11T15:00'))).toBe(true)
 
+    const distant = await post(handler, '/calendar/bookings', {
+      serviceSlug: 'sample',
+      start: '2027-11-16T10:00:00-06:00',
+      guestName: 'Ana',
+    })
+    expect(distant.status).toBe(422)
+    expect(await distant.json()).toEqual({ error: 'horizon_exceeded' })
+
     const past = await post(handler, '/calendar/bookings', {
       serviceSlug: 'sample',
       start: '2026-11-11T14:00:00-06:00',

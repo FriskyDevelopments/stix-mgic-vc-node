@@ -41,6 +41,26 @@ export function buildSlots(date: string, open: string, close: string, durationMi
   return slots
 }
 
+export function civilDate(instant: Date, offset: string): string | null {
+  const match = /^([+-])(\d{2}):(\d{2})$/.exec(offset)
+  if (!match) return null
+  const sign = match[1] === '-' ? -1 : 1
+  const shift = sign * (Number(match[2]) * 60 + Number(match[3])) * 60_000
+  return new Date(instant.getTime() + shift).toISOString().slice(0, 10)
+}
+
+export function daysBetween(later: string, earlier: string): number | null {
+  const toUtc = (value: string) => {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+    if (!match || weekdayOfDate(value) === null) return null
+    return Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+  }
+  const left = toUtc(later)
+  const right = toUtc(earlier)
+  if (left === null || right === null) return null
+  return Math.round((left - right) / 86_400_000)
+}
+
 export function overlaps(start: string, end: string, otherStart: string, otherEnd: string): boolean {
   const left = Date.parse(start)
   const leftEnd = Date.parse(end)

@@ -14,7 +14,7 @@ export interface NeuronasStore {
   list(tenantId: string): Promise<Note[]>
   get(tenantId: string, id: string): Promise<Note | null>
   insert(note: Note, maxNotes: number): Promise<'ok' | 'limit' | 'exists'>
-  save(note: Note): Promise<void>
+  save(tenantId: string, note: Note): Promise<boolean>
   remove(tenantId: string, id: string): Promise<boolean>
 }
 
@@ -43,9 +43,10 @@ export class MemoryNeuronasStore implements NeuronasStore {
     return Promise.resolve('ok')
   }
 
-  save(note: Note): Promise<void> {
-    this.notes.set(key(note.tenantId, note.id), note)
-    return Promise.resolve()
+  save(tenantId: string, note: Note): Promise<boolean> {
+    if (note.tenantId !== tenantId) return Promise.resolve(false)
+    this.notes.set(key(tenantId, note.id), note)
+    return Promise.resolve(true)
   }
 
   remove(tenantId: string, id: string): Promise<boolean> {

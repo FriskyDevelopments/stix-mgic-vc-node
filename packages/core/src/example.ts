@@ -31,6 +31,7 @@ export function exampleTenant(overrides: Record<string, unknown> = {}): TenantCo
     },
     calendar: {
       hoursConfirmed: true,
+      horizonDays: 90,
       hours: [1, 2, 3, 4, 5, 6].map((weekday) => ({ weekday, open: '10:00', close: '19:00' })),
       services: [
         {

@@ -128,16 +128,16 @@ async function patchNote(request: Request, ctx: RequestContext, store: NeuronasS
   const tags = body.value.tags === undefined ? existing.tags : normalizeTags(body.value.tags)
   if (!title || !nextBody || !tags) return json({ error: 'invalid_body' }, 400)
   const note: Note = { ...existing, title, body: nextBody, tags, updatedAt: ctx.now.toISOString() }
-  await store.save(note)
+  if (!(await store.save(ctx.tenant.id, note))) return json({ error: 'not_found' }, 404)
   return json({ note, store: 'memory' }, 200, STORE)
 }
 
 async function deleteNote(ctx: RequestContext, store: NeuronasStore, id: string): Promise<Response> {
   const config = ctx.tenant.neuronas
   if (!config) return json({ error: 'not_found' }, 404)
+  if (!config.allowDelete) return json({ error: 'delete_disabled' }, 403, STORE)
   const existing = await store.get(ctx.tenant.id, id)
   if (!existing) return json({ error: 'not_found' }, 404)
-  if (!config.allowDelete) return json({ error: 'delete_disabled' }, 403, STORE)
   await store.remove(ctx.tenant.id, id)
   return json({ deleted: id, store: 'memory' }, 200, STORE)
 }

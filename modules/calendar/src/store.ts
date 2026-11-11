@@ -17,6 +17,7 @@ export interface Booking {
 export interface CalendarStore {
   list(tenantId: string): Promise<Booking[]>
   get(tenantId: string, id: string): Promise<Booking | null>
+  /** Conflict check and insert must stay one step. A durable adapter has to do both in one transaction. */
   reserve(booking: Booking, maxRecords: number): Promise<'ok' | 'conflict' | 'limit'>
   cancel(tenantId: string, id: string, updatedAt: string): Promise<Booking | null>
 }

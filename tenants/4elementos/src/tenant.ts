@@ -54,6 +54,7 @@ export const fourElementos: TenantConfig = loadTenantConfig({
   },
   calendar: {
     hoursConfirmed: false,
+    horizonDays: 90,
     hours: [1, 2, 3, 4, 5, 6].map((weekday) => ({ weekday, open: '10:00', close: '19:00' })),
     services: SERVICE_NAMES.map(([slug, name]) => service(slug, name)),
   },
