@@ -1,0 +1,29 @@
+{
+  // Booking module for any white-label tenant. No account id and no secrets.
+  // Do not deploy this draft and do not attach a route or DNS record.
+  "name": "wl-calendar",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-11-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true,
+    "logs": { "enabled": true, "head_sampling_rate": 1 },
+    "traces": { "enabled": true, "head_sampling_rate": 1 }
+  },
+  "vars": {
+    "LOG_LEVEL": "info"
+    // TENANT_CONFIG_JSON: public tenant document, set per environment.
+    // It is configuration, not a secret. Do not put tokens in it.
+  }
+  // Required before bookings can outlive the isolate. Leave these commented
+  // until the D1 adapter exists. Replace the placeholders outside git.
+  // "d1_databases": [
+  //   {
+  //     "binding": "CALENDAR_DB",
+  //     "database_name": "PLACEHOLDER_CALENDAR_DB",
+  //     "database_id": "PLACEHOLDER_D1_DATABASE_ID"
+  //   }
+  // ]
+}

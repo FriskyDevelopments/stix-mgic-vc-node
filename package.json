@@ -9,7 +9,7 @@
                 "dev:api": "PORT=8787 HOST=127.0.0.1 NODE_ENV=development PUBLIC_ROOMS_ENABLED=true MEDIA_PLANE_ENABLED=true tsx watch server/index.ts",
                 "kill": "fuser -k 5001/tcp || true; fuser -k 8787/tcp || true",
                 "build": "tsc -b --noCheck && vite build",
-                "typecheck": "tsc --noEmit && tsc -p server/tsconfig.json --noEmit",
+                "typecheck": "tsc --noEmit && tsc -p server/tsconfig.json --noEmit && tsc -p tsconfig.whitelabel.json --noEmit",
                 "lint": "eslint .",
                 "optimize": "vite optimize",
                 "preview": "vite preview",

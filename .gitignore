@@ -29,7 +29,11 @@ dist-ssr
 !.env.example
 .auth-proof/
 **/agent-eval-report*
-packages
+# Generated dumps named packages/ anywhere in the tree. Only /packages/core is tracked.
+# A new directory under /packages/ stays ignored until this allowlist names it.
+**/packages/*
+!/packages/core/
+!/packages/core/**
 pids
 .file-manifest
 .devcontainer/

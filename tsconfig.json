@@ -29,5 +29,10 @@
   },
   "include": [
     "src"
+  ],
+  "exclude": [
+    "packages",
+    "modules",
+    "tenants"
   ]
 }
