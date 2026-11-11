@@ -42,7 +42,8 @@ export class MemoryCalendarStore implements CalendarStore {
   reserve(booking: Booking, maxRecords: number): Promise<'ok' | 'conflict' | 'limit' | 'exists'> {
     if (this.bookings.has(recordKey(booking.tenantId, booking.id))) return Promise.resolve('exists')
     const mine = [...this.bookings.values()].filter((item) => item.tenantId === booking.tenantId)
-    // Cancelled rows do not consume the active cap. At most maxRecords of them are kept.
+    // Cancelled rows do not consume the active cap. Reserve keeps at most maxRecords of them.
+    // A cancel can briefly exceed that until the next reserve. A durable adapter should enforce the cap on cancel too.
     const active = mine.filter((item) => item.status === 'booked')
     const clash = active.some((item) => overlaps(item.start, item.end, booking.start, booking.end))
     if (clash) return Promise.resolve('conflict')

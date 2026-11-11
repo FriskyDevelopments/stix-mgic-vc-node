@@ -113,9 +113,10 @@ export function createTenantHandler(options: {
     async fetch(request, env, _ctx) {
       const requestId = crypto.randomUUID()
       const started = now()
+      const mismatch = Boolean(env.TENANT_ID && env.TENANT_ID !== tenant.id)
       let response: Response
       try {
-        if (env.TENANT_ID && env.TENANT_ID !== tenant.id) {
+        if (mismatch) {
           response = json({ error: 'tenant_mismatch' }, 503)
         } else {
           response = await routeRequest(request, {
@@ -139,13 +140,13 @@ export function createTenantHandler(options: {
         console.log(JSON.stringify({
           ts: started.toISOString(),
           requestId,
-          tenant: tenant.id,
+          tenant: mismatch ? null : tenant.id,
           method: request.method,
           path: logPath(new URL(request.url).pathname),
           status: response.status,
         }))
       }
-      return stamp(response, requestId, tenant.id)
+      return stamp(response, requestId, mismatch ? '' : tenant.id)
     },
   }
 }

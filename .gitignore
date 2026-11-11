@@ -29,7 +29,8 @@ dist-ssr
 !.env.example
 .auth-proof/
 **/agent-eval-report*
-# Generated dumps landed in packages/. The white-label core is tracked.
+# Generated dumps landed in packages/. Only packages/core is tracked.
+# A new directory under packages/ stays ignored until this allowlist names it.
 packages/*
 !packages/core/
 !packages/core/**

@@ -29,8 +29,7 @@ describe('4 Elementos tenant', () => {
 
     const blob = JSON.stringify({ fourElementos, fourElementosNotes })
     expect(blob).not.toMatch(/ntn_|secret_|sk_live|api[_-]?key|BEGIN PRIVATE|Bearer /i)
-    // Prefix only. Do not paste a full page id into this assertion.
-    expect(blob).not.toContain('41544c9f')
+    expect(blob).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)
 
     const home = await worker.fetch(new Request('https://4elementos.test/'), env, ctx)
     expect(home.status).toBe(200)

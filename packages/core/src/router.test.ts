@@ -88,6 +88,7 @@ describe('tenant router', () => {
     const app = handler([])
     const res = await app.fetch(new Request('https://tenant.test/healthz'), { TENANT_ID: 'other', LOG_LEVEL: 'silent' }, ctx)
     expect(res.status).toBe(503)
+    expect(res.headers.get('x-tenant')).toBeNull()
     expect(await res.json()).toEqual({ error: 'tenant_mismatch' })
   })
 })
