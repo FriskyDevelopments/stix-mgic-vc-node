@@ -1,0 +1,41 @@
+{
+  "$schema": "../../../node_modules/wrangler/config-schema.json",
+  "name": "elementos-demo",
+  "main": "worker.ts",
+  "compatibility_date": "2026-11-01",
+  "workers_dev": true,
+  "preview_urls": true,
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "vars": {
+    "DEMO_MODE": "true",
+    "STRIPE_SECRET_KEY": "sk_test_REPLACE_ME",
+    "STRIPE_WEBHOOK_SECRET": "whsec_REPLACE_ME",
+    "PUBLIC_BASE_URL": "",
+    "DEMO_ACCESS_TOKEN": "",
+    "MARINA_CHAT_URL": "",
+    "MARINA_ORIGIN": "",
+    "MARINA_VOICE_URL": "",
+    "MARINA_WEBHOOK_SECRET": "",
+    "WAHA_BASE_URL": "https://waha.example.invalid",
+    "WAHA_SESSION": "REPLACE_ME",
+    "WAHA_API_KEY": "REPLACE_ME",
+    "TWILIO_ACCOUNT_SID": "AC_REPLACE_ME",
+    "TWILIO_AUTH_TOKEN": "REPLACE_ME",
+    "TWILIO_FROM_NUMBER": "+15005550006",
+    "TWILIO_DIRECT_CALLS": "false",
+    "TWILIO_WEBHOOK_URL": ""
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "ORDERS", "class_name": "ElementosDemoOrders" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1-elementos-demo", "new_sqlite_classes": ["ElementosDemoOrders"] }
+  ]
+}

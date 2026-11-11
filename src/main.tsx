@@ -27,10 +27,14 @@ await fetchPublicConfig()
 const OverlayStudio = lazy(() => import('./components/OverlayStudio').then(module => ({ default: module.OverlayStudio })))
 const OverlayOutput = lazy(() => import('./components/OverlayStudio').then(module => ({ default: module.OverlayOutputView })))
 const OptionsPage = lazy(() => import('./options/OptionsPage').then(module => ({ default: module.OptionsPage })))
+const ElementosOnboarding = lazy(() => import('../golive/4elementos/onboarding/OnboardingApp.tsx').then(module => ({ default: module.OnboardingApp })))
 
 function Root() {
   const path = window.location.pathname
 
+  if (path === '/4elementos' || path === '/4elementos/') {
+    return <Suspense fallback={<p>Abriendo 4 Elementos…</p>}><ElementosOnboarding /></Suspense>
+  }
   if (path === '/overlay-studio') return <Suspense fallback={<p>Opening Overlay Studio…</p>}><OverlayStudio /></Suspense>
   if (path === '/overlay-output') return <Suspense fallback={null}><OverlayOutput /></Suspense>
   if (path === '/options' || path === '/options/') return <Suspense fallback={<p>Opening Options…</p>}><OptionsPage /></Suspense>
