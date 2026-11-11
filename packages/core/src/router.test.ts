@@ -78,6 +78,9 @@ describe('tenant router', () => {
     await app.fetch(new Request('https://tenant.test/neuronas/notes/someone-secret/extra'), {}, ctx)
     expect(lines.join('\n')).toContain('/neuronas/notes/:id/:id')
     expect(lines.join('\n')).not.toContain('someone-secret')
+    await app.fetch(new Request('https://tenant.test/neuronas/notes/cancel'), {}, ctx)
+    expect(lines.at(-1)).toContain('"/neuronas/notes/:id"')
+    expect(lines.at(-1)).not.toContain('cancel')
 
     const boom = await app.fetch(new Request('https://tenant.test/calendar/boom'), { LOG_LEVEL: 'silent' }, ctx)
     expect(boom.status).toBe(500)

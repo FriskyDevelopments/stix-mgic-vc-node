@@ -73,10 +73,16 @@ const LOG_SEGMENTS = new Set([
 ])
 
 export function logPath(pathname: string): string {
-  return normalizePath(pathname)
-    .split('/')
-    .map((part) => (part === '' || LOG_SEGMENTS.has(part) ? part : ':id'))
-    .join('/')
+  const parts = normalizePath(pathname).split('/')
+  return parts.map((part, index) => {
+    const parent = parts[index - 1]
+    const grandparent = parts[index - 2]
+    if ((parent === 'notes' && grandparent === 'neuronas') || (parent === 'bookings' && grandparent === 'calendar')) {
+      return ':id'
+    }
+    if (part === '' || LOG_SEGMENTS.has(part)) return part
+    return ':id'
+  }).join('/')
 }
 
 export function loggedResponse(

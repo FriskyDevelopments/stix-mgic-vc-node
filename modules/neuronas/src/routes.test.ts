@@ -39,6 +39,8 @@ describe('neuronas module', () => {
     expect(note.body).toBe('Comprar aceite de lavanda.\nSin precio todavía.')
     expect(note.source).toBe('manual')
 
+    const noisy = await call(handler, '/neuronas/notes?q=' + encodeURIComponent('lavanda\u202e'))
+    expect(noisy.status).toBe(400)
     const found = await call(handler, '/neuronas/notes?q=lavanda&tag=inventario&collection=notes')
     const list = await found.json() as { notes: { id: string }[] }
     expect(list.notes.map((item) => item.id)).toEqual([note.id])

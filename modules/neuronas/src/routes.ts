@@ -61,7 +61,7 @@ async function listNotes(request: Request, ctx: RequestContext, store: NeuronasS
   const limitRaw = url.searchParams.get('limit')
   if (collection !== null && !config.collections.includes(collection)) return json({ error: 'unknown_collection' }, 400, STORE)
   if (tag !== null && !SLUG.test(tag)) return json({ error: 'invalid_query' }, 400, STORE)
-  if (q !== null && (q.length < 1 || q.length > 80)) return json({ error: 'invalid_query' }, 400, STORE)
+  if (q !== null && (q.length < 1 || q.length > 80 || hasControlChars(q))) return json({ error: 'invalid_query' }, 400, STORE)
   let offset = 0
   if (offsetRaw !== null) {
     if (!/^\d+$/.test(offsetRaw)) return json({ error: 'invalid_query' }, 400, STORE)
