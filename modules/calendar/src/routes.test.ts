@@ -57,6 +57,14 @@ describe('calendar module', () => {
     expect(pastBook.status).toBe(422)
     expect(await pastBook.json()).toEqual({ error: 'date_in_past' })
 
+    const closedBook = await post(handler, '/calendar/bookings', {
+      serviceSlug: 'sample',
+      start: '2026-11-15T10:00:00-06:00',
+      guestName: 'Ana',
+    })
+    expect(closedBook.status).toBe(422)
+    expect(await closedBook.json()).toEqual({ error: 'closed' })
+
     const closed = await call(handler, '/calendar/availability?service=sample&date=2026-11-15')
     expect(await closed.json()).toMatchObject({ closed: true, slots: [] })
 

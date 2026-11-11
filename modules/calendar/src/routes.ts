@@ -136,23 +136,23 @@ async function createBooking(
   const calendar = ctx.tenant.calendar
   if (!calendar) return json({ error: 'not_found' }, 404)
   const body = await readJson(request)
-  if (!body.ok) return json({ error: body.error }, body.status)
-  if (!isRecord(body.value)) return json({ error: 'invalid_body' }, 400)
+  if (!body.ok) return json({ error: body.error }, body.status, STORE)
+  if (!isRecord(body.value)) return json({ error: 'invalid_body' }, 400, STORE)
   for (const key of Object.keys(body.value)) {
-    if (key !== 'serviceSlug' && key !== 'start' && key !== 'guestName') return json({ error: 'invalid_body' }, 400)
+    if (key !== 'serviceSlug' && key !== 'start' && key !== 'guestName') return json({ error: 'invalid_body' }, 400, STORE)
   }
   const slug = body.value.serviceSlug
   const start = body.value.start
   if (typeof slug !== 'string' || !SLUG.test(slug) || typeof start !== 'string' || start.length > 40) {
-    return json({ error: 'invalid_body' }, 400)
+    return json({ error: 'invalid_body' }, 400, STORE)
   }
   const name = guestName(body.value.guestName)
-  if (!name) return json({ error: 'guest_name_invalid' }, 400)
+  if (!name) return json({ error: 'guest_name_invalid' }, 400, STORE)
   const service = serviceBySlug(calendar.services, slug)
-  if (!service) return json({ error: 'service_not_found' }, 404)
-  if (!service.active) return json({ error: 'service_inactive' }, 409)
+  if (!service) return json({ error: 'service_not_found' }, 404, STORE)
+  if (!service.active) return json({ error: 'service_inactive' }, 409, STORE)
   const date = /^(\d{4}-\d{2}-\d{2})T/.exec(start)?.[1]
-  if (!date || weekdayOfDate(date) === null) return json({ error: 'slot_not_aligned' }, 422)
+  if (!date || weekdayOfDate(date) === null) return json({ error: 'slot_not_aligned' }, 422, STORE)
   const offset = offsetFor(ctx.tenant.timeZone)
   if (!offset) return json({ error: 'timezone_not_supported' }, 422, STORE)
   const bookedAt = ctx.clock()
@@ -161,9 +161,11 @@ async function createBooking(
   if (ahead === null || ahead > calendar.horizonDays) return json({ error: 'horizon_exceeded' }, 422, STORE)
   if (ahead < 0) return json({ error: 'date_in_past' }, 422, STORE)
   const hours = calendar.hours.find((entry) => entry.weekday === weekdayOfDate(date))
-  const slots = hours ? buildSlots(date, hours.open, hours.close, service.durationMinutes, offset) : null
-  const slot = slots?.find((item) => item.start === start)
-  if (!slot) return json({ error: 'slot_not_aligned' }, 422)
+  if (!hours) return json({ error: 'closed' }, 422, STORE)
+  const slots = buildSlots(date, hours.open, hours.close, service.durationMinutes, offset)
+  if (!slots) return json({ error: 'invalid_hours' }, 500, STORE)
+  const slot = slots.find((item) => item.start === start)
+  if (!slot) return json({ error: 'slot_not_aligned' }, 422, STORE)
   if (Date.parse(slot.start) < bookedAt.getTime()) return json({ error: 'slot_unavailable' }, 409)
   const booking: Booking = {
     id: crypto.randomUUID(),
@@ -180,6 +182,7 @@ async function createBooking(
   }
   const decision = await store.reserve(booking, maxBookings)
   if (decision === 'limit') return json({ error: 'booking_limit' }, 413, STORE)
+  if (decision === 'exists') return json({ error: 'booking_exists' }, 409, STORE)
   if (decision === 'conflict') return json({ error: 'slot_unavailable' }, 409, STORE)
   return json({ booking, store: 'memory' }, 201, STORE)
 }

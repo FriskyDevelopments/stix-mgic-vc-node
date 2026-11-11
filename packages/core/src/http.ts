@@ -8,7 +8,11 @@ export function json(data: unknown, status = 200, extra?: Record<string, string>
 export async function readJson(
   request: Request,
   maxBytes = 10_000,
-): Promise<{ ok: true; value: unknown } | { ok: false; error: 'invalid_json' | 'body_too_large'; status: number }> {
+): Promise<{ ok: true; value: unknown } | { ok: false; error: 'invalid_json' | 'body_too_large' | 'unsupported_media_type'; status: number }> {
+  const type = request.headers.get('content-type') ?? ''
+  if (!type.toLowerCase().replace(/\s+/g, '').startsWith('application/json')) {
+    return { ok: false, error: 'unsupported_media_type', status: 415 }
+  }
   const declared = request.headers.get('content-length')
   if (declared !== null && /^\d+$/.test(declared) && Number(declared) > maxBytes) {
     return { ok: false, error: 'body_too_large', status: 413 }

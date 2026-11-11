@@ -18,7 +18,7 @@ export interface CalendarStore {
   list(tenantId: string): Promise<Booking[]>
   get(tenantId: string, id: string): Promise<Booking | null>
   /** Conflict check and insert must stay one step. A durable adapter has to do both in one transaction. */
-  reserve(booking: Booking, maxRecords: number): Promise<'ok' | 'conflict' | 'limit'>
+  reserve(booking: Booking, maxRecords: number): Promise<'ok' | 'conflict' | 'limit' | 'exists'>
   cancel(tenantId: string, id: string, updatedAt: string): Promise<Booking | null>
 }
 
@@ -39,7 +39,8 @@ export class MemoryCalendarStore implements CalendarStore {
     return Promise.resolve(this.bookings.get(recordKey(tenantId, id)) ?? null)
   }
 
-  reserve(booking: Booking, maxRecords: number): Promise<'ok' | 'conflict' | 'limit'> {
+  reserve(booking: Booking, maxRecords: number): Promise<'ok' | 'conflict' | 'limit' | 'exists'> {
+    if (this.bookings.has(recordKey(booking.tenantId, booking.id))) return Promise.resolve('exists')
     const mine = [...this.bookings.values()].filter((item) => item.tenantId === booking.tenantId)
     // Cancelled rows do not consume the active cap. At most maxRecords of them are kept.
     const active = mine.filter((item) => item.status === 'booked')

@@ -20,6 +20,15 @@ function booking(id: string, startHour: number): Booking {
 }
 
 describe('MemoryCalendarStore', () => {
+  it('does not overwrite an existing booking id', async () => {
+    const store = new MemoryCalendarStore()
+    const first = booking('same', 10)
+    expect(await store.reserve(first, 2)).toBe('ok')
+    await store.cancel('example', 'same', '2026-11-11T21:00:00.000Z')
+    expect(await store.reserve({ ...first, status: 'booked', start: '2026-11-16T12:00:00-06:00', end: '2026-11-16T13:00:00-06:00' }, 2)).toBe('exists')
+    expect((await store.get('example', 'same'))?.status).toBe('cancelled')
+  })
+
   it('keeps the same booking id for two tenants', async () => {
     const store = new MemoryCalendarStore()
     const first = booking('same', 10)
