@@ -60,6 +60,8 @@ describe('calendar module', () => {
     })
     expect(distant.status).toBe(422)
     expect(await distant.json()).toEqual({ error: 'horizon_exceeded' })
+    const farDay = await call(handler, '/calendar/availability?service=sample&date=2027-11-16')
+    expect(farDay.status).toBe(422)
 
     const past = await post(handler, '/calendar/bookings', {
       serviceSlug: 'sample',
@@ -203,7 +205,9 @@ describe('calendar module', () => {
     const env = { LOG_LEVEL: 'silent', TENANT_CONFIG_JSON: JSON.stringify(tenant) }
     const health = await calendarWorker.fetch(new Request('https://tenant.test/healthz'), env, ctx)
     expect(health.status).toBe(200)
-    expect(await health.json()).toEqual({ ok: true, module: 'calendar', enabled: false })
+    expect(await health.json()).toEqual({ ok: true, tenant: 'example', module: 'calendar', enabled: false })
+    expect((await calendarWorker.fetch(new Request('https://tenant.test/healthz', { method: 'POST' }), env, ctx)).status).toBe(405)
+    expect((await calendarWorker.fetch(new Request('https://tenant.test/healthz'), { ...env, TENANT_ID: 'other' }, ctx)).status).toBe(503)
     const services = await calendarWorker.fetch(new Request('https://tenant.test/calendar/services'), env, ctx)
     expect(services.status).toBe(404)
   })

@@ -50,7 +50,7 @@ These bindings are documented in the Wrangler files and left commented out. Repl
 | `NEURONAS_KV` | KV | `wl-neuronas`, `wl-4elementos` | Durable notes. Namespace id `PLACEHOLDER_KV_NAMESPACE_ID`. |
 | `TENANT_CONFIG_JSON` | var | module Workers | Public tenant document for a standalone module Worker. Not a secret. The 4 Elementos Worker compiles its config instead. |
 | `TENANT_ID` | var | `wl-4elementos` | Must match the compiled tenant id or every request returns `tenant_mismatch`. |
-| `LOG_LEVEL` | var | all three | `info` logs one JSON line per request (method, path, status). `silent` turns that off. Query strings are not logged. |
+| `LOG_LEVEL` | var | all three | `info` logs one JSON line per request (method, route template, status). `silent` turns that off. Query strings and booking or note ids are not logged. |
 
 There are no secrets in this draft. Do not commit Notion tokens, API keys, or account ids. `npx wrangler types` should regenerate binding types after a real binding is added. Do not hand-write an `Env` that copies those bindings.
 

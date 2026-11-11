@@ -88,6 +88,7 @@ async function createNote(
   if (!body.ok) return json({ error: body.error }, body.status)
   const parsed = parseDraft(body.value, config.collections)
   if ('error' in parsed) return json({ error: parsed.error }, 400)
+  const notedAt = ctx.clock()
   const note: Note = {
     id: crypto.randomUUID(),
     tenantId: ctx.tenant.id,
@@ -96,8 +97,8 @@ async function createNote(
     body: parsed.body,
     tags: parsed.tags,
     source: 'manual',
-    createdAt: ctx.now.toISOString(),
-    updatedAt: ctx.now.toISOString(),
+    createdAt: notedAt.toISOString(),
+    updatedAt: notedAt.toISOString(),
   }
   const result = await store.insert(note, maxNotes)
   if (result === 'limit') return json({ error: 'note_limit' }, 413, STORE)
@@ -127,7 +128,7 @@ async function patchNote(request: Request, ctx: RequestContext, store: NeuronasS
   const nextBody = body.value.body === undefined ? existing.body : textField(body.value.body, 4000, true)
   const tags = body.value.tags === undefined ? existing.tags : normalizeTags(body.value.tags)
   if (!title || !nextBody || !tags) return json({ error: 'invalid_body' }, 400)
-  const note: Note = { ...existing, title, body: nextBody, tags, updatedAt: ctx.now.toISOString() }
+  const note: Note = { ...existing, title, body: nextBody, tags, updatedAt: ctx.clock().toISOString() }
   if (!(await store.save(ctx.tenant.id, note))) return json({ error: 'not_found' }, 404)
   return json({ note, store: 'memory' }, 200, STORE)
 }

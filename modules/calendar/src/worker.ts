@@ -3,7 +3,6 @@ import {
   createTenantHandler,
   json,
   loadTenantConfigFromJson,
-  normalizePath,
   type PublicVars,
   type TenantConfig,
   type WorkerContext,
@@ -22,15 +21,11 @@ export default {
       if (error instanceof TenantConfigError) return json({ error: 'tenant_config_invalid' }, 500)
       throw error
     }
-    if (!tenant.modules.includes('calendar')) {
-      if (normalizePath(new URL(request.url).pathname) === '/healthz') {
-        return json({ ok: true, module: 'calendar', enabled: false })
-      }
-      return json({ error: 'not_found' }, 404)
-    }
+    const enabled = tenant.modules.includes('calendar')
     return createTenantHandler({
       tenant,
-      modules: [createCalendarModule(store)],
+      modules: enabled ? [createCalendarModule(store)] : [],
+      health: { module: 'calendar', enabled },
     }).fetch(request, env, ctx)
   },
 }

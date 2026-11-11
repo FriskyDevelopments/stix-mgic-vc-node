@@ -70,6 +70,10 @@ describe('tenant router', () => {
     expect(ok.status).toBe(200)
     expect(lines.join('\n')).toContain('/calendar/services')
     expect(lines.join('\n')).not.toContain('Ana')
+    const bookingId = '11111111-1111-4111-8111-111111111111'
+    await app.fetch(new Request(`https://tenant.test/calendar/bookings/${bookingId}/cancel`), {}, ctx)
+    expect(lines.join('\n')).toContain('/calendar/bookings/:id/cancel')
+    expect(lines.join('\n')).not.toContain(bookingId)
 
     const boom = await app.fetch(new Request('https://tenant.test/calendar/boom'), { LOG_LEVEL: 'silent' }, ctx)
     expect(boom.status).toBe(500)

@@ -82,6 +82,10 @@ async function availability(request: Request, ctx: RequestContext, store: Calend
   if (!service.active) return json({ error: 'service_inactive' }, 409)
   const offset = offsetFor(ctx.tenant.timeZone)
   if (!offset) return json({ error: 'timezone_not_supported' }, 422)
+  const viewedAt = ctx.clock()
+  const today = civilDate(viewedAt, offset)
+  const ahead = today ? daysBetween(date, today) : null
+  if (ahead === null || ahead > calendar.horizonDays) return json({ error: 'horizon_exceeded' }, 422, STORE)
   const weekday = weekdayOfDate(date)
   const hours = calendar.hours.find((entry) => entry.weekday === weekday)
   if (!hours) {
@@ -101,7 +105,7 @@ async function availability(request: Request, ctx: RequestContext, store: Calend
   if (!slots) return json({ error: 'invalid_hours' }, 500)
   const bookings = await activeBookings(store, ctx.tenant.id)
   const open = slots.filter((slot) => {
-    if (Date.parse(slot.start) < ctx.now.getTime()) return false
+    if (Date.parse(slot.start) < viewedAt.getTime()) return false
     return !bookings.some((booking) => overlaps(slot.start, slot.end, booking.start, booking.end))
   })
   return json({
@@ -150,14 +154,15 @@ async function createBooking(
   if (!date || weekdayOfDate(date) === null) return json({ error: 'slot_not_aligned' }, 422)
   const offset = offsetFor(ctx.tenant.timeZone)
   if (!offset) return json({ error: 'timezone_not_supported' }, 422, STORE)
-  const today = civilDate(ctx.now, offset)
+  const bookedAt = ctx.clock()
+  const today = civilDate(bookedAt, offset)
   const ahead = today ? daysBetween(date, today) : null
   if (ahead === null || ahead > calendar.horizonDays) return json({ error: 'horizon_exceeded' }, 422, STORE)
   const hours = calendar.hours.find((entry) => entry.weekday === weekdayOfDate(date))
   const slots = hours ? buildSlots(date, hours.open, hours.close, service.durationMinutes, offset) : null
   const slot = slots?.find((item) => item.start === start)
   if (!slot) return json({ error: 'slot_not_aligned' }, 422)
-  if (Date.parse(slot.start) < ctx.now.getTime()) return json({ error: 'slot_unavailable' }, 409)
+  if (Date.parse(slot.start) < bookedAt.getTime()) return json({ error: 'slot_unavailable' }, 409)
   const booking: Booking = {
     id: crypto.randomUUID(),
     tenantId: ctx.tenant.id,
@@ -168,8 +173,8 @@ async function createBooking(
     guestName: name,
     status: 'booked',
     confirmedService: service.confirmed,
-    createdAt: ctx.now.toISOString(),
-    updatedAt: ctx.now.toISOString(),
+    createdAt: bookedAt.toISOString(),
+    updatedAt: bookedAt.toISOString(),
   }
   const decision = await store.reserve(booking, maxBookings)
   if (decision === 'limit') return json({ error: 'booking_limit' }, 413, STORE)

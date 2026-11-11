@@ -16,6 +16,8 @@ export interface RequestContext {
   tenant: TenantConfig
   requestId: string
   now: Date
+  clock: () => Date
+  health?: Record<string, string | boolean>
 }
 
 export interface ModuleRoute {
@@ -59,10 +61,19 @@ export function tenantManifest(tenant: TenantConfig, modules: readonly ModuleRou
   }
 }
 
+export function logPath(pathname: string): string {
+  const path = normalizePath(pathname)
+  return path
+    .replace(/\/calendar\/bookings\/[^/]+\/cancel$/, '/calendar/bookings/:id/cancel')
+    .replace(/\/calendar\/bookings\/[^/]+$/, '/calendar/bookings/:id')
+    .replace(/\/neuronas\/notes\/[^/]+$/, '/neuronas/notes/:id')
+}
+
 export function createTenantHandler(options: {
   tenant: TenantConfig
   modules: readonly ModuleRoute[]
   now?: () => Date
+  health?: Record<string, string | boolean>
 }): TenantWorker {
   const tenant = options.tenant
   const modules = [...options.modules].sort((a, b) => b.prefix.length - a.prefix.length)
@@ -76,7 +87,13 @@ export function createTenantHandler(options: {
         if (env.TENANT_ID && env.TENANT_ID !== tenant.id) {
           response = json({ error: 'tenant_mismatch' }, 503)
         } else {
-          response = await routeRequest(request, { tenant, requestId, now: started }, modules)
+          response = await routeRequest(request, {
+            tenant,
+            requestId,
+            now: started,
+            clock: now,
+            health: options.health,
+          }, modules)
         }
       } catch (error) {
         console.error(JSON.stringify({
@@ -93,7 +110,7 @@ export function createTenantHandler(options: {
           requestId,
           tenant: tenant.id,
           method: request.method,
-          path: new URL(request.url).pathname,
+          path: logPath(new URL(request.url).pathname),
           status: response.status,
         }))
       }
@@ -110,7 +127,7 @@ export async function routeRequest(
   const path = normalizePath(new URL(request.url).pathname)
   if (path === '/healthz') {
     if (request.method !== 'GET') return json({ error: 'method_not_allowed' }, 405)
-    return json({ ok: true, tenant: ctx.tenant.id })
+    return json({ ok: true, tenant: ctx.tenant.id, ...ctx.health })
   }
   if (path === '/') {
     if (request.method !== 'GET') return json({ error: 'method_not_allowed' }, 405)

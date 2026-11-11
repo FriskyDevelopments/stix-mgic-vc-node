@@ -115,7 +115,8 @@ describe('neuronas module', () => {
     const env = { LOG_LEVEL: 'silent', TENANT_CONFIG_JSON: JSON.stringify(tenant) }
     const health = await neuronasWorker.fetch(new Request('https://tenant.test/healthz'), env, ctx)
     expect(health.status).toBe(200)
-    expect(await health.json()).toEqual({ ok: true, module: 'neuronas', enabled: false })
+    expect(await health.json()).toEqual({ ok: true, tenant: 'example', module: 'neuronas', enabled: false })
+    expect((await neuronasWorker.fetch(new Request('https://tenant.test/healthz', { method: 'POST' }), env, ctx)).status).toBe(405)
     const notes = await neuronasWorker.fetch(new Request('https://tenant.test/neuronas/notes'), env, ctx)
     expect(notes.status).toBe(404)
   })
@@ -129,6 +130,25 @@ describe('neuronas module', () => {
     }, ctx)
     expect(ready.status).toBe(200)
     expect(await ready.json()).toMatchObject({ module: 'neuronas', allowDelete: false })
+  })
+
+  it('does not recreate a note removed before save', async () => {
+    const store = memoryNeuronasStore()
+    const note = {
+      id: 'catalog:marca',
+      tenantId: 'example',
+      collection: 'marca',
+      title: 'Marca',
+      body: 'Borrador',
+      tags: ['marca'],
+      source: 'catalog' as const,
+      createdAt: '2026-11-11T00:00:00.000Z',
+      updatedAt: '2026-11-11T00:00:00.000Z',
+    }
+    expect(await store.insert(note, 10)).toBe('ok')
+    expect(await store.remove('example', note.id)).toBe(true)
+    expect(await store.save('example', { ...note, body: 'otra' })).toBe(false)
+    expect(await store.get('example', note.id)).toBeNull()
   })
 
   it('builds catalog notes only inside the tenant collections', () => {

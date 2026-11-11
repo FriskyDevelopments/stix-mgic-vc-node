@@ -44,8 +44,9 @@ export class MemoryNeuronasStore implements NeuronasStore {
   }
 
   save(tenantId: string, note: Note): Promise<boolean> {
-    if (note.tenantId !== tenantId) return Promise.resolve(false)
-    this.notes.set(key(tenantId, note.id), note)
+    const id = key(tenantId, note.id)
+    if (note.tenantId !== tenantId || !this.notes.has(id)) return Promise.resolve(false)
+    this.notes.set(id, note)
     return Promise.resolve(true)
   }
 
