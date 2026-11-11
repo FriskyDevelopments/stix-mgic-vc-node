@@ -3,6 +3,7 @@ import {
   createTenantHandler,
   json,
   loadTenantConfigFromJson,
+  normalizePath,
   type PublicVars,
   type TenantConfig,
   type WorkerContext,
@@ -21,7 +22,12 @@ export default {
       if (error instanceof TenantConfigError) return json({ error: 'tenant_config_invalid' }, 500)
       throw error
     }
-    if (!tenant.modules.includes('neuronas')) return json({ error: 'not_found' }, 404)
+    if (!tenant.modules.includes('neuronas')) {
+      if (normalizePath(new URL(request.url).pathname) === '/healthz') {
+        return json({ ok: true, module: 'neuronas', enabled: false })
+      }
+      return json({ error: 'not_found' }, 404)
+    }
     return createTenantHandler({
       tenant,
       modules: [createNeuronasModule(store)],

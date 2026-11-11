@@ -1,4 +1,5 @@
 import { hasControlChars } from './text.ts'
+import { offsetFor } from './time.ts'
 
 export const MODULE_IDS = ['calendar', 'neuronas'] as const
 export type ModuleId = (typeof MODULE_IDS)[number]
@@ -298,6 +299,7 @@ function parseTenant(value: unknown, errors: string[]): TenantConfig | null {
   }
   const locale = requireString(value.locale, 'tenant.locale', errors, LOCALE, 5)
   const timeZone = requireString(value.timeZone, 'tenant.timeZone', errors, TIME_ZONE, 64)
+  if (timeZone && offsetFor(timeZone) === null) errors.push('tenant.timeZone: unsupported')
   const currency = requireString(value.currency, 'tenant.currency', errors, CURRENCY, 3)
   if (!Array.isArray(value.modules) || value.modules.length === 0) {
     errors.push('tenant.modules: expected at least one module')

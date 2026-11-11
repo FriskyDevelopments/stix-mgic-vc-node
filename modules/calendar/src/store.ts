@@ -38,13 +38,11 @@ export class MemoryCalendarStore implements CalendarStore {
     const mine = [...this.bookings.values()].filter((item) => item.tenantId === booking.tenantId)
     // Cancelled rows do not consume the active cap. At most maxRecords of them are kept.
     const active = mine.filter((item) => item.status === 'booked')
-    if (active.length >= maxRecords) return Promise.resolve('limit')
     const clash = active.some((item) => overlaps(item.start, item.end, booking.start, booking.end))
     if (clash) return Promise.resolve('conflict')
-    const cancelled = mine
-      .filter((item) => item.status === 'cancelled')
-      .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt) || a.id.localeCompare(b.id))
-    while (cancelled.length >= maxRecords) {
+    if (active.length >= maxRecords) return Promise.resolve('limit')
+    const cancelled = mine.filter((item) => item.status === 'cancelled')
+    while (cancelled.length > maxRecords) {
       const oldest = cancelled.shift()
       if (!oldest) break
       this.bookings.delete(oldest.id)

@@ -137,6 +137,12 @@ describe('calendar module', () => {
       guestName: 'Ana',
     })
     expect(one.status).toBe(201)
+    const taken = await post(capped, '/calendar/bookings', {
+      serviceSlug: 'sample',
+      start: '2026-11-16T10:00:00-06:00',
+      guestName: 'Bo',
+    })
+    expect(taken.status).toBe(409)
     const two = await post(capped, '/calendar/bookings', {
       serviceSlug: 'sample',
       start: '2026-11-16T11:00:00-06:00',
@@ -158,7 +164,17 @@ describe('calendar module', () => {
       guestName: 'Bo',
     })
     expect(afterCancel.status).toBe(201)
+    expect((await call(freed, `/calendar/bookings/${heldId}`)).status).toBe(200)
+    const secondId = (await afterCancel.json() as { booking: { id: string } }).booking.id
+    expect((await call(freed, `/calendar/bookings/${secondId}/cancel`, { method: 'POST' })).status).toBe(200)
+    const third = await post(freed, '/calendar/bookings', {
+      serviceSlug: 'sample',
+      start: '2026-11-16T12:00:00-06:00',
+      guestName: 'Cora',
+    })
+    expect(third.status).toBe(201)
     expect((await call(freed, `/calendar/bookings/${heldId}`)).status).toBe(404)
+    expect((await call(freed, `/calendar/bookings/${secondId}`)).status).toBe(200)
   })
 
   it('answers 405 for a bad booking id when the method is not allowed', async () => {
@@ -166,12 +182,22 @@ describe('calendar module', () => {
     expect(res.status).toBe(405)
   })
 
-  it('rejects an unsupported time zone', async () => {
-    const tenant = loadTenantConfig({ ...structuredClone(exampleTenant()), timeZone: 'Europe/Madrid' })
-    const handler = app(1000, tenant)
-    const res = await call(handler, '/calendar/availability?service=sample&date=2026-11-16')
-    expect(res.status).toBe(422)
-    expect(await res.json()).toEqual({ error: 'timezone_not_supported' })
+  it('rejects an unsupported time zone when the config is loaded', () => {
+    expect(() => loadTenantConfig({ ...structuredClone(exampleTenant()), timeZone: 'Europe/Madrid' })).toThrow(/timeZone/)
+  })
+
+  it('answers health when the tenant left calendar disabled', async () => {
+    const tenant = loadTenantConfig({
+      ...structuredClone(exampleTenant()),
+      modules: ['neuronas'],
+      calendar: null,
+    })
+    const env = { LOG_LEVEL: 'silent', TENANT_CONFIG_JSON: JSON.stringify(tenant) }
+    const health = await calendarWorker.fetch(new Request('https://tenant.test/healthz'), env, ctx)
+    expect(health.status).toBe(200)
+    expect(await health.json()).toEqual({ ok: true, module: 'calendar', enabled: false })
+    const services = await calendarWorker.fetch(new Request('https://tenant.test/calendar/services'), env, ctx)
+    expect(services.status).toBe(404)
   })
 
   it('boots from TENANT_CONFIG_JSON and fails closed without it', async () => {

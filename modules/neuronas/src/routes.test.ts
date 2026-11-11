@@ -104,6 +104,20 @@ describe('neuronas module', () => {
     expect((await call(handler, `/neuronas/notes/${id}`)).status).toBe(404)
   })
 
+  it('answers health when the tenant left neuronas disabled', async () => {
+    const tenant = loadTenantConfig({
+      ...structuredClone(exampleTenant()),
+      modules: ['calendar'],
+      neuronas: null,
+    })
+    const env = { LOG_LEVEL: 'silent', TENANT_CONFIG_JSON: JSON.stringify(tenant) }
+    const health = await neuronasWorker.fetch(new Request('https://tenant.test/healthz'), env, ctx)
+    expect(health.status).toBe(200)
+    expect(await health.json()).toEqual({ ok: true, module: 'neuronas', enabled: false })
+    const notes = await neuronasWorker.fetch(new Request('https://tenant.test/neuronas/notes'), env, ctx)
+    expect(notes.status).toBe(404)
+  })
+
   it('boots from TENANT_CONFIG_JSON', async () => {
     const missing = await neuronasWorker.fetch(new Request('https://tenant.test/neuronas'), { LOG_LEVEL: 'silent' }, ctx)
     expect(missing.status).toBe(503)

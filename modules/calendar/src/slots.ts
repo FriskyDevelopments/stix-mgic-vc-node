@@ -1,15 +1,8 @@
-export const TIME_ZONE_OFFSETS: Readonly<Record<string, string>> = {
-  // Mexico dropped daylight saving time in 2022. Mexico City stays UTC−6 all year.
-  'America/Mexico_City': '-06:00',
-}
+export { TIME_ZONE_OFFSETS, offsetFor } from '../../../packages/core/src/time.ts'
 
 export interface Slot {
   start: string
   end: string
-}
-
-export function offsetFor(timeZone: string): string | null {
-  return TIME_ZONE_OFFSETS[timeZone] ?? null
 }
 
 export function weekdayOfDate(date: string): number | null {

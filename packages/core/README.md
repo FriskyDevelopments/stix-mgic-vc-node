@@ -94,9 +94,9 @@ Neuronas is the tenant knowledge module. The Rangel checklist in this repo alrea
 - Hours are Monday–Saturday 10:00–19:00, America/Mexico_City, Sunday closed. `hoursConfirmed` is false.
 - Typography is provisional option A (Jost). Option B (Cinzel for titles, Inter for body) is stored as a candidate, not as the active token.
 - Colors are tierra, agua, fuego, and aire plus sand, surface, text, and accent. They are draft tokens.
-- Neuronas collections are `servicios`, `marca`, `equipo`, and `operacion`. Deletes are off, matching the checklist rule that the flow does not delete.
+- Neuronas collections are `servicios`, `marca`, `equipo`, and `operacion`. Seeded notes can be edited. Deletes are off, matching the checklist rule that the flow does not delete.
 - The team roster is empty. The calendar is one shared room, not one calendar per therapist.
-- Slot math supports `America/Mexico_City` only, as a fixed UTC−6 offset. Mexico City has not observed daylight saving time since 2022.
+- Slot math supports `America/Mexico_City` only, as a fixed UTC−6 offset. Mexico City has not observed daylight saving time since 2022. Any other zone fails when the tenant config is loaded.
 - Guest name is the only contact field. There is no phone or email.
 - Standalone module Workers read `TENANT_CONFIG_JSON`. The 4 Elementos Worker mounts the modules in-process.
 
