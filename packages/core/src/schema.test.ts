@@ -29,6 +29,13 @@ describe('tenant config', () => {
     expect(() => loadTenantConfig(font)).toThrow(/typography\.display/)
   })
 
+  it('rejects a calendar with no open days', () => {
+    const copy = structuredClone(exampleTenant())
+    if (!copy.calendar) throw new Error('missing calendar')
+    copy.calendar.hours = []
+    expect(() => loadTenantConfig(copy)).toThrow(/hours/)
+  })
+
   it('rejects a calendar module with no calendar block', () => {
     const { calendar: _calendar, ...rest } = structuredClone(exampleTenant())
     expect(() => loadTenantConfig({ ...rest, modules: ['calendar'] })).toThrow(/calendar/)

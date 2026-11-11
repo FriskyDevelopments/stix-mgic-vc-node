@@ -158,7 +158,7 @@ export async function routeRequest(
   const path = normalizePath(new URL(request.url).pathname)
   if (path === '/healthz') {
     if (request.method !== 'GET') return json({ error: 'method_not_allowed' }, 405, { allow: 'GET' })
-    return json({ ok: true, tenant: ctx.tenant.id, ...ctx.health })
+    return json({ ...ctx.health, ok: true, tenant: ctx.tenant.id })
   }
   if (path === '/') {
     if (request.method !== 'GET') return json({ error: 'method_not_allowed' }, 405, { allow: 'GET' })

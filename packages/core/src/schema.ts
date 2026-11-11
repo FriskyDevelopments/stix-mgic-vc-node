@@ -215,8 +215,8 @@ function parseServices(value: unknown, errors: string[]): CatalogService[] | nul
 }
 
 function parseHours(value: unknown, errors: string[]): BusinessHours[] | null {
-  if (!Array.isArray(value) || value.length > 7) {
-    errors.push('calendar.hours: expected an array of at most 7 days')
+  if (!Array.isArray(value) || value.length < 1 || value.length > 7) {
+    errors.push('calendar.hours: expected 1 to 7 days')
     return null
   }
   const hours: BusinessHours[] = []
