@@ -23,7 +23,7 @@ export async function handleNeuronas(
   const tail = routeTail(new URL(request.url).pathname, NEURONAS_PREFIX)
   if (tail === null) return json({ error: 'not_found' }, 404, STORE)
   if (tail === '/') {
-    if (request.method !== 'GET') return json({ error: 'method_not_allowed' }, 405, { allow: 'GET' })
+    if (request.method !== 'GET') return json({ error: 'method_not_allowed' }, 405, { ...STORE, allow: 'GET' })
     return json({
       module: 'neuronas',
       collections: config.collections,
@@ -34,11 +34,11 @@ export async function handleNeuronas(
   if (tail === '/notes') {
     if (request.method === 'GET') return listNotes(request, ctx, store)
     if (request.method === 'POST') return createNote(request, ctx, store, maxNotes)
-    return json({ error: 'method_not_allowed' }, 405, { allow: 'GET, POST' })
+    return json({ error: 'method_not_allowed' }, 405, { ...STORE, allow: 'GET, POST' })
   }
   if (tail.startsWith('/notes/')) {
     if (request.method !== 'GET' && request.method !== 'PATCH' && request.method !== 'DELETE') {
-      return json({ error: 'method_not_allowed' }, 405, { allow: 'GET, PATCH, DELETE' })
+      return json({ error: 'method_not_allowed' }, 405, { ...STORE, allow: 'GET, PATCH, DELETE' })
     }
     const id = noteSegment(tail.slice('/notes/'.length))
     if (!id) return json({ error: 'not_found' }, 404, STORE)

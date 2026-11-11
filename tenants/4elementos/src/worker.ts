@@ -1,4 +1,4 @@
-import { createTenantHandler, type TenantWorker } from '../../../packages/core/src/index.ts'
+import { createTenantHandler, loggedResponse, type TenantWorker } from '../../../packages/core/src/index.ts'
 import { createCalendarModule, memoryCalendarStore } from '../../../modules/calendar/src/module.ts'
 import { createNeuronasModule } from '../../../modules/neuronas/src/module.ts'
 import { MemoryNeuronasStore } from '../../../modules/neuronas/src/store.ts'
@@ -24,7 +24,11 @@ export function createFourElementosHandler(now: () => Date = () => new Date()): 
   })
   return {
     async fetch(request, env, ctx) {
-      await seed()
+      try {
+        await seed()
+      } catch {
+        return loggedResponse(request, env, { error: 'internal' }, 500, fourElementos.id)
+      }
       return inner.fetch(request, env, ctx)
     },
   }

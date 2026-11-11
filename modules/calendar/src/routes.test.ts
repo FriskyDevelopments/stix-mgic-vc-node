@@ -202,6 +202,7 @@ describe('calendar module', () => {
       guestName: 'Ana',
     })
     const heldId = (await held.json() as { booking: { id: string } }).booking.id
+    expect((await call(freed, `/calendar/bookings/${heldId}/cancel`, { method: 'DELETE' })).status).toBe(405)
     expect((await call(freed, `/calendar/bookings/${heldId}/cancel`, { method: 'POST' })).status).toBe(200)
     const afterCancel = await post(freed, '/calendar/bookings', {
       serviceSlug: 'sample',

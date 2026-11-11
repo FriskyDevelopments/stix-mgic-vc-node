@@ -48,7 +48,10 @@ export async function handleCalendar(
   if (tail === '/availability') return availability(request, ctx, store)
   if (tail === '/bookings') return createBooking(request, ctx, store, maxBookings)
   const cancel = /^\/bookings\/([^/]+)\/cancel$/.exec(tail)
-  if (cancel) return cancelBooking(request, ctx, store, cancel[1] ?? '')
+  if (cancel) {
+    if (request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405, { ...STORE, allow: 'POST' })
+    return cancelBooking(request, ctx, store, cancel[1] ?? '')
+  }
   const one = /^\/bookings\/([^/]+)$/.exec(tail)
   if (one) return oneBooking(request, ctx, store, one[1] ?? '')
   return json({ error: 'not_found' }, 404, STORE)
