@@ -58,6 +58,8 @@ There are no secrets in this draft. Do not commit Notion tokens, API keys, or ac
 
 ## Routes
 
+Writes are unauthenticated. A booking id only lets someone read or cancel that booking. Do not attach a hostname or route until an access layer exists.
+
 `GET /healthz` and `GET /` (tenant manifest and theme tokens).
 
 Calendar, mounted at `/calendar`:

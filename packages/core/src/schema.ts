@@ -328,7 +328,7 @@ function parseTenant(value: unknown, errors: string[]): TenantConfig | null {
 
   const calendar = wantsCalendar ? parseCalendar(value.calendar, errors) : null
   const neuronas = wantsNeuronas ? parseNeuronas(value.neuronas, errors) : null
-  if (!id || !brandName || tagline === undefined || !locale || !timeZone || !currency || !colors || !typography) return null
+  if (!id || !brandName || !locale || !timeZone || !currency || !colors || !typography) return null
   if (wantsCalendar && !calendar) return null
   if (wantsNeuronas && !neuronas) return null
   return {

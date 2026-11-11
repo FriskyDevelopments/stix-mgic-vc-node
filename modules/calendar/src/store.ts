@@ -36,8 +36,10 @@ export class MemoryCalendarStore implements CalendarStore {
 
   reserve(booking: Booking, maxRecords: number): Promise<'ok' | 'conflict' | 'limit'> {
     const mine = [...this.bookings.values()].filter((item) => item.tenantId === booking.tenantId)
-    if (mine.length >= maxRecords) return Promise.resolve('limit')
-    const clash = mine.some((item) => item.status === 'booked' && overlaps(item.start, item.end, booking.start, booking.end))
+    // Cancelled rows stay readable, and they do not consume the active-booking cap.
+    const active = mine.filter((item) => item.status === 'booked')
+    if (active.length >= maxRecords) return Promise.resolve('limit')
+    const clash = active.some((item) => overlaps(item.start, item.end, booking.start, booking.end))
     if (clash) return Promise.resolve('conflict')
     this.bookings.set(booking.id, booking)
     return Promise.resolve('ok')

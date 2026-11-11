@@ -174,9 +174,11 @@ async function createBooking(
 }
 
 async function oneBooking(request: Request, ctx: RequestContext, store: CalendarStore, id: string): Promise<Response> {
+  if (request.method !== 'GET' && request.method !== 'DELETE') {
+    return json({ error: 'method_not_allowed' }, 405, { allow: 'GET, DELETE' })
+  }
   if (!UUID.test(id)) return json({ error: 'not_found' }, 404)
   if (request.method === 'DELETE') return cancelBooking(request, ctx, store, id)
-  if (request.method !== 'GET') return json({ error: 'method_not_allowed' }, 405, { allow: 'GET, DELETE' })
   const booking = await store.get(ctx.tenant.id, id)
   if (!booking) return json({ error: 'not_found' }, 404)
   return json({ booking, store: 'memory' }, 200, STORE)

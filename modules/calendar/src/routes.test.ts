@@ -143,6 +143,26 @@ describe('calendar module', () => {
       guestName: 'Bo',
     })
     expect(two.status).toBe(413)
+
+    const freed = app(1)
+    const held = await post(freed, '/calendar/bookings', {
+      serviceSlug: 'sample',
+      start: '2026-11-16T10:00:00-06:00',
+      guestName: 'Ana',
+    })
+    const heldId = (await held.json() as { booking: { id: string } }).booking.id
+    expect((await call(freed, `/calendar/bookings/${heldId}/cancel`, { method: 'POST' })).status).toBe(200)
+    const afterCancel = await post(freed, '/calendar/bookings', {
+      serviceSlug: 'sample',
+      start: '2026-11-16T11:00:00-06:00',
+      guestName: 'Bo',
+    })
+    expect(afterCancel.status).toBe(201)
+  })
+
+  it('answers 405 for a bad booking id when the method is not allowed', async () => {
+    const res = await call(app(), '/calendar/bookings/not-a-uuid', { method: 'POST' })
+    expect(res.status).toBe(405)
   })
 
   it('rejects an unsupported time zone', async () => {
