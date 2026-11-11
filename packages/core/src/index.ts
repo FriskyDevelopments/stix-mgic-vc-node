@@ -20,6 +20,7 @@ export { themeTokens } from './theme.ts'
 export type { ThemeTokens } from './theme.ts'
 export {
   createTenantHandler,
+  loggedResponse,
   normalizePath,
   routeRequest,
   routeTail,

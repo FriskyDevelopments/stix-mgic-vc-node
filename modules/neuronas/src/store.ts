@@ -14,8 +14,8 @@ export interface NeuronasStore {
   list(tenantId: string): Promise<Note[]>
   get(tenantId: string, id: string): Promise<Note | null>
   insert(note: Note, maxNotes: number): Promise<'ok' | 'limit' | 'exists'>
-  /** Load or replace a catalog note before the first request. A durable adapter must persist this. */
-  put(note: Note): void
+  /** Load or replace a catalog note. A durable adapter must finish the write before serving. */
+  put(note: Note): Promise<void>
   save(tenantId: string, note: Note): Promise<boolean>
   remove(tenantId: string, id: string): Promise<boolean>
 }
@@ -32,8 +32,9 @@ export class MemoryNeuronasStore implements NeuronasStore {
     return Promise.resolve(note ?? null)
   }
 
-  put(note: Note): void {
+  put(note: Note): Promise<void> {
     this.notes.set(key(note.tenantId, note.id), note)
+    return Promise.resolve()
   }
 
   insert(note: Note, maxNotes: number): Promise<'ok' | 'limit' | 'exists'> {

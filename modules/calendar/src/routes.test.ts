@@ -228,6 +228,7 @@ describe('calendar module', () => {
   it('boots from TENANT_CONFIG_JSON and fails closed without it', async () => {
     const missing = await calendarWorker.fetch(new Request('https://tenant.test/calendar/services'), { LOG_LEVEL: 'silent' }, ctx)
     expect(missing.status).toBe(503)
+    expect(missing.headers.get('x-request-id')).toMatch(/^[0-9a-f-]{36}$/i)
     const invalid = await calendarWorker.fetch(new Request('https://tenant.test/calendar/services'), {
       LOG_LEVEL: 'silent',
       TENANT_CONFIG_JSON: '{',

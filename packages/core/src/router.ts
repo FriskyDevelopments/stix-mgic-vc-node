@@ -79,6 +79,27 @@ export function logPath(pathname: string): string {
     .join('/')
 }
 
+export function loggedResponse(
+  request: Request,
+  env: PublicVars,
+  body: unknown,
+  status: number,
+  tenantId = '',
+): Response {
+  const requestId = crypto.randomUUID()
+  if (env.LOG_LEVEL !== 'silent') {
+    console.log(JSON.stringify({
+      ts: new Date().toISOString(),
+      requestId,
+      tenant: tenantId || null,
+      method: request.method,
+      path: logPath(new URL(request.url).pathname),
+      status,
+    }))
+  }
+  return stamp(json(body, status), requestId, tenantId)
+}
+
 export function createTenantHandler(options: {
   tenant: TenantConfig
   modules: readonly ModuleRoute[]

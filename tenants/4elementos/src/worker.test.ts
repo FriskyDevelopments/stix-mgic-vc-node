@@ -90,7 +90,7 @@ describe('4 Elementos tenant', () => {
     const notes = await call('/neuronas/notes?collection=servicios')
     const body = await notes.json() as { notes: { title: string }[] }
     expect(body.notes).toHaveLength(5)
-    const marca = await call('/neuronas/notes/catalog:marca')
+    const marca = await call('/neuronas/notes/' + encodeURIComponent('catalog:marca'))
     expect(marca.status).toBe(200)
     const deleted = await call('/neuronas/notes/catalog:marca', { method: 'DELETE' })
     expect(deleted.status).toBe(403)

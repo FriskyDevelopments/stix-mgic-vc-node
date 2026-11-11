@@ -38,8 +38,8 @@ export async function handleNeuronas(
     if (request.method !== 'GET' && request.method !== 'PATCH' && request.method !== 'DELETE') {
       return json({ error: 'method_not_allowed' }, 405, { allow: 'GET, PATCH, DELETE' })
     }
-    const id = tail.slice('/notes/'.length)
-    if (!noteIdOk(id) || id.includes('/')) return json({ error: 'not_found' }, 404)
+    const id = noteSegment(tail.slice('/notes/'.length))
+    if (!id) return json({ error: 'not_found' }, 404)
     if (request.method === 'GET') return getNote(ctx, store, id)
     if (request.method === 'PATCH') return patchNote(request, ctx, store, id)
     return deleteNote(ctx, store, id)
@@ -143,6 +143,17 @@ async function deleteNote(ctx: RequestContext, store: NeuronasStore, id: string)
   if (!existing) return json({ error: 'not_found' }, 404)
   await store.remove(ctx.tenant.id, id)
   return json({ deleted: id, store: 'memory' }, 200, STORE)
+}
+
+function noteSegment(segment: string): string | null {
+  let decoded = segment
+  try {
+    decoded = decodeURIComponent(segment)
+  } catch {
+    return null
+  }
+  if (!noteIdOk(decoded) || decoded.includes('/')) return null
+  return decoded
 }
 
 function textField(value: unknown, max: number, multiline: boolean): string | null {
