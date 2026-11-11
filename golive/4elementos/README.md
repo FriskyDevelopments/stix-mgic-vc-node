@@ -51,7 +51,7 @@ Mount later by calling `handleDemoRequest` from the tenant Worker, and replace `
 
 Read on 2026-11-11, not modified:
 
-- Chat webhook path `marina-chat`. POST JSON `{ message, language, history, channel: "whatsapp" }`. Response `{ reply, escalated, language, provider, source }`. The published webhook allowlists `Origin: https://casabarravieja.com`, so the client sends that origin when `MARINA_ORIGIN` is empty. The published brain is Casa Barra Vieja and was inactive. Replies are not spa copy until the URL points at an approved interface. This package does not change the prompt or the allowlist.
+- Chat webhook path `marina-chat`. POST JSON `{ message, language, history, channel: "whatsapp" }`. Response `{ reply, escalated, language, provider, source }`. `Origin` is sent only when `MARINA_ORIGIN` is set by the owner. This client does not borrow Casa Barra Vieja's allowlisted origin. The published brain is Casa Barra Vieja and was inactive. Replies are not spa copy until the URL points at an approved interface. This package does not change the prompt or the allowlist.
 - WAHA delivery is `POST {WAHA_BASE_URL}/api/sendText` with `{ session, chatId, text }` and header `X-Api-Key`. The demo does not post a fake customer event into Marina's `marina-whatsapp` webhook.
 - Inbound WAHA on this tenant is `POST /api/4elementos/marina/waha` with header `x-marina-secret`. Groups, broadcasts, newsletters, and `fromMe` are ignored. The secret is an env placeholder.
 - Voice: `POST {MARINA_VOICE_URL}` with `{ tenant, channel: "voice", provider: "twilio", to, from, reason }`. The Twilio auth token is not in that body. No such webhook exists on Marina today.
@@ -63,3 +63,5 @@ Secrets that already live inside Marina's workflows were not copied into this re
 See `demo/wrangler.jsonc`. Set real test values with `npx wrangler secret put`, not by editing the file.
 
 `DEMO_ACCESS_TOKEN`, when set, is required as `Authorization: Bearer` on checkout, messages, and calls. Stripe and Twilio webhooks use their own signatures instead. Leave the token empty for the local button to work.
+
+Checkout return URLs use `PUBLIC_BASE_URL` when it is set. With it empty, only loopback and `elementos-demo.*.workers.dev` are accepted. A request Host is not enough.

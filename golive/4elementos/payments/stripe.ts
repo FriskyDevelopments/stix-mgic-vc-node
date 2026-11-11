@@ -105,21 +105,22 @@ export async function createStripeCheckoutSession(
   draft: CheckoutDraft,
   fetchImpl: typeof fetch = fetch,
 ): Promise<{ ok: true; id: string; url: string } | { ok: false; code: 'stripe_rejected' | 'stripe_bad_response'; status?: number }> {
-  const body = new URLSearchParams()
-  body.set('mode', 'payment')
-  body.set('success_url', draft.successUrl)
-  body.set('cancel_url', draft.cancelUrl)
-  body.set('client_reference_id', draft.orderId)
-  body.set('line_items[0][quantity]', '1')
-  body.set('line_items[0][price_data][currency]', 'mxn')
-  body.set('line_items[0][price_data][unit_amount]', String(draft.unitAmount))
-  body.set('line_items[0][price_data][product_data][name]', draft.serviceName)
-  body.set('line_items[0][price_data][product_data][description]', draft.description)
-  body.set('metadata[tenant]', '4elementos')
-  body.set('metadata[service_id]', draft.serviceId)
-  body.set('metadata[order_id]', draft.orderId)
-  body.set('metadata[demo]', 'true')
-  if (draft.customerEmail) body.set('customer_email', draft.customerEmail)
+  const fields: Record<string, string> = {
+    mode: 'payment',
+    success_url: draft.successUrl,
+    cancel_url: draft.cancelUrl,
+    client_reference_id: draft.orderId,
+    'line_items[0][quantity]': '1',
+    'line_items[0][price_data][currency]': 'mxn',
+    'line_items[0][price_data][unit_amount]': String(draft.unitAmount),
+    'line_items[0][price_data][product_data][name]': draft.serviceName,
+    'line_items[0][price_data][product_data][description]': draft.description,
+    'metadata[tenant]': '4elementos',
+    'metadata[service_id]': draft.serviceId,
+    'metadata[order_id]': draft.orderId,
+    'metadata[demo]': 'true',
+  }
+  if (draft.customerEmail) fields.customer_email = draft.customerEmail
 
   let response: Response
   try {
@@ -129,13 +130,40 @@ export async function createStripeCheckoutSession(
         authorization: `Bearer ${secretKey}`,
         'content-type': 'application/x-www-form-urlencoded',
       },
-      body: body.toString().replace(/%7B/gi, '{').replace(/%7D/gi, '}'),
+      body: encodeCheckoutForm(fields),
     })
   } catch {
     return { ok: false, code: 'stripe_rejected' }
   }
   if (!response.ok) return { ok: false, code: 'stripe_rejected', status: response.status }
   const payload = (await response.json()) as { id?: unknown; url?: unknown }
-  if (typeof payload.id !== 'string' || typeof payload.url !== 'string') return { ok: false, code: 'stripe_bad_response' }
+  if (typeof payload.id !== 'string' || typeof payload.url !== 'string' || !isCheckoutUrl(payload.url)) {
+    return { ok: false, code: 'stripe_bad_response' }
+  }
   return { ok: true, id: payload.id, url: payload.url }
+}
+
+/** Stripe must see the session placeholder raw. Every other brace stays encoded. */
+export function encodeCheckoutForm(fields: Record<string, string>): string {
+  return Object.entries(fields)
+    .map(([key, value]) => {
+      let encoded = encodeURIComponent(value)
+      if (key === 'success_url') {
+        encoded = encoded.replace('%7BCHECKOUT_SESSION_ID%7D', '{CHECKOUT_SESSION_ID}')
+      }
+      return `${encodeURIComponent(key)}=${encoded}`
+    })
+    .join('&')
+}
+
+export function isCheckoutUrl(value: string): boolean {
+  try {
+    const url = new URL(value)
+    if (url.username || url.password) return false
+    if (url.protocol !== 'https:') return false
+    const host = url.hostname.toLowerCase()
+    return host === 'checkout.stripe.com'
+  } catch {
+    return false
+  }
 }

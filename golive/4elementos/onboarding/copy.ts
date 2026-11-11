@@ -94,6 +94,7 @@ export const copy: {
     stripe_key_invalid: 'La llave de Stripe no tiene forma de llave de prueba.',
     unknown_service: 'Ese servicio no está en la muestra.',
     stripe_rejected: 'Stripe no aceptó el cobro de prueba. No se cobró nada.',
+    unsafe_checkout_url: 'La dirección de cobro no es de Stripe. No se abrió.',
     unauthorized: 'Este demo pide un token de acceso. No está en la página a propósito.',
     marina_not_configured: 'Marina no está conectada. Falta la URL de su webhook marina-chat.',
     marina_rejected: 'Marina no contestó. Sus flujos no se modificaron.',

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { memoryStore } from '../demo/state.ts'
 import { readWahaInbound, requestStudioCall, twilioSignature, verifyTwilioSignature } from './client.ts'
@@ -23,7 +24,7 @@ describe('Marina client', () => {
     expect(payload.reply).toContain('ayudo')
     expect(calls).toHaveLength(1)
     expect(calls[0]?.url).toContain('/webhook/marina-chat')
-    expect(calls[0]?.headers.get('origin')).toBe('https://casabarravieja.com')
+    expect(calls[0]?.headers.get('origin')).toBeNull()
     expect(calls[0]?.body).toContain('"channel":"whatsapp"')
     expect(calls[0]?.body).not.toContain('should-not-send')
   })

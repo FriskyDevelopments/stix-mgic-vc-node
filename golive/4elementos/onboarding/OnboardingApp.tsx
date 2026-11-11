@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { DEMO_SERVICES } from '../payments/catalog.ts'
+import { isCheckoutUrl } from '../payments/stripe.ts'
 import { copy, activationBeats, dayCopy, elementCopy } from './copy.ts'
 import {
   ELEMENTS,
@@ -533,8 +534,12 @@ async function pay(
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ serviceId }),
         }).then(async (response) => (await response.json()) as { url?: string; error?: string })
-    if (result.url) {
+    if (result.url && isCheckoutUrl(result.url)) {
       window.location.assign(result.url)
+      return
+    }
+    if (result.url) {
+      setNote(copy.pay.unsafe_checkout_url)
       return
     }
     setNote(copy.pay[result.error ?? ''] ?? copy.pay.offline)

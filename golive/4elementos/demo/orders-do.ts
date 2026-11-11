@@ -53,12 +53,17 @@ export interface OrderNamespace {
   get(id: unknown): { fetch(request: Request): Promise<Response> }
 }
 
+async function readJson<T>(response: Response): Promise<T> {
+  if (!response.ok) throw new Error(`demo_store_${response.status}`)
+  return (await response.json()) as T
+}
+
 export function durableObjectStore(namespace: OrderNamespace): DemoStore {
   const stub = namespace.get(namespace.idFromName('4elementos-demo'))
   return {
     async snapshot() {
       const response = await stub.fetch(new Request('https://elementos-demo.internal/snapshot'))
-      return (await response.json()) as DemoSnapshot
+      return readJson<DemoSnapshot>(response)
     },
     async mutate(op) {
       const response = await stub.fetch(
@@ -67,7 +72,7 @@ export function durableObjectStore(namespace: OrderNamespace): DemoStore {
           body: JSON.stringify(op),
         }),
       )
-      return (await response.json()) as MutateResult
+      return readJson<MutateResult>(response)
     },
   }
 }

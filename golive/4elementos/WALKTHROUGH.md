@@ -139,7 +139,8 @@ Success and cancel are Worker pages, not steps in the flow.
 
 - Before the signed webhook: "Estamos confirmando el pago de prueba". Reloading does not mark it paid.
 - After `checkout.session.completed` with `payment_status=paid`: "Pago de prueba registrado".
-- Cancel while pending: "El pago de prueba se canceló".
+- The browser follows a checkout URL only when it is `https://checkout.stripe.com/…`.
+- Cancel while pending: "El pago de prueba se canceló". A later completion event does not mark that order paid.
 - Cancel after paid: "Este pedido ya estaba pagado en modo prueba". The status stays paid.
 - A session id with markup is rejected and not printed.
 - The Stripe success URL keeps the literal `{CHECKOUT_SESSION_ID}`. Encoding the braces would stop Stripe from filling them in.

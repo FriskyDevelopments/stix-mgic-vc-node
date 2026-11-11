@@ -8,9 +8,6 @@ export default defineConfig({
     environmentMatchGlobs: [
       ['server/**', 'node'],
       ['workers/**', 'node'],
-      ['golive/4elementos/payments/**', 'node'],
-      ['golive/4elementos/marina/**', 'node'],
-      ['golive/4elementos/demo/**', 'node'],
     ],
     setupFiles: ['./src/test/setup.ts'],
   },

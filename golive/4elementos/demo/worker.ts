@@ -4,6 +4,7 @@ import { memoryStore, type DemoStore } from './state.ts'
 import { handlePayments, type PaymentsEnv } from '../payments/routes.ts'
 import { handleMarina, type MarinaEnv } from '../marina/routes.ts'
 import { classifyStripeSecretKey } from '../payments/stripe.ts'
+import { isBlockedHost } from '../shared/hosts.ts'
 import { isUnset } from '../shared/placeholders.ts'
 import { wahaReady } from '../marina/client.ts'
 
@@ -19,15 +20,6 @@ export interface DemoEnv extends PaymentsEnv, MarinaEnv {
   ASSETS?: { fetch(request: Request): Promise<Response> }
 }
 
-const FORBIDDEN_HOSTS = new Set([
-  'vc.friskydev.com',
-  'nebu.quest',
-  'www.nebu.quest',
-  'casabarravieja.com',
-  'www.casabarravieja.com',
-  'waha.friskydev.com',
-])
-
 const previewStore = memoryStore()
 
 export async function handleDemoRequest(
@@ -38,7 +30,7 @@ export async function handleDemoRequest(
 ): Promise<Response> {
   const activeStore = store ?? (env.ORDERS ? durableObjectStore(env.ORDERS) : previewStore)
   const url = new URL(request.url)
-  if (FORBIDDEN_HOSTS.has(url.hostname)) {
+  if (isBlockedHost(url.hostname)) {
     return json({ error: 'host_not_allowed', demo: true }, 421)
   }
   if (url.pathname === '/api/4elementos/health' && request.method === 'GET') {

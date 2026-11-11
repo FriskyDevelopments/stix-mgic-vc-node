@@ -8,9 +8,8 @@ import { stripControls } from '../shared/text.ts'
  *
  * Chat: POST {MARINA_CHAT_URL} with the body Marina's published `marina-chat`
  * webhook already reads: `{ message, language, history, channel: "whatsapp" }`.
- * The published webhook allowlists Origin `https://casabarravieja.com`. This
- * client sends that Origin when `MARINA_ORIGIN` is unset. It does not edit
- * Marina's workflow, prompt, or allowlist.
+ * Origin is sent only when MARINA_ORIGIN is set. This client does not borrow
+ * another site's allowlisted origin, and it does not edit Marina.
  *
  * WhatsApp delivery: WAHA HTTP API `POST {WAHA_BASE_URL}/api/sendText`
  * `{ session, chatId, text }` plus header `X-Api-Key`. This is the same HTTP
@@ -60,10 +59,17 @@ export type MarinaFailure = {
 
 const CHAT_LANGUAGES = new Set(['es', 'en', 'fr'])
 
-export function marinaOrigin(env: MarinaEnv): string {
+export function marinaOrigin(env: MarinaEnv): string | null {
   const origin = env.MARINA_ORIGIN?.trim()
-  if (origin && !isUnset(origin)) return origin
-  return 'https://casabarravieja.com'
+  if (!origin || isUnset(origin)) return null
+  try {
+    const url = new URL(origin)
+    if (url.username || url.password) return null
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
+    return url.origin
+  } catch {
+    return null
+  }
 }
 
 export async function askMarina(
@@ -83,15 +89,17 @@ export async function askMarina(
     channel: 'whatsapp' as const,
     history,
   }
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+    accept: 'application/json',
+  }
+  const origin = marinaOrigin(env)
+  if (origin) headers.origin = origin
   let response: Response
   try {
     response = await fetchImpl(env.MARINA_CHAT_URL!.trim(), {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-        origin: marinaOrigin(env),
-      },
+      headers,
       body: JSON.stringify(body),
     })
   } catch {

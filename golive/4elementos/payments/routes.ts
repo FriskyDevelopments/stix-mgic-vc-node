@@ -1,4 +1,5 @@
 import { findOrder, findOrderBySession, type DemoStore, type Order } from '../demo/state.ts'
+import { isBlockedHost, isLoopbackOrDemoHost } from '../shared/hosts.ts'
 import { escapeHtml, safeToken } from '../shared/html.ts'
 import { isUnset, timingSafeEqual } from '../shared/placeholders.ts'
 import { findService, priceCentavos } from './catalog.ts'
@@ -17,7 +18,7 @@ export interface PaymentsEnv {
   DEMO_ACCESS_TOKEN?: string
 }
 
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const EMAIL = /^[^\s@{}]+@[^\s@{}]+\.[^\s@{}]+$/
 
 export function bearerAllowed(request: Request, token: string | undefined): boolean {
   if (isUnset(token)) return true
@@ -26,15 +27,25 @@ export function bearerAllowed(request: Request, token: string | undefined): bool
   return timingSafeEqual(presented, token!.trim())
 }
 
-export function publicBase(request: Request, configured: string | undefined): string {
-  if (configured && !isUnset(configured)) {
-    const url = new URL(configured)
-    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
-      throw new Error('bad public base')
-    }
-    return url.origin
+/**
+ * Stripe return URLs are built only from PUBLIC_BASE_URL, or from the request
+ * when that host is loopback or this demo's workers.dev name. A client-supplied
+ * Host is not an allowlist entry.
+ */
+export function publicBase(request: Request, configured: string | undefined): string | null {
+  const explicit = Boolean(configured && !isUnset(configured))
+  let url: URL
+  try {
+    url = new URL(explicit ? configured!.trim() : request.url)
+  } catch {
+    return null
   }
-  return new URL(request.url).origin
+  if (url.username || url.password) return null
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
+  if (isBlockedHost(url.hostname)) return null
+  if (explicit) return url.origin
+  if (isLoopbackOrDemoHost(url.hostname)) return url.origin
+  return null
 }
 
 export async function handlePayments(
@@ -91,12 +102,8 @@ async function createCheckout(
     if (!EMAIL.test(email) || email.length > 120) return json({ error: 'invalid_email' }, 400)
   }
 
-  let origin: string
-  try {
-    origin = publicBase(request, env.PUBLIC_BASE_URL)
-  } catch {
-    return json({ error: 'bad_public_base' }, 500)
-  }
+  const origin = publicBase(request, env.PUBLIC_BASE_URL)
+  if (!origin) return json({ error: 'public_base_untrusted' }, 400)
 
   const now = new Date(nowMs).toISOString()
   const order: Order = {

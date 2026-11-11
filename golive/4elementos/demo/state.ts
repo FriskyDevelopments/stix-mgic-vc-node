@@ -99,7 +99,12 @@ export function reduceDemo(current: DemoSnapshot, op: DemoOp): MutateResult {
     if (!order) return { state, duplicate: false, order: null }
     const type = op.event.type
     const paymentStatus = String(op.event.data.object.payment_status ?? '')
-    if (type === 'checkout.session.completed' && (paymentStatus === 'paid' || paymentStatus === 'no_payment_required')) {
+    if (
+      type === 'checkout.session.completed' &&
+      order.status === 'pending' &&
+      (paymentStatus === 'paid' || paymentStatus === 'no_payment_required')
+    ) {
+      // A cancel page hit is final for this demo. A later completion does not revive it.
       order.status = 'paid'
       order.updatedAt = op.at
       const sessionId = String(op.event.data.object.id ?? '')

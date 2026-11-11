@@ -1,8 +1,9 @@
+// @vitest-environment node
 import { createHmac } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { memoryStore } from '../demo/state.ts'
 import { handlePayments } from './routes.ts'
-import { assertStripeTestKey, verifyStripeSignature } from './stripe.ts'
+import { assertStripeTestKey, encodeCheckoutForm, isCheckoutUrl, verifyStripeSignature } from './stripe.ts'
 
 const secretKey = 'sk_test_51elementosdemo'
 const webhookSecret = 'whsec_test_secret_value'
@@ -146,6 +147,82 @@ describe('checkout routes', () => {
     const text = await response!.text()
     expect(response?.status).toBe(404)
     expect(text).not.toContain('<script>')
+  })
+
+  it('refuses a checkout whose return host is not allowlisted', async () => {
+    const store = memoryStore()
+    let calls = 0
+    const response = await handlePayments(
+      new Request('https://evil.example/api/4elementos/checkout', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ serviceId: 'masaje-relajante' }),
+      }),
+      { STRIPE_SECRET_KEY: secretKey },
+      store,
+      async () => {
+        calls += 1
+        return Response.json({})
+      },
+    )
+    expect(response?.status).toBe(400)
+    expect((await response!.json()).error).toBe('public_base_untrusted')
+    expect(calls).toBe(0)
+  })
+
+  it('rejects an email that could smuggle braces into the Stripe form', async () => {
+    const store = memoryStore()
+    const response = await handlePayments(
+      post({ serviceId: 'masaje-relajante', customerEmail: 'a{b}@example.com' }),
+      { STRIPE_SECRET_KEY: secretKey, PUBLIC_BASE_URL: 'http://127.0.0.1:8788' },
+      store,
+    )
+    expect(response?.status).toBe(400)
+    expect((await response!.json()).error).toBe('invalid_email')
+  })
+
+  it('keeps the session placeholder raw and encodes every other brace', () => {
+    const body = encodeCheckoutForm({
+      success_url: 'http://127.0.0.1:8788/ok?session_id={CHECKOUT_SESSION_ID}',
+      customer_email: 'a{b}@example.com',
+    })
+    expect(body).toContain('{CHECKOUT_SESSION_ID}')
+    expect(body).toContain('customer_email=a%7Bb%7D%40example.com')
+    expect(body.split('{CHECKOUT_SESSION_ID}').join('')).not.toContain('{')
+  })
+
+  it('does not follow a checkout URL outside Stripe', () => {
+    expect(isCheckoutUrl('https://checkout.stripe.com/c/pay/cs_test_123')).toBe(true)
+    expect(isCheckoutUrl('https://evil.example/checkout')).toBe(false)
+    expect(isCheckoutUrl('http://checkout.stripe.com/c/pay/cs_test_123')).toBe(false)
+  })
+
+  it('does not mark a canceled order paid when Stripe completes later', async () => {
+    const store = memoryStore()
+    const created = await handlePayments(
+      post({ serviceId: 'reflexologia' }),
+      { STRIPE_SECRET_KEY: secretKey },
+      store,
+      async () => Response.json({ id: 'cs_test_late', url: 'https://checkout.stripe.com/c/pay/cs_test_late' }),
+      1_700_000_000_000,
+    )
+    const { orderId } = await created!.json()
+    await handlePayments(new Request(`http://127.0.0.1:8788/api/4elementos/checkout/cancel?order_id=${orderId}`), {}, store)
+    const event = JSON.stringify({
+      id: 'evt_late',
+      type: 'checkout.session.completed',
+      data: { object: { id: 'cs_test_late', payment_status: 'paid', metadata: { order_id: orderId }, client_reference_id: orderId } },
+    })
+    const { header } = signed(event)
+    const webhook = await handlePayments(
+      new Request('http://127.0.0.1:8788/api/4elementos/stripe/webhook', { method: 'POST', body: event, headers: { 'stripe-signature': header } }),
+      { STRIPE_WEBHOOK_SECRET: webhookSecret },
+      store,
+      fetch,
+      1_700_000_000_000,
+    )
+    expect(webhook?.status).toBe(200)
+    expect((await store.snapshot()).orders[0]?.status).toBe('canceled')
   })
 })
 

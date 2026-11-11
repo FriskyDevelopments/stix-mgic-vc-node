@@ -1,7 +1,8 @@
+// @vitest-environment node
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { ElementosDemoOrders } from './orders-do.ts'
+import { ElementosDemoOrders, durableObjectStore } from './orders-do.ts'
 import { demoConfigErrors, parseJsonc } from './config-check.ts'
 import { handleDemoRequest } from './worker.ts'
 import { memoryStore } from './state.ts'
@@ -26,9 +27,21 @@ describe('demo worker', () => {
     expect(seed.therapists[0].name).toBe('Ana Solís')
   })
 
-  it('refuses known production hosts', async () => {
-    const response = await handleDemoRequest(new Request('https://nebu.quest/api/4elementos/health'), {}, memoryStore())
-    expect(response.status).toBe(421)
+  it('refuses known production hosts and their subdomains', async () => {
+    const apex = await handleDemoRequest(new Request('https://nebu.quest/api/4elementos/health'), {}, memoryStore())
+    const nested = await handleDemoRequest(new Request('https://api.nebu.quest/api/4elementos/health'), {}, memoryStore())
+    const other = await handleDemoRequest(new Request('https://x.casabarravieja.com/api/4elementos/health'), {}, memoryStore())
+    expect(apex.status).toBe(421)
+    expect(nested.status).toBe(421)
+    expect(other.status).toBe(421)
+  })
+
+  it('does not treat a failed durable object write as an empty book', async () => {
+    const store = durableObjectStore({
+      idFromName: () => 'id',
+      get: () => ({ fetch: async () => new Response('no', { status: 500 }) }),
+    })
+    await expect(store.snapshot()).rejects.toThrow('demo_store_500')
   })
 
   it('keeps orders in the demo durable object', async () => {
