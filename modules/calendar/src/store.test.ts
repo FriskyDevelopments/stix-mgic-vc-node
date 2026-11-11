@@ -19,6 +19,16 @@ function booking(id: string, startHour: number): Booking {
 }
 
 describe('MemoryCalendarStore', () => {
+  it('keeps the same booking id for two tenants', async () => {
+    const store = new MemoryCalendarStore()
+    const first = booking('same', 10)
+    const second = { ...booking('same', 12), tenantId: 'other' }
+    expect(await store.reserve(first, 2)).toBe('ok')
+    expect(await store.reserve(second, 2)).toBe('ok')
+    expect((await store.get('example', 'same'))?.start).toBe(first.start)
+    expect((await store.get('other', 'same'))?.start).toBe(second.start)
+  })
+
   it('drops the earliest cancellation, even when that booking was created later', async () => {
     const store = new MemoryCalendarStore()
     expect(await store.reserve(booking('a', 10), 2)).toBe('ok')

@@ -86,6 +86,7 @@ async function availability(request: Request, ctx: RequestContext, store: Calend
   const today = civilDate(viewedAt, offset)
   const ahead = today ? daysBetween(date, today) : null
   if (ahead === null || ahead > calendar.horizonDays) return json({ error: 'horizon_exceeded' }, 422, STORE)
+  if (ahead < 0) return json({ error: 'date_in_past' }, 422, STORE)
   const weekday = weekdayOfDate(date)
   const hours = calendar.hours.find((entry) => entry.weekday === weekday)
   if (!hours) {

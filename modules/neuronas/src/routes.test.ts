@@ -45,6 +45,8 @@ describe('neuronas module', () => {
     const removed = await call(handler, `/neuronas/notes/${note.id}`, { method: 'DELETE' })
     expect(removed.status).toBe(403)
     expect(await removed.json()).toEqual({ error: 'delete_disabled' })
+    const wrongMethod = await call(handler, '/neuronas/notes/bad!id', { method: 'POST' })
+    expect(wrongMethod.status).toBe(405)
     const missing = await call(handler, '/neuronas/notes/missing-note', { method: 'DELETE' })
     expect(missing.status).toBe(403)
 

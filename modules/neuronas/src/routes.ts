@@ -35,12 +35,14 @@ export async function handleNeuronas(
     return json({ error: 'method_not_allowed' }, 405, { allow: 'GET, POST' })
   }
   if (tail.startsWith('/notes/')) {
+    if (request.method !== 'GET' && request.method !== 'PATCH' && request.method !== 'DELETE') {
+      return json({ error: 'method_not_allowed' }, 405, { allow: 'GET, PATCH, DELETE' })
+    }
     const id = tail.slice('/notes/'.length)
     if (!noteIdOk(id) || id.includes('/')) return json({ error: 'not_found' }, 404)
     if (request.method === 'GET') return getNote(ctx, store, id)
     if (request.method === 'PATCH') return patchNote(request, ctx, store, id)
-    if (request.method === 'DELETE') return deleteNote(ctx, store, id)
-    return json({ error: 'method_not_allowed' }, 405, { allow: 'GET, PATCH, DELETE' })
+    return deleteNote(ctx, store, id)
   }
   return json({ error: 'not_found' }, 404)
 }
@@ -84,7 +86,7 @@ async function createNote(
 ): Promise<Response> {
   const config = ctx.tenant.neuronas
   if (!config) return json({ error: 'not_found' }, 404)
-  const body = await readJson(request)
+  const body = await readJson(request, 32_000)
   if (!body.ok) return json({ error: body.error }, body.status)
   const parsed = parseDraft(body.value, config.collections)
   if ('error' in parsed) return json({ error: parsed.error }, 400)
@@ -115,7 +117,7 @@ async function getNote(ctx: RequestContext, store: NeuronasStore, id: string): P
 async function patchNote(request: Request, ctx: RequestContext, store: NeuronasStore, id: string): Promise<Response> {
   const existing = await store.get(ctx.tenant.id, id)
   if (!existing) return json({ error: 'not_found' }, 404)
-  const body = await readJson(request)
+  const body = await readJson(request, 32_000)
   if (!body.ok) return json({ error: body.error }, body.status)
   if (!isRecord(body.value)) return json({ error: 'invalid_body' }, 400)
   for (const key of Object.keys(body.value)) {

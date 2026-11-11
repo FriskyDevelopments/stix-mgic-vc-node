@@ -45,6 +45,10 @@ describe('calendar module', () => {
 
   it('hides past and closed time and books only an open slot once', async () => {
     const handler = app()
+    const pastDay = await call(handler, '/calendar/availability?service=sample&date=2026-11-10')
+    expect(pastDay.status).toBe(422)
+    expect(await pastDay.json()).toEqual({ error: 'date_in_past' })
+
     const closed = await call(handler, '/calendar/availability?service=sample&date=2026-11-15')
     expect(await closed.json()).toMatchObject({ closed: true, slots: [] })
 
