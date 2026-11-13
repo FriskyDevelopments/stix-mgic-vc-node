@@ -131,3 +131,25 @@ with `Error: OPERATOR_TOKEN_SECRET is required in production` until those are se
 The Supabase redirect allow-list must also include
 `https://stix-mgic-vc-node.zeabur.app/**` (added 2026-09-16) or sign-in on the Zeabur
 URL dead-ends into `www.myfenrir.com`, same check as above.
+
+### NEBU consumer launch on Zeabur
+
+This hostname now presents the NEBU landing at `/`, consumer sign-in at `/login`,
+and the consumer studio at `/studio`. The operator console remains at `/ops`.
+The existing Supabase operator settings do **not** configure NEBU Better Auth.
+
+Before offering sign-in, provision a persistent MySQL database and the Better Auth
+tables, then set `DATABASE_URL`, a fresh 32+ character `BETTER_AUTH_SECRET`, and
+`BETTER_AUTH_URL=https://stix-mgic-vc-node.zeabur.app` on the Zeabur service.
+Configure `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`,
+`MICROSOFT_CLIENT_ID`/`MICROSOFT_CLIENT_SECRET`, and Apple's client ID plus
+client secret or signing key variables described in `.env.example`. Register the
+matching `/api/auth/callback/{google,microsoft,apple}` URLs with each provider.
+Keep credentials in Zeabur environment settings, never in Git.
+
+Verify `GET /v1/config/public` reports `nebuBetterAuthConfigured: true` and all
+three `nebuSocialProviders`; `GET /api/auth/ok` should return 200. Complete a
+fresh sign-in for each provider and confirm it lands at `/studio` with a session.
+The final `nebu.quest` cutover also requires its DNS/host attachment and matching
+`BETTER_AUTH_URL` and provider callback URLs. Until then, the Zeabur address is
+the NEBU preview, not the production domain.
