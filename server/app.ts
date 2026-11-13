@@ -1,3 +1,4 @@
+import * as crypto from 'crypto'
 import { Hono, type Context } from 'hono'
 import { cors } from 'hono/cors'
 import { getServerEnv } from './env'
@@ -69,6 +70,8 @@ import { handleTelegramUpdate, isTelegramWebhookAuthorized, WEBHOOK_HEADER } fro
 import { assertTelegramNodeOwner } from './telegram-group-access'
 import { buildIdentityCatalog, publicSupabaseIdentity } from './identity-catalog'
 import { getNebuAuth, isNebuBetterAuthConfigured, listConfiguredSocialProviders } from './betterAuth'
+import { rateLimiter } from 'hono-rate-limiter'
+
 
 type Variables = {
   operatorId: string
@@ -152,8 +155,42 @@ export function createApp() {
     allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
   })
   app.use('/v1/*', apiCors)
+
+  const apiRateLimiter = rateLimiter({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    limit: 100, // Limit each API key (or IP) to 100 requests per window
+    standardHeaders: 'draft-6',
+    keyGenerator: (c) => {
+      const authHeader = c.req.header('Authorization')
+      // Only process valid Bearer tokens for the API key bucket
+      if (authHeader && authHeader.toLowerCase().startsWith('bearer ')) {
+          const key = authHeader.slice(7).trim();
+          // Use SHA-256 to hash the key to avoid storing it in plaintext
+          return 'key:' + crypto.createHash('sha256').update(key).digest('hex');
+      }
+
+      // Fallback to X-Client-Id (used by media routes without auth)
+      const clientId = c.req.header('X-Client-Id')
+      if (clientId) {
+          return 'client:' + clientId
+      }
+
+      // Fallback to IP address
+      const ip = c.req.header('x-forwarded-for')
+      if (ip) {
+        return 'ip:' + ip.split(',')[0].trim()
+      }
+
+      return 'anonymous'
+    }
+  })
+
+  app.use('/v1/*', apiCors)
   app.use('/healthz', apiCors)
   app.use('/v1/media/status', apiCors)
+
+  app.use('/v1/*', apiRateLimiter)
+  // /healthz is not rate limited to avoid breaking load balancer probes
 
   // NEBU Better Auth (nebu.quest). Additive — does not replace Authentik OIDC on the studio path.
   app.on(['GET', 'POST'], '/api/auth/*', (c) => {
