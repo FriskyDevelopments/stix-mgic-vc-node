@@ -4,7 +4,7 @@ import { resolve } from 'path'
 export default defineConfig({
   test: {
     environment: 'jsdom',
-    include: ['src/**/*.test.ts', 'server/**/*.test.ts', 'workers/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'server/**/*.test.ts', 'workers/**/*.test.ts', 'golive/**/*.test.ts', 'golive/**/*.test.tsx'],
     environmentMatchGlobs: [
       ['server/**', 'node'],
       ['workers/**', 'node'],
