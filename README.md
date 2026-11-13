@@ -169,3 +169,7 @@ Required secrets for real platform login:
 stixmagic-bot / stixmagic-web — media-plane adapters report through `/v1/media/*`.
 
 Telegram dens / VC is a Telethon **user** session (not BotFather). Pair with `python3 scripts/ashy_telethon_setup.py` — `docs/ASHY-TELETHON-FOR-DUMMIES.md`.
+
+## API Rate Limiting
+
+The public API (`/v1/*`) is protected by a rate limiter (note: `/healthz` is intentionally excluded to avoid blocking load balancer health checks). The rate limiter restricts each API key, `X-Client-Id`, or IP address (sent in the `Authorization` header) to 100 requests per 15-minute window. If the limit is exceeded, the server returns a `429 Too Many Requests` status code.
