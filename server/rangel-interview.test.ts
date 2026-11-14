@@ -44,6 +44,19 @@ describe('parseAnswer', () => {
   it('handles review edge cases', () => {
     const activo = byId('servicios.aromaterapia.activo')
     for (const neg of ['claro que no', 'ya no', 'ok no']) expect(parseAnswer(activo, neg)).toEqual({ kind: 'value', value: false })
+    for (const unclear of ['sí, pero no todavía', 'a veces sí a veces no', 'quizás'])
+      expect(parseAnswer(activo, unclear)).toMatchObject({ kind: 'invalid' })
+    expect(parseAnswer(activo, 'no lo sé')).toEqual({ kind: 'skip' })
+    expect(parseAnswer(byId('terapeutas.1.especialidad'), 'piedras y masajes relajantes')).toEqual({
+      kind: 'value',
+      value: ['Masaje relajante', 'Piedras calientes'],
+    })
+    expect(parseAnswer(byId('terapeutas.1.especialidad'), 'masajes')).toMatchObject({ kind: 'invalid' })
+    expect(parseAnswer(byId('marca.tipografia'), 'a ver dime más')).toMatchObject({ kind: 'invalid' })
+    expect(parseAnswer(byId('marca.tipografia'), 'la A')).toEqual({ kind: 'value', value: 'A' })
+    expect(parseAnswer(byId('marca.tipografia'), 'B)')).toEqual({ kind: 'value', value: 'B' })
+    expect(parseAnswer(byId('pendientes.precios.fecha'), '30/11/99')).toMatchObject({ kind: 'invalid' })
+    expect(parseAnswer(byId('pendientes.precios.fecha'), '30/11/26')).toEqual({ kind: 'value', value: '2026-11-30' })
     expect(parseAnswer(byId('pendientes.precios.fecha'), '2026-02-31')).toMatchObject({ kind: 'invalid' })
     expect(parseAnswer(byId('terapeutas.1.nombre'), 'no')).toEqual({ kind: 'skip' })
     expect(parseAnswer(byId('servicios.reflexologia.precio'), '1.200')).toEqual({ kind: 'value', value: 1200 })
@@ -117,6 +130,21 @@ describe('routes', () => {
     const ok = await on.request('/next', { headers: { 'x-rangel-interview-key': 'k'.repeat(24) } })
     expect(ok.status).toBe(200)
     expect(await ok.json()).toMatchObject({ id: 'servicios.masaje-relajante.precio' })
+  })
+  it('rejects every request when the key is unset or empty', async () => {
+    for (const key of [undefined, '']) {
+      const on = createRangelInterviewRoutes({ RANGEL_INTERVIEW_ENABLED: 'true', RANGEL_INTERVIEW_KEY: key })
+      expect((await on.request('/next')).status).toBe(401)
+      expect((await on.request('/next', { headers: { 'x-rangel-interview-key': '' } })).status).toBe(401)
+    }
+  })
+  it('does not record an answer when the Notion write fails', async () => {
+    const fetchImpl = vi.fn(async () => new Response('{}', { status: 500 }))
+    const idx = INTERVIEW_ITEMS.findIndex((i) => i.id === 'pendientes.precios.hecho')
+    const state: InterviewState = { index: idx, answers: {} }
+    await expect(answerCurrent(state, 'sí', { token: 't', fetchImpl: fetchImpl as unknown as typeof fetch })).rejects.toThrow()
+    expect(state.answers).toEqual({})
+    expect(state.index).toBe(idx)
   })
   it('fails closed without a Notion token', async () => {
     const on = createRangelInterviewRoutes({ RANGEL_INTERVIEW_ENABLED: 'true', RANGEL_INTERVIEW_KEY: 'k'.repeat(24) })

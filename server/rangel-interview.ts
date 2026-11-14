@@ -38,9 +38,13 @@ export const INTERVIEW_ITEMS = CHECKLIST_ITEMS.filter((i) => i.owner === 'rangel
 export type Parsed = { kind: 'value'; value: unknown } | { kind: 'skip' } | { kind: 'invalid'; hint: string }
 
 const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
-const SKIP = new Set(['saltar', 'despues', 'luego', 'no se', 'skip', 'paso'])
+const SKIP = new Set(['saltar', 'despues', 'luego', 'no se', 'no lo se', 'skip', 'paso'])
 const YES = new Set(['si', 'sí', 'claro', 'ya', 'yes', 'ok', 'si las uso', 'sip'])
-const NO = new Set(['no', 'nop', 'todavia no', 'aun no', 'nel'])
+const NO = new Set(['no', 'nop', 'todavia no', 'aun no', 'nel', 'ya no', 'claro que no', 'ok no'])
+const YES_WORDS = new Set(['si', 'claro', 'yes', 'ok', 'sip', 'ya'])
+const NO_WORDS = new Set(['no', 'nop', 'nel'])
+// Words too generic to identify one Notion option on their own.
+const GENERIC_OPTION_WORDS = new Set(['masaje', 'masajes'])
 
 export function parseAnswer(item: ChecklistItem, raw: string): Parsed {
   const text = raw.trim()
@@ -53,9 +57,13 @@ export function parseAnswer(item: ChecklistItem, raw: string): Parsed {
       return { kind: 'value', value: Number(m[0].replace(',', '.')) }
     }
     case 'yes_no': {
+      if (NO.has(n)) return { kind: 'value', value: false }
+      if (YES.has(n)) return { kind: 'value', value: true }
       const words = n.split(/[\s,]+/)
-      if (NO.has(n) || words.includes('no') || words.includes('nop')) return { kind: 'value', value: false }
-      if (YES.has(n) || YES.has(words[0])) return { kind: 'value', value: true }
+      const hasNo = words.some((w) => NO_WORDS.has(w))
+      const hasYes = words.some((w) => YES_WORDS.has(w))
+      if (hasNo && !hasYes) return { kind: 'value', value: false }
+      if (hasYes && !hasNo) return { kind: 'value', value: true }
       return { kind: 'invalid', hint: 'Contéstame «sí» o «no».' }
     }
     case 'date': {
@@ -67,18 +75,21 @@ export function parseAnswer(item: ChecklistItem, raw: string): Parsed {
       m = n.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/)
       if (m) {
         const y = +m[3] < 100 ? 2000 + +m[3] : +m[3]
-        const d = isoDate(y, +m[2], +m[1])
+        const d = y >= 2020 && y <= 2040 ? isoDate(y, +m[2], +m[1]) : null
         if (d) return { kind: 'value', value: d }
       }
       return { kind: 'invalid', hint: 'Dime la fecha como 30/11/2026, o «saltar».' }
     }
     case 'multi_select': {
-      const picked = (item.options ?? []).filter((o) => n.includes(norm(o)))
+      const picked = (item.options ?? []).filter((o) => optionMentioned(n, o))
       if (!picked.length) return { kind: 'invalid', hint: `Elige de: ${(item.options ?? []).join(', ')}.` }
       return { kind: 'value', value: picked }
     }
     case 'choice': {
-      const hit = (item.options ?? []).find((o) => n === norm(o) || n.startsWith(norm(o) + ' ') || n.startsWith(norm(o) + ')'))
+      const hit = (item.options ?? []).find((o) => {
+        const opt = norm(o).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        return new RegExp(`^(?:opcion |la )?${opt}(?:[).:]|$)`).test(n)
+      })
       if (!hit) return { kind: 'invalid', hint: `Contéstame ${(item.options ?? []).join(' o ')}.` }
       return { kind: 'value', value: hit }
     }
@@ -88,6 +99,16 @@ export function parseAnswer(item: ChecklistItem, raw: string): Parsed {
     default:
       return { kind: 'skip' }
   }
+}
+
+function optionMentioned(answer: string, option: string): boolean {
+  const opt = norm(option)
+  if (answer.includes(opt)) return true
+  return opt
+    .split(/\s+/)
+    .map((w) => w.replace(/s$/, ''))
+    .filter((w) => w.length >= 6 && !GENERIC_OPTION_WORDS.has(w) && !GENERIC_OPTION_WORDS.has(w + 's'))
+    .some((w) => answer.includes(w))
 }
 
 function isoDate(y: number, m: number, d: number): string | null {
@@ -171,13 +192,14 @@ export async function answerCurrent(state: InterviewState, text: string, deps: I
   if (parsed.kind === 'invalid') return { done: false as const, item: item.id, retry: parsed.hint, question: item.question }
   let wrote = false
   if (parsed.kind === 'value') {
-    state.answers[item.id] = parsed.value
     const write = buildNotionWrite(item, parsed.value, deps.now?.() ?? new Date())
     if (write) {
       if (!deps.token) throw new Error('RANGEL_NOTION_TOKEN is not configured')
       await sendNotionWrite(write, deps.token, deps.fetchImpl)
       wrote = true
     }
+    // Recorded only after a successful write so skip_if never relies on an unsaved answer.
+    state.answers[item.id] = parsed.value
   }
   const stay = item.repeatable && parsed.kind === 'value'
   if (!stay) state.index += 1
