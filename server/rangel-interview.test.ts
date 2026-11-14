@@ -47,6 +47,7 @@ describe('parseAnswer', () => {
     for (const unclear of ['sí, pero no todavía', 'a veces sí a veces no', 'quizás'])
       expect(parseAnswer(activo, unclear)).toMatchObject({ kind: 'invalid' })
     expect(parseAnswer(activo, 'no lo sé')).toEqual({ kind: 'skip' })
+    expect(parseAnswer(byId('workspace.paginas-inicio'), 'sí las uso')).toEqual({ kind: 'value', value: true })
     expect(parseAnswer(byId('terapeutas.1.especialidad'), 'piedras y masajes relajantes')).toEqual({
       kind: 'value',
       value: ['Masaje relajante', 'Piedras calientes'],

@@ -39,7 +39,7 @@ export type Parsed = { kind: 'value'; value: unknown } | { kind: 'skip' } | { ki
 
 const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
 const SKIP = new Set(['saltar', 'despues', 'luego', 'no se', 'no lo se', 'skip', 'paso'])
-const YES = new Set(['si', 'sí', 'claro', 'ya', 'yes', 'ok', 'si las uso', 'sip'])
+const YES = new Set(['si', 'sí', 'claro', 'ya', 'yes', 'ok', 'sip'])
 const NO = new Set(['no', 'nop', 'todavia no', 'aun no', 'nel', 'ya no', 'claro que no', 'ok no'])
 const YES_WORDS = new Set(['si', 'claro', 'yes', 'ok', 'sip', 'ya'])
 const NO_WORDS = new Set(['no', 'nop', 'nel'])
